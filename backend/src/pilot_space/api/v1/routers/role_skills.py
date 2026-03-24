@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 
 from pilot_space.api.v1.dependencies import (
     CreateRoleSkillServiceDep,
@@ -38,6 +38,7 @@ from pilot_space.application.services.role_skill import (
     UpdateRoleSkillPayload,
 )
 from pilot_space.dependencies.auth import CurrentUser, CurrentUserId, SessionDep, WorkspaceMemberId
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -335,20 +336,11 @@ async def regenerate_role_skill(
     repo = RoleSkillRepository(session)
     skill = await repo.get_by_id(skill_id)
     if skill is None or skill.is_deleted:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Role skill not found",
-        )
+        raise NotFoundError("Role skill not found")
     if skill.user_id != current_user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to regenerate this skill",
-        )
+        raise ForbiddenError("Not authorized to regenerate this skill")
     if skill.workspace_id != workspace_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Skill does not belong to this workspace",
-        )
+        raise NotFoundError("Skill does not belong to this workspace")
 
     previous_content = skill.skill_content
     previous_name = skill.role_name

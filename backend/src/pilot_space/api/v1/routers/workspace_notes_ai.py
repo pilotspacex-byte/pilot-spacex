@@ -19,6 +19,7 @@ from pilot_space.api.v1.dependencies import (
 )
 from pilot_space.api.v1.schemas.note import AIUpdateRequest, AIUpdateResponse
 from pilot_space.dependencies.auth import CurrentUserId, SessionDep
+from pilot_space.domain.exceptions import NotFoundError
 from pilot_space.infrastructure.database.repositories.note_repository import (
     NoteRepository,
 )
@@ -63,10 +64,7 @@ async def _resolve_workspace(
         workspace = await workspace_repo.get_by_slug(workspace_id_or_slug)
 
     if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
-        )
+        raise NotFoundError("Workspace not found")
     return workspace
 
 
@@ -119,10 +117,7 @@ async def ai_update_workspace_note(
     # Verify note exists and belongs to workspace
     note = await note_repo.get_by_id(note_id)
     if not note or note.workspace_id != workspace.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Note not found",
-        )
+        raise NotFoundError("Note not found")
 
     # Convert operation string to enum
     try:
@@ -246,10 +241,7 @@ async def create_extracted_issues(
     # Verify note exists and belongs to workspace
     note = await note_repo.get_by_id(note_id)
     if not note or note.workspace_id != workspace.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Note not found",
-        )
+        raise NotFoundError("Note not found")
 
     # Get project_id from note or first workspace project
     project_id = note.project_id

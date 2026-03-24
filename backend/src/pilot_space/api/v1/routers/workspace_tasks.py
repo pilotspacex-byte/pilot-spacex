@@ -15,7 +15,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Path, Query, status
+from fastapi import APIRouter, Path, Query, status
 
 from pilot_space.api.v1.dependencies import TaskServiceDep, WorkspaceRepositoryDep
 from pilot_space.api.v1.schemas.task import (
@@ -29,6 +29,7 @@ from pilot_space.api.v1.schemas.task import (
 )
 from pilot_space.dependencies import SyncedUserId
 from pilot_space.dependencies.auth import SessionDep
+from pilot_space.domain.exceptions import NotFoundError
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -66,10 +67,7 @@ async def _resolve_workspace(
         workspace = await workspace_repo.get_by_slug_scalar(workspace_id_or_slug)
 
     if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
-        )
+        raise NotFoundError("Workspace not found")
     return workspace
 
 

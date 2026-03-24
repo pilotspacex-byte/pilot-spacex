@@ -22,7 +22,7 @@ from typing import Any
 from uuid import UUID
 
 import httpx
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi import APIRouter, Query, Request, status
 from fastapi.responses import RedirectResponse
 
 from pilot_space.api.v1.routers._mcp_server_schemas import (
@@ -44,6 +44,13 @@ from pilot_space.api.v1.routers._workspace_admin import get_admin_workspace
 from pilot_space.dependencies import (
     CurrentUser,
     DbSession,
+)
+from pilot_space.domain.exceptions import (
+    AppError,
+    ConflictError,
+    NotFoundError,
+    ServiceUnavailableError,
+    ValidationError,
 )
 from pilot_space.infrastructure.database.models.workspace_mcp_server import (
     McpAuthType,
@@ -99,9 +106,8 @@ async def register_mcp_server(
     # instead of letting the DB partial-unique index raise an IntegrityError.
     existing = await repo.get_by_display_name(workspace_id, body.display_name)
     if existing is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"An MCP server named {body.display_name!r} already exists in this workspace",
+        raise ConflictError(
+            f"An MCP server named {body.display_name!r} already exists in this workspace"
         )
 
     token_encrypted: str | None = None
@@ -235,10 +241,7 @@ async def update_mcp_server(
     repo = WorkspaceMcpServerRepository(session=session)
     server = await repo.get_by_workspace_and_id(server_id=server_id, workspace_id=workspace_id)
     if not server:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="MCP server not found",
-        )
+        raise NotFoundError("MCP server not found")
 
     # Apply non-secret scalar fields
     if body.display_name is not None:
@@ -246,9 +249,8 @@ async def update_mcp_server(
         if body.display_name != server.display_name:
             name_conflict = await repo.get_by_display_name(workspace_id, body.display_name)
             if name_conflict is not None:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail=f"An MCP server named {body.display_name!r} already exists in this workspace",
+                raise ConflictError(
+                    f"An MCP server named {body.display_name!r} already exists in this workspace"
                 )
         server.display_name = body.display_name
 
@@ -275,10 +277,7 @@ async def update_mcp_server(
         # Skip when both are present — already validated by the Pydantic model_validator.
         if not (body.server_type is not None and body.url_or_command is not None):
             if not effective_url_or_command:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail="url_or_command is required when changing server_type",
-                )
+                raise ValidationError("url_or_command is required when changing server_type")
             try:
                 if effective_server_type == McpServerType.REMOTE:
                     _validate_mcp_url(effective_url_or_command)
@@ -291,10 +290,7 @@ async def update_mcp_server(
                     if effective_runner is not None:
                         _validate_command_package(effective_url_or_command, effective_runner)
             except ValueError as exc:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=str(exc),
-                ) from exc
+                raise ValidationError(str(exc)) from exc
 
     # Cross-field validation: server_type / transport compatibility.
     # The model_validator on WorkspaceMcpServerUpdate already covers the case
@@ -303,21 +299,15 @@ async def update_mcp_server(
     effective_transport = body.transport if body.transport is not None else server.transport
     if effective_server_type == McpServerType.REMOTE:
         if effective_transport not in (McpTransport.SSE, McpTransport.STREAMABLE_HTTP):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=(
-                    f"Remote servers only support 'sse' or 'streamable_http' transport, "
-                    f"got '{effective_transport.value}'"
-                ),
+            raise ValidationError(
+                f"Remote servers only support 'sse' or 'streamable_http' transport, "
+                f"got '{effective_transport.value}'"
             )
     elif effective_server_type == McpServerType.COMMAND:
         if effective_transport != McpTransport.STDIO:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=(
-                    f"{effective_server_type.value} servers only support 'stdio' transport, "
-                    f"got '{effective_transport.value}'"
-                ),
+            raise ValidationError(
+                f"{effective_server_type.value} servers only support 'stdio' transport, "
+                f"got '{effective_transport.value}'"
             )
 
     if body.server_type is not None:
@@ -425,10 +415,7 @@ async def get_mcp_server_status(
     repo = WorkspaceMcpServerRepository(session=session)
     server = await repo.get_by_workspace_and_id(server_id=server_id, workspace_id=workspace_id)
     if not server:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="MCP server not found",
-        )
+        raise NotFoundError("MCP server not found")
 
     headers: dict[str, str] = {}
 
@@ -522,10 +509,7 @@ async def test_mcp_server_connection(
     repo = WorkspaceMcpServerRepository(session=session)
     server = await repo.get_by_workspace_and_id(server_id=server_id, workspace_id=workspace_id)
     if not server:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="MCP server not found",
-        )
+        raise NotFoundError("MCP server not found")
 
     result = await TestMcpConnectionService.test(server)
 
@@ -582,10 +566,7 @@ async def enable_mcp_server(
     repo = WorkspaceMcpServerRepository(session=session)
     server = await repo.get_by_workspace_and_id(server_id=server_id, workspace_id=workspace_id)
     if not server:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="MCP server not found",
-        )
+        raise NotFoundError("MCP server not found")
 
     await repo.set_enabled(server, enabled=True)
     logger.info("mcp_server_enabled", workspace_id=str(workspace_id), server_id=str(server_id))
@@ -623,10 +604,7 @@ async def disable_mcp_server(
     repo = WorkspaceMcpServerRepository(session=session)
     server = await repo.get_by_workspace_and_id(server_id=server_id, workspace_id=workspace_id)
     if not server:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="MCP server not found",
-        )
+        raise NotFoundError("MCP server not found")
 
     await repo.set_enabled(server, enabled=False)
     logger.info("mcp_server_disabled", workspace_id=str(workspace_id), server_id=str(server_id))
@@ -720,10 +698,7 @@ async def delete_mcp_server(
     repo = WorkspaceMcpServerRepository(session=session)
     server = await repo.get_by_workspace_and_id(server_id=server_id, workspace_id=workspace_id)
     if not server:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="MCP server not found",
-        )
+        raise NotFoundError("MCP server not found")
 
     await repo.soft_delete(server)
     logger.info(
@@ -779,26 +754,16 @@ async def get_mcp_oauth_url(
     repo = WorkspaceMcpServerRepository(session=session)
     server = await repo.get_by_workspace_and_id(server_id=server_id, workspace_id=workspace_id)
     if not server:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="MCP server not found",
-        )
+        raise NotFoundError("MCP server not found")
     if server.auth_type != McpAuthType.OAUTH2:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Server is not configured for OAuth2 auth_type",
-        )
+        raise AppError("Server is not configured for OAuth2 auth_type")
     if not server.oauth_auth_url or not server.oauth_client_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Server missing oauth_auth_url or oauth_client_id",
-        )
+        raise AppError("Server missing oauth_auth_url or oauth_client_id")
 
     redis_client = _get_redis_client(request)
     if redis_client is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="OAuth state storage (Redis) is unavailable; cannot initiate OAuth flow",
+        raise ServiceUnavailableError(
+            "OAuth state storage (Redis) is unavailable; cannot initiate OAuth flow"
         )
 
     # Use a fully opaque state token. server_id and workspace context are stored
@@ -823,9 +788,8 @@ async def get_mcp_oauth_url(
         )
     except Exception as exc:
         logger.exception("mcp_oauth_state_persist_failed", server_id=str(server_id), error=str(exc))
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Failed to persist OAuth state; cannot initiate OAuth flow",
+        raise ServiceUnavailableError(
+            "Failed to persist OAuth state; cannot initiate OAuth flow"
         ) from exc
 
     # Use the configured backend_url instead of request.base_url (which relies on

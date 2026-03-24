@@ -23,7 +23,7 @@ from collections.abc import AsyncGenerator
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
+from fastapi import APIRouter, Depends, Path, Request, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -35,6 +35,7 @@ from pilot_space.dependencies import (
     DbSession,
     get_current_workspace_id,
 )
+from pilot_space.domain.exceptions import ServiceUnavailableError
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -135,10 +136,7 @@ async def stream_pr_review(
 
     # Resolve AI infrastructure from DI container
     if not hasattr(request.app.state, "container"):
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail={"message": "Service temporarily unavailable", "type": "service_unavailable"},
-        )
+        raise ServiceUnavailableError("Service temporarily unavailable")
 
     container = request.app.state.container
     provider_selector = container.provider_selector()

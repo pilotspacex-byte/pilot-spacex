@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Path, status
+from fastapi import APIRouter, Path, status
 
 from pilot_space.api.v1.dependencies import RbacServiceDep, WorkspaceRepositoryDep
 from pilot_space.api.v1.schemas.rbac import (
@@ -28,6 +28,7 @@ from pilot_space.api.v1.schemas.rbac import (
 )
 from pilot_space.dependencies import SyncedUserId
 from pilot_space.dependencies.auth import SessionDep, WorkspaceAdminId
+from pilot_space.domain.exceptions import NotFoundError
 from pilot_space.infrastructure.database.rls import set_rls_context
 from pilot_space.infrastructure.logging import get_logger
 
@@ -68,10 +69,7 @@ async def _resolve_workspace_id(
         workspace = await workspace_repo.get_by_slug_scalar(workspace_slug)
 
     if workspace is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
-        )
+        raise NotFoundError("Workspace not found")
     return workspace.id
 
 
@@ -175,10 +173,7 @@ async def get_custom_role(
         session=session,
     )
     if role is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Custom role {role_id} not found",
-        )
+        raise NotFoundError(f"Custom role {role_id} not found")
     return CustomRoleResponse.model_validate(role)
 
 

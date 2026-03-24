@@ -40,7 +40,7 @@ from pilot_space.api.v1.schemas.ai_context import (
 from pilot_space.dependencies import RedisDep
 from pilot_space.dependencies.auth import SessionDep, get_current_user_id
 from pilot_space.dependencies.workspace import get_current_workspace_id
-from pilot_space.domain.exceptions import AppError
+from pilot_space.domain.exceptions import AppError, ForbiddenError, NotFoundError
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -129,17 +129,14 @@ async def get_ai_context(
 
     if context and not context.is_stale:
         if context.workspace_id != workspace_id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+            raise ForbiddenError("Access denied")
         return AIContextResponse.from_model(context)
 
     if not generate_if_missing:
         if not context:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"AI context not found for issue: {issue_id}",
-            )
+            raise NotFoundError(f"AI context not found for issue: {issue_id}")
         if context.workspace_id != workspace_id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+            raise ForbiddenError("Access denied")
         # Return stale context
         return AIContextResponse.from_model(context)
 
@@ -162,18 +159,12 @@ async def get_ai_context(
         raise  # Let domain exceptions propagate to global handler
     except Exception as e:
         logger.exception("Failed to generate AI context")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate AI context: {e}",
-        ) from e
+        raise AppError(f"Failed to generate AI context: {e}") from e
 
     # Fetch and return the generated context
     context = await context_repo.get_by_issue_id(issue_id)
     if not context:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve generated context",
-        )
+        raise AppError("Failed to retrieve generated context")
 
     return AIContextResponse.from_model(context)
 
@@ -229,10 +220,7 @@ async def regenerate_ai_context(
         raise  # Let domain exceptions propagate to global handler
     except Exception as e:
         logger.exception("Failed to regenerate AI context")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to regenerate AI context: {e}",
-        ) from e
+        raise AppError(f"Failed to regenerate AI context: {e}") from e
 
     return GenerateContextResponse(
         context_id=str(result.context_id),
@@ -301,10 +289,7 @@ async def refine_ai_context(
         raise  # Let domain exceptions propagate to global handler
     except Exception as e:
         logger.exception("Failed to refine AI context")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to refine AI context: {e}",
-        ) from e
+        raise AppError(f"Failed to refine AI context: {e}") from e
 
     return RefineContextResponse(
         context_id=str(result.context_id),
@@ -406,16 +391,10 @@ async def get_conversation_history(
     context = await context_repo.get_by_issue_id(issue_id)
 
     if not context:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"AI context not found for issue: {issue_id}",
-        )
+        raise NotFoundError(f"AI context not found for issue: {issue_id}")
 
     if context.workspace_id != workspace_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied",
-        )
+        raise ForbiddenError("Access denied")
 
     messages = [
         ChatMessageResponse(
@@ -460,18 +439,12 @@ async def clear_conversation_history(
     # Verify ownership before mutating
     context = await context_repo.get_by_issue_id(issue_id)
     if context and context.workspace_id != workspace_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied",
-        )
+        raise ForbiddenError("Access denied")
 
     result = await context_repo.clear_conversation_history(issue_id)
 
     if not result:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"AI context not found for issue: {issue_id}",
-        )
+        raise NotFoundError(f"AI context not found for issue: {issue_id}")
 
     await session.commit()
 
@@ -506,23 +479,14 @@ async def mark_task_completed(
     # Verify ownership before mutating
     context = await context_repo.get_by_issue_id(issue_id)
     if not context:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"AI context not found for issue: {issue_id}",
-        )
+        raise NotFoundError(f"AI context not found for issue: {issue_id}")
     if context.workspace_id != workspace_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied",
-        )
+        raise ForbiddenError("Access denied")
 
     result = await context_repo.mark_task_completed(issue_id, task_id)
 
     if not result:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Task '{task_id}' not found in AI context for issue: {issue_id}",
-        )
+        raise NotFoundError(f"Task '{task_id}' not found in AI context for issue: {issue_id}")
 
     await session.commit()
 
@@ -585,9 +549,8 @@ async def generate_implementation_plan(
         raise  # Let domain exceptions propagate to global handler
     except Exception as e:
         logger.exception("Failed to generate implementation plan")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to generate implementation plan. Check server logs for details.",
+        raise AppError(
+            "Failed to generate implementation plan. Check server logs for details."
         ) from e
 
     return GeneratePlanResponse(

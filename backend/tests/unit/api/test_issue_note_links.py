@@ -6,10 +6,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
 import pytest
-from fastapi import HTTPException
 
 from pilot_space.api.v1.routers.workspace_issues import list_issue_note_links
 from pilot_space.api.v1.schemas.issue import NoteIssueLinkBriefSchema
+from pilot_space.domain.exceptions import NotFoundError
 
 TEST_USER_ID = UUID("77a6813e-0aa3-400c-8d4e-540b6ed2187a")
 
@@ -201,11 +201,11 @@ async def test_resolves_workspace_by_slug() -> None:
 @pytest.mark.asyncio
 async def test_raises_404_when_issue_not_found() -> None:
     """Should return 404 when issue_repo returns None (issue doesn't exist or is deleted)."""
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(NotFoundError) as exc_info:
         await _call_endpoint(links=[], issue_exists=False)
 
-    assert exc_info.value.status_code == 404
-    assert "not found" in exc_info.value.detail.lower()
+    assert exc_info.value.http_status == 404
+    assert "not found" in exc_info.value.message.lower()
 
 
 @pytest.mark.asyncio
@@ -226,7 +226,7 @@ async def test_raises_404_when_issue_belongs_to_different_workspace() -> None:
     with (
         patch(_RESOLVE_WORKSPACE, return_value=workspace),
         patch(_SET_RLS_CONTEXT, new_callable=AsyncMock),
-        pytest.raises(HTTPException) as exc_info,
+        pytest.raises(NotFoundError) as exc_info,
     ):
         await list_issue_note_links(
             session=mock_session,
@@ -238,4 +238,4 @@ async def test_raises_404_when_issue_belongs_to_different_workspace() -> None:
             issue_repo=mock_issue_repo,
         )
 
-    assert exc_info.value.status_code == 404
+    assert exc_info.value.http_status == 404

@@ -10,7 +10,7 @@ from enum import StrEnum
 from typing import Annotated, TypeVar
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Path, Query, status
+from fastapi import APIRouter, Path, Query, status
 from pydantic import BaseModel
 from sqlalchemy import select
 
@@ -34,6 +34,7 @@ from pilot_space.application.services.memory.knowledge_graph_query_service impor
 )
 from pilot_space.dependencies import QueueClientDep
 from pilot_space.dependencies.auth import SessionDep, SyncedUserId, WorkspaceMemberId
+from pilot_space.domain.exceptions import NotFoundError, ServiceUnavailableError, ValidationError
 from pilot_space.domain.graph_edge import EdgeType, GraphEdge
 from pilot_space.domain.graph_node import GraphNode, NodeType
 from pilot_space.infrastructure.database.models.cycle import Cycle as CycleModel
@@ -61,7 +62,7 @@ def _parse_csv_enum(
     try:
         return [enum_cls(t.strip()) for t in raw.split(",") if t.strip()]  # type: ignore[call-arg]
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=f"Invalid {param_name}: {exc}") from exc
+        raise ValidationError(f"Invalid {param_name}: {exc}") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -540,16 +541,13 @@ async def regenerate_issue_knowledge_graph(
     await set_rls_context(session, current_user_id, workspace_id)
 
     if queue_client is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Queue service unavailable",
-        )
+        raise ServiceUnavailableError("Queue service unavailable")
 
     issue = await issue_repo.get_by_id(issue_id)
     if issue is None or issue.is_deleted:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found")
+        raise NotFoundError("Issue not found")
     if issue.workspace_id != workspace_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found")
+        raise NotFoundError("Issue not found")
 
     await queue_client.enqueue(
         QueueName.AI_NORMAL,
@@ -586,16 +584,13 @@ async def regenerate_project_knowledge_graph(
     await set_rls_context(session, current_user_id, workspace_id)
 
     if queue_client is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Queue service unavailable",
-        )
+        raise ServiceUnavailableError("Queue service unavailable")
 
     project = await project_repo.get_by_id(project_id)
     if project is None or project.is_deleted:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+        raise NotFoundError("Project not found")
     if project.workspace_id != workspace_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+        raise NotFoundError("Project not found")
 
     enqueued = 0
 

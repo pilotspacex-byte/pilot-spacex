@@ -82,11 +82,19 @@ class ValidationError(AppError):
     http_status = 422
 
 
+class ServiceUnavailableError(AppError):
+    """External service or dependency unavailable (503)."""
+
+    error_code = "service_unavailable"
+    http_status = 503
+
+
 __all__ = [
     "AppError",
     "ConflictError",
     "ForbiddenError",
     "NotFoundError",
+    "ServiceUnavailableError",
     "UnauthorizedError",
     "ValidationError",
 ]

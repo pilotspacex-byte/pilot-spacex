@@ -36,7 +36,7 @@ from pilot_space.api.v1.routers.project_artifacts import (
     list_artifacts,
     upload_artifact,
 )
-from pilot_space.domain.exceptions import ForbiddenError, ValidationError
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError, ValidationError
 
 pytestmark = pytest.mark.asyncio
 
@@ -397,7 +397,7 @@ class TestGetArtifactUrl:
         session = _make_session()
         current_user = _make_current_user()
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(NotFoundError) as exc_info:
             await get_artifact_url(
                 workspace_id=OTHER_WORKSPACE_ID,  # different workspace
                 project_id=TEST_PROJECT_ID,
@@ -409,7 +409,7 @@ class TestGetArtifactUrl:
                 storage_client=storage,
             )
 
-        assert exc_info.value.status_code == 404
+        assert exc_info.value.http_status == 404
 
     async def test_artifact_not_found_returns_404(self) -> None:
         """repo.get_by_id returns None → 404."""
@@ -418,7 +418,7 @@ class TestGetArtifactUrl:
         session = _make_session()
         current_user = _make_current_user()
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(NotFoundError) as exc_info:
             await get_artifact_url(
                 workspace_id=TEST_WORKSPACE_ID,
                 project_id=TEST_PROJECT_ID,
@@ -430,7 +430,7 @@ class TestGetArtifactUrl:
                 storage_client=storage,
             )
 
-        assert exc_info.value.status_code == 404
+        assert exc_info.value.http_status == 404
 
 
 # ===========================================================================

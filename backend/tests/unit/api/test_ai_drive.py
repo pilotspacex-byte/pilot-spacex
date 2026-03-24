@@ -31,6 +31,7 @@ from pilot_space.api.v1.schemas.attachments import (
     DriveImportRequest,
     DriveStatusResponse,
 )
+from pilot_space.domain.exceptions import ForbiddenError
 from pilot_space.infrastructure.database.models.workspace_member import WorkspaceRole
 
 pytestmark = pytest.mark.asyncio
@@ -157,7 +158,7 @@ class TestGetDriveAuthUrl:
         """Guest role is denied the auth URL — 403 before any service call."""
         mock_service = _make_drive_service()
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(ForbiddenError) as exc_info:
             await get_drive_auth_url(
                 workspace_id=TEST_WORKSPACE_ID,
                 redirect_uri="http://localhost:3000/callback",
@@ -166,7 +167,7 @@ class TestGetDriveAuthUrl:
                 user_role="guest",
             )
 
-        assert exc_info.value.status_code == 403
+        assert exc_info.value.http_status == 403
         mock_service.get_auth_url.assert_not_awaited()
 
 
@@ -326,7 +327,7 @@ class TestRouteGetDriveAuthUrlDbLookup:
         mock_service = _make_drive_service()
         db = _make_db_session(WorkspaceRole.GUEST)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(ForbiddenError) as exc_info:
             await route_get_drive_auth_url(
                 workspace_id=TEST_WORKSPACE_ID,
                 redirect_uri="http://localhost:3000/callback",
@@ -335,7 +336,7 @@ class TestRouteGetDriveAuthUrlDbLookup:
                 db=db,
             )
 
-        assert exc_info.value.status_code == 403
+        assert exc_info.value.http_status == 403
         db.execute.assert_awaited_once()
         mock_service.get_auth_url.assert_not_awaited()
 
@@ -345,7 +346,7 @@ class TestRouteGetDriveAuthUrlDbLookup:
         # role=None: no row found; safe default is 'guest'
         db = _make_db_session(role=None)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(ForbiddenError) as exc_info:
             await route_get_drive_auth_url(
                 workspace_id=TEST_WORKSPACE_ID,
                 redirect_uri="http://localhost:3000/callback",
@@ -354,5 +355,5 @@ class TestRouteGetDriveAuthUrlDbLookup:
                 db=db,
             )
 
-        assert exc_info.value.status_code == 403
+        assert exc_info.value.http_status == 403
         mock_service.get_auth_url.assert_not_awaited()

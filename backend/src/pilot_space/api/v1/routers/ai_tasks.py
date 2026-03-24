@@ -12,10 +12,11 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
 from pilot_space.dependencies import CurrentUserId, DbSession
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError
 
 router = APIRouter(prefix="/ai/tasks", tags=["ai-tasks"])
 
@@ -90,7 +91,7 @@ async def get_task_progress(
     task = await repo.get_by_id(task_id)
 
     if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise NotFoundError("Task not found")
 
     # Verify task ownership via session
     stmt = select(AISession).where(AISession.id == task.session_id)
@@ -98,7 +99,7 @@ async def get_task_progress(
     ai_session = result.scalar_one_or_none()
 
     if not ai_session or ai_session.user_id != user_id:
-        raise HTTPException(status_code=403, detail="Not authorized to access this task")
+        raise ForbiddenError("Not authorized to access this task")
 
     # Extract metadata fields
     metadata = task.task_metadata or {}

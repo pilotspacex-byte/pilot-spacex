@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 
 from pilot_space.api.v1.dependencies import (
     CreateGuidedNoteServiceDep,
@@ -32,6 +32,10 @@ from pilot_space.application.services.onboarding import (
     UpdateOnboardingPayload,
 )
 from pilot_space.dependencies.auth import SessionDep, WorkspaceAdminId
+from pilot_space.domain.exceptions import (
+    ConflictError,
+    ValidationError as DomainValidationError,
+)
 
 router = APIRouter(prefix="/workspaces/{workspace_id}", tags=["onboarding"])
 
@@ -94,10 +98,7 @@ async def update_onboarding_state(
     """
     # Validate request
     if request.step is not None and request.completed is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="completed is required when step is provided",
-        )
+        raise DomainValidationError("completed is required when step is provided")
 
     result = await service.execute(
         UpdateOnboardingPayload(
@@ -197,11 +198,7 @@ async def create_guided_note(
 
     # Return 409 if note already existed
     if result.already_exists:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Guided note already exists for this workspace",
-            headers={"Location": f"/notes/{result.note_id}"},
-        )
+        raise ConflictError("Guided note already exists for this workspace")
 
     return GuidedNoteResponse(
         note_id=result.note_id,

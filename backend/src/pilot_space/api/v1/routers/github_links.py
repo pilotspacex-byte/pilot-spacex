@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Path, Query, Request, status
+from fastapi import APIRouter, Path, Query, Request, status
 
 from pilot_space.api.v1.schemas.integration import (
     CreateBranchRequest,
@@ -29,6 +29,7 @@ from pilot_space.application.services.integration import (
     CreateBranchService,
 )
 from pilot_space.dependencies import CurrentUser, CurrentUserId, DbSession
+from pilot_space.domain.exceptions import AppError, NotFoundError, ServiceUnavailableError
 from pilot_space.infrastructure.database.repositories import (
     ActivityRepository,
     IntegrationLinkRepository,
@@ -86,7 +87,7 @@ async def link_commit_to_issue(
     issue_repo = IssueRepository(session)
     issue = await issue_repo.get_by_id_with_relations(issue_id)
     if not issue:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found")
+        raise NotFoundError("Issue not found")
 
     from pilot_space.application.services.integration import LinkCommitPayload, LinkCommitService
 
@@ -111,7 +112,7 @@ async def link_commit_to_issue(
         )
     except Exception as e:
         logger.exception("Failed to link commit")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+        raise AppError(str(e)) from e
 
     await session.commit()
     return IntegrationLinkResponse.model_validate(result.link)
@@ -135,7 +136,7 @@ async def link_pr_to_issue(
     issue_repo = IssueRepository(session)
     issue = await issue_repo.get_by_id_with_relations(issue_id)
     if not issue:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found")
+        raise NotFoundError("Issue not found")
 
     from pilot_space.application.services.integration import (
         LinkCommitService,
@@ -163,7 +164,7 @@ async def link_pr_to_issue(
         )
     except Exception as e:
         logger.exception("Failed to link PR")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+        raise AppError(str(e)) from e
 
     await session.commit()
     return IntegrationLinkResponse.model_validate(result.link)
@@ -207,7 +208,7 @@ async def trigger_pr_review(
     integration = await integration_repo.get_by_id(integration_id)
 
     if not integration:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration not found")
+        raise NotFoundError("Integration not found")
 
     workspace_id = integration.workspace_id
     correlation_id = request.headers.get("X-Correlation-ID", "")
@@ -219,10 +220,7 @@ async def trigger_pr_review(
     queue_client = container.queue_client()
 
     if not queue_client:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Queue service not configured",
-        )
+        raise ServiceUnavailableError("Queue service not configured")
 
     service = TriggerPRReviewService(
         session=session,
@@ -284,7 +282,7 @@ async def create_branch_for_issue(
     integration_repo = IntegrationRepository(session)
     integration = await integration_repo.get_by_id(integration_id)
     if not integration:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Integration not found")
+        raise NotFoundError("Integration not found")
 
     # Enforce RLS: user must belong to the integration's workspace.
     await set_rls_context(session, current_user_id, integration.workspace_id)
@@ -292,9 +290,9 @@ async def create_branch_for_issue(
     issue_repo = IssueRepository(session)
     issue = await issue_repo.get_by_id_with_relations(issue_id)
     if not issue:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found")
+        raise NotFoundError("Issue not found")
     if issue.workspace_id != integration.workspace_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Issue not found")
+        raise NotFoundError("Issue not found")
 
     service = CreateBranchService(
         session=session,

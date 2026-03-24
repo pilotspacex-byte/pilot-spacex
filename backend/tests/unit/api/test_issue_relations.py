@@ -6,10 +6,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
 import pytest
-from fastapi import HTTPException
 
 from pilot_space.api.v1.routers.workspace_issues import list_issue_relations
 from pilot_space.api.v1.schemas.issue import IssueLinkSchema
+from pilot_space.domain.exceptions import NotFoundError
 from pilot_space.infrastructure.database.models.issue_link import IssueLinkType
 
 TEST_USER_ID = UUID("77a6813e-0aa3-400c-8d4e-540b6ed2187a")
@@ -171,7 +171,7 @@ async def test_raises_404_when_issue_not_found() -> None:
         patch(_RESOLVE_WORKSPACE, return_value=workspace),
         patch(_SET_RLS_CONTEXT, new_callable=AsyncMock) as mock_rls,
     ):
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(NotFoundError) as exc_info:
             await list_issue_relations(
                 session=mock_session,
                 workspace_id="test-workspace",
@@ -183,8 +183,8 @@ async def test_raises_404_when_issue_not_found() -> None:
         # RLS context must be set before the 404 check
         mock_rls.assert_awaited_once_with(mock_session, TEST_USER_ID, workspace.id)
 
-    assert exc_info.value.status_code == 404
-    assert "not found" in exc_info.value.detail.lower()
+    assert exc_info.value.http_status == 404
+    assert "not found" in exc_info.value.message.lower()
 
 
 @pytest.mark.asyncio
@@ -204,7 +204,7 @@ async def test_raises_404_when_issue_belongs_to_different_workspace() -> None:
         patch(_RESOLVE_WORKSPACE, return_value=workspace),
         patch(_SET_RLS_CONTEXT, new_callable=AsyncMock) as mock_rls,
     ):
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(NotFoundError) as exc_info:
             await list_issue_relations(
                 session=mock_session,
                 workspace_id="test-workspace",
@@ -216,4 +216,4 @@ async def test_raises_404_when_issue_belongs_to_different_workspace() -> None:
         # RLS context must be set before the cross-workspace check
         mock_rls.assert_awaited_once_with(mock_session, TEST_USER_ID, workspace.id)
 
-    assert exc_info.value.status_code == 404
+    assert exc_info.value.http_status == 404

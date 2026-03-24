@@ -18,7 +18,6 @@ from unittest.mock import AsyncMock, patch
 from uuid import UUID
 
 import pytest
-from fastapi import HTTPException
 
 from pilot_space.api.v1.routers.knowledge_graph import (
     get_project_knowledge_graph,
@@ -28,6 +27,7 @@ from pilot_space.application.services.memory.knowledge_graph_query_service impor
     EntityNotFoundError,
     EntitySubgraphResult,
 )
+from pilot_space.domain.exceptions import ValidationError as DomainValidationError
 from tests.fixtures.knowledge_graph import (
     RLS_PATCH as _RLS_PATCH,
     make_ephemeral_node as _make_ephemeral_node,
@@ -202,13 +202,13 @@ class TestProjectKnowledgeGraphSuccess:
         assert call_kwargs["node_types"] == "issue"
 
     async def test_rejects_invalid_node_types(self) -> None:
-        """Invalid node_types value raises HTTPException with status 422."""
+        """Invalid node_types value raises ValidationError with status 422."""
         kg_service = _make_kg_service()
         session = _make_session()
 
         with (
             patch(_RLS_PATCH, new_callable=AsyncMock),
-            pytest.raises(HTTPException) as exc_info,
+            pytest.raises(DomainValidationError) as exc_info,
         ):
             await get_project_knowledge_graph(
                 session=session,
@@ -216,8 +216,8 @@ class TestProjectKnowledgeGraphSuccess:
                 **_default_kwargs(node_types="not_a_valid_type"),  # type: ignore[arg-type]
             )
 
-        assert exc_info.value.status_code == 422
-        assert "Invalid node_type" in exc_info.value.detail
+        assert exc_info.value.http_status == 422
+        assert "Invalid node_type" in exc_info.value.message
 
     async def test_sorts_nodes_by_importance_tier(self) -> None:
         """Service returns sorted nodes; verify order preserved in response."""

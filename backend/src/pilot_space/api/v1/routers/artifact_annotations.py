@@ -19,7 +19,7 @@ from typing import Annotated
 from uuid import UUID
 
 from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import select
 
 from pilot_space.api.v1.schemas.artifact_annotations import (
@@ -30,6 +30,7 @@ from pilot_space.api.v1.schemas.artifact_annotations import (
 )
 from pilot_space.container._base import InfraContainer
 from pilot_space.dependencies.auth import CurrentUser, SessionDep, require_workspace_member
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError
 from pilot_space.infrastructure.database.models.artifact import Artifact
 from pilot_space.infrastructure.database.models.artifact_annotation import ArtifactAnnotation
 from pilot_space.infrastructure.database.repositories.artifact_annotation_repository import (
@@ -48,10 +49,7 @@ async def _validate_artifact_project(
         select(Artifact.id).where(Artifact.id == artifact_id, Artifact.project_id == project_id)
     )
     if result.scalar_one_or_none() is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Artifact not found in this project",
-        )
+        raise NotFoundError("Artifact not found in this project")
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=ArtifactAnnotationResponse)
@@ -176,15 +174,9 @@ async def update_annotation(
 
     annotation = await repo.get_by_id(annotation_id)
     if annotation is None or annotation.artifact_id != artifact_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Annotation not found",
-        )
+        raise NotFoundError("Annotation not found")
     if annotation.user_id != current_user.user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Forbidden: you do not own this annotation.",
-        )
+        raise ForbiddenError("Forbidden: you do not own this annotation.")
 
     await repo.update_content(annotation_id, body.content)
     # Refresh for updated_at server value
@@ -230,15 +222,9 @@ async def delete_annotation(
 
     annotation = await repo.get_by_id(annotation_id)
     if annotation is None or annotation.artifact_id != artifact_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Annotation not found",
-        )
+        raise NotFoundError("Annotation not found")
     if annotation.user_id != current_user.user_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Forbidden: you do not own this annotation.",
-        )
+        raise ForbiddenError("Forbidden: you do not own this annotation.")
 
     await repo.delete(annotation_id)
 

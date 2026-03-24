@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Path, status
+from fastapi import APIRouter, Path
 from pydantic import BaseModel, Field
 
 from pilot_space.api.v1.routers.ai_annotations import router as annotations_router
@@ -31,6 +31,7 @@ from pilot_space.api.v1.routers.ai_chat import router as chat_router
 from pilot_space.api.v1.routers.ai_costs import router as costs_router
 from pilot_space.api.v1.routers.ai_pr_review import router as pr_review_router
 from pilot_space.api.v1.routers.notes_ai import router as notes_ai_router
+from pilot_space.domain.exceptions import NotFoundError
 
 router = APIRouter(prefix="/ai", tags=["AI"])
 
@@ -97,10 +98,7 @@ async def get_pr_review_status(
     result = await service.execute(job_id)
 
     if not result.found or not result.job_info:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Job {job_id} not found",
-        )
+        raise NotFoundError(f"Job {job_id} not found")
 
     job_info = result.job_info
 

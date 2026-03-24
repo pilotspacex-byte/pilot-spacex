@@ -16,6 +16,7 @@ from pilot_space.application.services.integration import (
 )
 from pilot_space.config import get_settings
 from pilot_space.dependencies import DbSession
+from pilot_space.domain.exceptions import ServiceUnavailableError
 from pilot_space.infrastructure.database.repositories import (
     ActivityRepository,
     IntegrationLinkRepository,
@@ -58,10 +59,7 @@ async def receive_github_webhook(
     settings = get_settings()
 
     if not settings.github_webhook_secret:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Webhook secret not configured",
-        )
+        raise ServiceUnavailableError("Webhook secret not configured")
 
     # Get raw body for signature verification
     body = await request.body()

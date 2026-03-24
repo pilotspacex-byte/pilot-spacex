@@ -10,7 +10,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
-from fastapi import HTTPException
 
 from pilot_space.api.v1.routers.github_links import create_branch_for_issue
 from pilot_space.api.v1.schemas.integration import CreateBranchRequest
@@ -18,7 +17,7 @@ from pilot_space.application.services.integration.create_branch_service import (
     CreateBranchError,
     CreateBranchResult,
 )
-from pilot_space.domain.exceptions import ConflictError
+from pilot_space.domain.exceptions import ConflictError, NotFoundError
 from pilot_space.infrastructure.database.models import IntegrationLink, IntegrationLinkType
 
 # ---------------------------------------------------------------------------
@@ -85,7 +84,7 @@ class TestCreateBranchForIssueRLS:
                 "pilot_space.api.v1.routers.github_links.IntegrationRepository",
                 return_value=integration_repo,
             ),
-            pytest.raises(HTTPException) as exc_info,
+            pytest.raises(NotFoundError) as exc_info,
         ):
             await create_branch_for_issue(
                 session=session,
@@ -96,7 +95,7 @@ class TestCreateBranchForIssueRLS:
                 request=_make_request(),
             )
 
-        assert exc_info.value.status_code == 404
+        assert exc_info.value.http_status == 404
 
     @pytest.mark.asyncio
     async def test_raises_404_when_issue_workspace_mismatches_integration(self) -> None:
@@ -122,7 +121,7 @@ class TestCreateBranchForIssueRLS:
                 return_value=issue_repo,
             ),
             patch("pilot_space.api.v1.routers.github_links.set_rls_context", AsyncMock()),
-            pytest.raises(HTTPException) as exc_info,
+            pytest.raises(NotFoundError) as exc_info,
         ):
             await create_branch_for_issue(
                 session=session,
@@ -133,7 +132,7 @@ class TestCreateBranchForIssueRLS:
                 request=_make_request(),
             )
 
-        assert exc_info.value.status_code == 404
+        assert exc_info.value.http_status == 404
 
     @pytest.mark.asyncio
     async def test_raises_404_when_issue_not_found(self) -> None:
@@ -157,7 +156,7 @@ class TestCreateBranchForIssueRLS:
                 return_value=issue_repo,
             ),
             patch("pilot_space.api.v1.routers.github_links.set_rls_context", AsyncMock()),
-            pytest.raises(HTTPException) as exc_info,
+            pytest.raises(NotFoundError) as exc_info,
         ):
             await create_branch_for_issue(
                 session=session,
@@ -168,7 +167,7 @@ class TestCreateBranchForIssueRLS:
                 request=_make_request(),
             )
 
-        assert exc_info.value.status_code == 404
+        assert exc_info.value.http_status == 404
 
 
 class TestCreateBranchForIssueErrors:

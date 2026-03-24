@@ -18,6 +18,7 @@ from pilot_space.api.v1.routers.workspace_notes_ai import (
     ExtractedIssueInput,
     create_extracted_issues,
 )
+from pilot_space.domain.exceptions import NotFoundError
 
 TEST_USER_ID = UUID("77a6813e-0aa3-400c-8d4e-540b6ed2187a")
 TEST_WORKSPACE_ID = uuid4()
@@ -141,7 +142,7 @@ async def test_create_extracted_issues_note_not_found() -> None:
 
     body = CreateExtractedIssuesRequest(issues=[ExtractedIssueInput(title="Test issue")])
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(NotFoundError) as exc_info:
         await create_extracted_issues(
             workspace_id=str(TEST_WORKSPACE_ID),
             note_id=TEST_NOTE_ID,
@@ -153,7 +154,7 @@ async def test_create_extracted_issues_note_not_found() -> None:
             workspace_repo=mock_workspace_repo,
         )
 
-    assert exc_info.value.status_code == 404
+    assert exc_info.value.http_status == 404
 
 
 @pytest.mark.asyncio
@@ -170,7 +171,7 @@ async def test_create_extracted_issues_wrong_workspace() -> None:
 
     body = CreateExtractedIssuesRequest(issues=[ExtractedIssueInput(title="Test issue")])
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(NotFoundError) as exc_info:
         await create_extracted_issues(
             workspace_id=str(TEST_WORKSPACE_ID),
             note_id=TEST_NOTE_ID,
@@ -182,7 +183,7 @@ async def test_create_extracted_issues_wrong_workspace() -> None:
             workspace_repo=mock_workspace_repo,
         )
 
-    assert exc_info.value.status_code == 404
+    assert exc_info.value.http_status == 404
 
 
 @pytest.mark.asyncio

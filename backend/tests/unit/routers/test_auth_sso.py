@@ -192,9 +192,8 @@ async def test_sso_only_workspace_rejects_password_login() -> None:
         Then the response status is 403
         And the detail contains 'SSO login'
     """
-    from fastapi import HTTPException
-
     from pilot_space.api.v1.routers.auth_sso import check_sso_login_allowed
+    from pilot_space.domain.exceptions import ForbiddenError
 
     workspace_id = uuid.uuid4()
     mock_session = AsyncMock()
@@ -206,11 +205,11 @@ async def test_sso_only_workspace_rejects_password_login() -> None:
 
     with (
         patch("pilot_space.api.v1.routers.auth_sso._get_sso_service", return_value=mock_service),
-        pytest.raises(HTTPException) as exc_info,
+        pytest.raises(ForbiddenError) as exc_info,
     ):
         await check_sso_login_allowed(workspace_id=workspace_id, session=mock_session)
 
-    assert exc_info.value.status_code == 403
+    assert exc_info.value.http_status == 403
 
 
 @pytest.mark.asyncio
@@ -222,9 +221,8 @@ async def test_sso_only_error_message_is_clear() -> None:
         When check_sso_login_allowed is called
         Then the detail clearly states SSO is required
     """
-    from fastapi import HTTPException
-
     from pilot_space.api.v1.routers.auth_sso import check_sso_login_allowed
+    from pilot_space.domain.exceptions import ForbiddenError
 
     workspace_id = uuid.uuid4()
     mock_session = AsyncMock()
@@ -236,11 +234,11 @@ async def test_sso_only_error_message_is_clear() -> None:
 
     with (
         patch("pilot_space.api.v1.routers.auth_sso._get_sso_service", return_value=mock_service),
-        pytest.raises(HTTPException) as exc_info,
+        pytest.raises(ForbiddenError) as exc_info,
     ):
         await check_sso_login_allowed(workspace_id=workspace_id, session=mock_session)
 
-    assert "requires SSO login" in exc_info.value.detail
+    assert "requires SSO login" in exc_info.value.message
 
 
 @pytest.mark.asyncio

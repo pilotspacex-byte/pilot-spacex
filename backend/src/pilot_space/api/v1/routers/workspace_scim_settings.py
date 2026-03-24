@@ -8,11 +8,12 @@ is responsible for the final session.commit() (service only calls flush).
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 from sqlalchemy import select
 
 from pilot_space.api.v1.routers.scim import get_scim_service
 from pilot_space.dependencies.auth import CurrentUser, SessionDep
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError
 from pilot_space.infrastructure.database.models.workspace import Workspace
 from pilot_space.infrastructure.database.permissions import check_permission
 from pilot_space.infrastructure.logging import get_logger
@@ -48,7 +49,7 @@ async def _resolve_workspace_scim(
     )
     workspace = result.scalar_one_or_none()
     if workspace is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
+        raise NotFoundError("Workspace not found")
 
     allowed = await check_permission(
         session,
@@ -58,10 +59,7 @@ async def _resolve_workspace_scim(
         action="manage",
     )
     if not allowed:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Owner permission required",
-        )
+        raise ForbiddenError("Owner permission required")
     return workspace
 
 

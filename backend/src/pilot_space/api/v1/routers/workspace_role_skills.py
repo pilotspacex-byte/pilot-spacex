@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 from sqlalchemy import select
 
 from pilot_space.api.middleware.request_context import WorkspaceId
@@ -25,6 +25,7 @@ from pilot_space.api.v1.schemas.workspace_role_skill import (
     WorkspaceRoleSkillResponse,
 )
 from pilot_space.dependencies import CurrentUserId, DbSession
+from pilot_space.domain.exceptions import ForbiddenError
 from pilot_space.infrastructure.database.models.workspace_member import (
     WorkspaceMember,
     WorkspaceRole,
@@ -64,18 +65,12 @@ async def _require_admin(
     row = result.scalar()
 
     if row is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not a member of this workspace",
-        )
+        raise ForbiddenError("Not a member of this workspace")
 
     role = row.value if hasattr(row, "value") else str(row).upper()
 
     if role not in (WorkspaceRole.ADMIN.value, WorkspaceRole.OWNER.value):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin or owner role required",
-        )
+        raise ForbiddenError("Admin or owner role required")
 
 
 @router.post(

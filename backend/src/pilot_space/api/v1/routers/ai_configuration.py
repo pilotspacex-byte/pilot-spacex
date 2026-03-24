@@ -11,7 +11,7 @@ import time
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 
 from pilot_space.api.v1.dependencies import WorkspaceRepositoryDep
 from pilot_space.api.v1.schemas.ai_configuration import (
@@ -25,6 +25,7 @@ from pilot_space.api.v1.schemas.ai_configuration import (
 )
 from pilot_space.api.v1.schemas.base import DeleteResponse
 from pilot_space.dependencies import CurrentUser, DbSession
+from pilot_space.domain.exceptions import ConflictError, ForbiddenError, NotFoundError
 from pilot_space.infrastructure.database.models.ai_configuration import (
     AIConfiguration,
     LLMProvider,
@@ -81,26 +82,17 @@ async def _verify_workspace_membership(
     # MissingGreenlet errors when iterating workspace.members in async context.
     workspace = await workspace_repo.get_with_members(workspace_id)
     if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
-        )
+        raise NotFoundError("Workspace not found")
 
     member = next(
         (m for m in (workspace.members or []) if m.user_id == user_id and not m.is_deleted),
         None,
     )
     if not member:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not a member of this workspace",
-        )
+        raise ForbiddenError("Not a member of this workspace")
 
     if require_admin and member.role not in (WorkspaceRole.ADMIN, WorkspaceRole.OWNER):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required for this operation",
-        )
+        raise ForbiddenError("Admin role required for this operation")
 
     return member.role
 
@@ -198,10 +190,7 @@ async def create_ai_configuration(
     # Check if provider already exists for this workspace
     existing = await ai_config_repo.get_by_workspace_and_provider(workspace_id, request.provider)
     if existing:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Configuration for provider '{request.provider.value}' already exists",
-        )
+        raise ConflictError(f"Configuration for provider '{request.provider.value}' already exists")
 
     # Encrypt the API key
     encrypted_key = encrypt_api_key(request.api_key)
@@ -321,10 +310,7 @@ async def get_ai_configuration(
 
     config = await ai_config_repo.get_by_workspace_and_id(workspace_id, config_id)
     if not config:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="AI configuration not found",
-        )
+        raise NotFoundError("AI configuration not found")
 
     return _config_to_response(config)
 
@@ -368,10 +354,7 @@ async def update_ai_configuration(
 
     config = await ai_config_repo.get_by_workspace_and_id(workspace_id, config_id)
     if not config:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="AI configuration not found",
-        )
+        raise NotFoundError("AI configuration not found")
 
     # Apply updates
     update_data = request.model_dump(exclude_unset=True)
@@ -437,10 +420,7 @@ async def delete_ai_configuration(
 
     config = await ai_config_repo.get_by_workspace_and_id(workspace_id, config_id)
     if not config:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="AI configuration not found",
-        )
+        raise NotFoundError("AI configuration not found")
 
     await ai_config_repo.delete(config)
     await session.commit()
@@ -494,10 +474,7 @@ async def test_ai_configuration(
 
     config = await ai_config_repo.get_by_workspace_and_id(workspace_id, config_id)
     if not config:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="AI configuration not found",
-        )
+        raise NotFoundError("AI configuration not found")
 
     # Decrypt API key for testing
     from pilot_space.infrastructure.encryption import EncryptionError

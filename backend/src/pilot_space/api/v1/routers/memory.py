@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Request, Response, status
+from fastapi import APIRouter, Depends, Path, Request, Response, status
 
 from pilot_space.api.v1.schemas.memory import (
     ConstitutionIngestRequest,
@@ -35,6 +35,7 @@ from pilot_space.application.services.memory.memory_search_service import (
 )
 from pilot_space.config import get_settings
 from pilot_space.dependencies.auth import SessionDep, require_workspace_member
+from pilot_space.domain.exceptions import ServiceUnavailableError
 from pilot_space.infrastructure.database.repositories.constitution_repository import (
     ConstitutionRuleRepository,
 )
@@ -166,10 +167,7 @@ async def ingest_constitution(
 
     queue = fastapi_request.app.state.container.queue_client()
     if queue is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Queue service not configured",
-        )
+        raise ServiceUnavailableError("Queue service not configured")
 
     service = ConstitutionIngestService(const_repo, queue, session)
 

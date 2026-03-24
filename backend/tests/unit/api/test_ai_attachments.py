@@ -21,6 +21,7 @@ from pilot_space.api.v1.routers.ai_attachments import (
     delete_attachment,
     upload_attachment,
 )
+from pilot_space.domain.exceptions import ForbiddenError
 from pilot_space.infrastructure.database.models.workspace_member import WorkspaceRole
 
 pytestmark = pytest.mark.asyncio
@@ -291,7 +292,7 @@ class TestGuestRestriction:
         upload_svc = _make_upload_service(return_record=_make_attachment_record())
         db = _make_db_session(WorkspaceRole.GUEST)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(ForbiddenError) as exc_info:
             await upload_attachment(
                 file=file,
                 workspace_id=TEST_WORKSPACE_ID,
@@ -301,8 +302,8 @@ class TestGuestRestriction:
                 db=db,
             )
 
-        assert exc_info.value.status_code == 403
-        assert exc_info.value.detail["code"] == "GUEST_NOT_ALLOWED"
+        assert exc_info.value.http_status == 403
+        assert exc_info.value.error_code == "GUEST_NOT_ALLOWED"
         # Confirm service was never invoked
         upload_svc.execute.assert_not_awaited()
 

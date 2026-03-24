@@ -16,8 +16,8 @@ from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
-from fastapi import HTTPException
 
+from pilot_space.domain.exceptions import ForbiddenError
 from pilot_space.infrastructure.database.models.workspace_member import (
     WorkspaceRole,
 )
@@ -96,7 +96,7 @@ class TestH4AIConfigUsesGetWithMembers:
         mock_workspace_repo = AsyncMock()
         mock_workspace_repo.get_with_members.return_value = workspace
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(ForbiddenError) as exc_info:
             await _verify_workspace_membership(
                 workspace_id=workspace.id,
                 user_id=member_user.id,
@@ -104,8 +104,8 @@ class TestH4AIConfigUsesGetWithMembers:
                 require_admin=True,
             )
 
-        assert exc_info.value.status_code == 403
-        assert "Admin" in exc_info.value.detail
+        assert exc_info.value.http_status == 403
+        assert "Admin" in exc_info.value.message
 
 
 class TestH6DeleteWorkspaceRequiresOwner:

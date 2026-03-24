@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 
 from pilot_space.api.v1.dependencies import (
     WorkspaceInvitationServiceDep,
@@ -24,6 +24,7 @@ from pilot_space.application.services.workspace_invitation import (
     ListInvitationsPayload,
 )
 from pilot_space.dependencies.auth import CurrentUser, SessionDep
+from pilot_space.domain.exceptions import AppError
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -75,10 +76,7 @@ async def add_workspace_member(
 
     invitation = result.invitation
     if invitation is None:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Unexpected error creating invitation",
-        )
+        raise AppError("Unexpected error creating invitation")
     return InvitationResponse(
         id=invitation.id,
         email=invitation.email,

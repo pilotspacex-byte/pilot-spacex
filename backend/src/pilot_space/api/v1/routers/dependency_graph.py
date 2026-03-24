@@ -13,10 +13,11 @@ from itertools import pairwise
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Path, Query, status
+from fastapi import APIRouter, Path, Query
 from pydantic import BaseModel
 
 from pilot_space.dependencies.auth import CurrentUserId, SessionDep
+from pilot_space.domain.exceptions import NotFoundError
 
 router = APIRouter(prefix="/projects", tags=["dependency-graph"])
 
@@ -85,7 +86,7 @@ async def get_dependency_graph(
     )
     project = project_result.scalar_one_or_none()
     if not project:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+        raise NotFoundError("Project not found")
 
     # Load all non-deleted issues in the project
     issues_result = await session.execute(

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 from sqlalchemy import select
 
 from pilot_space.api.middleware.request_context import WorkspaceId
@@ -26,6 +26,7 @@ from pilot_space.api.v1.schemas.skill_template import (
     SkillTemplateUpdate,
 )
 from pilot_space.dependencies import CurrentUserId, DbSession
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError
 from pilot_space.infrastructure.database.models.workspace_member import (
     WorkspaceMember,
     WorkspaceRole,
@@ -67,18 +68,12 @@ async def _require_admin(
     row = result.scalar()
 
     if row is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not a member of this workspace",
-        )
+        raise ForbiddenError("Not a member of this workspace")
 
     role = row.value if hasattr(row, "value") else str(row)
 
     if role not in (WorkspaceRole.ADMIN.value, WorkspaceRole.OWNER.value):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin or owner role required",
-        )
+        raise ForbiddenError("Admin or owner role required")
 
 
 @router.get(
@@ -205,20 +200,14 @@ async def update_skill_template(
     template = await repo.get_by_id(template_id)
 
     if template is None or template.is_deleted:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Skill template not found",
-        )
+        raise NotFoundError("Skill template not found")
 
     # Built-in templates: only is_active can be changed
     if template.source == "built_in":
         update_data = body.model_dump(exclude_unset=True)
         non_active_fields = {k for k in update_data if k != "is_active"}
         if non_active_fields:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Built-in templates can only toggle is_active",
-            )
+            raise ForbiddenError("Built-in templates can only toggle is_active")
 
     # Apply updates
     update_data = body.model_dump(exclude_unset=True)
@@ -268,10 +257,7 @@ async def delete_skill_template(
     result = await repo.soft_delete(template_id)
 
     if result is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Skill template not found",
-        )
+        raise NotFoundError("Skill template not found")
 
     logger.info(
         "[SkillTemplates] Deleted template=%s workspace=%s user=%s",

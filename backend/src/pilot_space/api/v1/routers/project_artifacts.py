@@ -32,6 +32,7 @@ from pilot_space.application.services.artifact.artifact_upload_service import (
 from pilot_space.container._base import InfraContainer
 from pilot_space.container.container import Container
 from pilot_space.dependencies.auth import CurrentUser, SessionDep, require_workspace_member
+from pilot_space.domain.exceptions import NotFoundError
 from pilot_space.infrastructure.database.repositories.artifact_repository import (
     ArtifactRepository,
 )
@@ -174,10 +175,7 @@ async def get_artifact_url(
         or artifact.workspace_id != workspace_id
         or artifact.project_id != project_id
     ):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Artifact not found",
-        )
+        raise NotFoundError("Artifact not found")
 
     signed_url = await storage_client.get_signed_url(
         bucket="note-artifacts",

@@ -12,9 +12,8 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import HTTPException, status
-
 from pilot_space.dependencies import CurrentUser, DbSession
+from pilot_space.domain.exceptions import NotFoundError
 from pilot_space.infrastructure.database.models.workspace import Workspace
 from pilot_space.infrastructure.database.repositories.workspace_repository import (
     WorkspaceRepository,
@@ -49,18 +48,12 @@ async def get_admin_workspace(
     workspace_repo = WorkspaceRepository(session=session)
     workspace = await workspace_repo.get_by_id(workspace_id)
     if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
-        )
+        raise NotFoundError("Workspace not found")
 
     role = await workspace_repo.get_member_role(workspace_id, current_user.user_id)
     if role not in (WorkspaceRole.OWNER, WorkspaceRole.ADMIN):
         # SEC-M1: return 404 to prevent workspace-ID enumeration
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
-        )
+        raise NotFoundError("Workspace not found")
 
     return workspace
 
@@ -89,16 +82,10 @@ async def get_member_workspace(
     workspace_repo = WorkspaceRepository(session=session)
     workspace = await workspace_repo.get_by_id(workspace_id)
     if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
-        )
+        raise NotFoundError("Workspace not found")
 
     if not await workspace_repo.is_member(workspace_id, current_user.user_id):
         # SEC-M1: return 404 to prevent workspace-ID enumeration
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
-        )
+        raise NotFoundError("Workspace not found")
 
     return workspace
