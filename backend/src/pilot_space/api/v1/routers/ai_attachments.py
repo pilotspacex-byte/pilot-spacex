@@ -187,6 +187,16 @@ async def get_attachment_url(
     if attachment.user_id != user_id:
         raise HTTPException(status_code=403, detail="Not your attachment")
 
+    # Verify user is still a workspace member (ex-members should not access attachments)
+    membership = await db.execute(
+        select(WorkspaceMember.id).where(
+            WorkspaceMember.workspace_id == attachment.workspace_id,
+            WorkspaceMember.user_id == user_id,
+        )
+    )
+    if membership.scalar_one_or_none() is None:
+        raise HTTPException(status_code=403, detail="No longer a workspace member")
+
     storage = request.app.state.container.storage_client()
     signed_url = await storage.get_signed_url(
         bucket="chat-attachments",

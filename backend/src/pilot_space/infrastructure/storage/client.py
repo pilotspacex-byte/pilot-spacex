@@ -208,12 +208,9 @@ class SupabaseStorageClient:
                 return
             logger.exception("storage_delete_failed", bucket=bucket, key=key)
             raise StorageDeleteError(f"Delete failed for {bucket}/{key}: {exc}") from exc
-        except StorageException as exc:
+        except (StorageException, Exception) as exc:
             logger.exception("storage_delete_error", bucket=bucket, key=key)
             raise StorageDeleteError(f"Delete failed for {bucket}/{key}: {exc}") from exc
-        except Exception as exc:
-            logger.exception("storage_delete_error", bucket=bucket, key=key)
-            raise StorageDeleteError(f"Unexpected error deleting {bucket}/{key}: {exc}") from exc
 
         logger.info("storage_delete_success", bucket=bucket, key=key)
 

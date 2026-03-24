@@ -113,7 +113,7 @@ class SupabaseQueueClient:
             "pgmq_send",
             "pgmq_read",
             "pgmq_delete",
-            "pgmq_archive",
+            "pgmq_set_vt",
             "pgmq_create",
             "pgmq_drop",
             "pgmq_purge",
@@ -342,13 +342,15 @@ class SupabaseQueueClient:
         if error:
             logger.warning("Message %s from %s failed: %s", msg_id, queue, error)
 
+        msg_id_value = int(msg_id) if msg_id.isdigit() else msg_id
         if requeue:
-            # Archive (nack) the message - pgmq will handle visibility
+            # Reschedule visibility so the message becomes available for retry
             result = await self._rpc_call(
-                "pgmq_archive",
+                "pgmq_set_vt",
                 {
                     "queue_name": queue,
-                    "msg_id": int(msg_id) if msg_id.isdigit() else msg_id,
+                    "msg_id": msg_id_value,
+                    "vt": delay_seconds,
                 },
             )
         else:
@@ -357,7 +359,7 @@ class SupabaseQueueClient:
                 "pgmq_delete",
                 {
                     "queue_name": queue,
-                    "msg_id": int(msg_id) if msg_id.isdigit() else msg_id,
+                    "msg_id": msg_id_value,
                 },
             )
 
