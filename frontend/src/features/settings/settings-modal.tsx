@@ -9,6 +9,7 @@ import {
   ClipboardList,
   CreditCard,
   KeyRound,
+  Palette,
   Plug,
   ServerCog,
   Settings,
@@ -73,6 +74,9 @@ const IntegrationsSettingsPage = lazy(
 const FeaturesSettingsPage = lazy(
   () => import('@/app/(workspace)/[workspaceSlug]/settings/features/page')
 );
+const AppearanceSettingsPage = lazy(() =>
+  import('./pages/appearance-settings-page').then((m) => ({ default: m.AppearanceSettingsPage }))
+);
 
 // Billing placeholder (inline — trivial component)
 function BillingPlaceholder() {
@@ -127,7 +131,10 @@ const settingsNavSections: NavSection[] = [
   },
   {
     label: 'Account',
-    items: [{ id: 'profile', label: 'Profile', icon: User }],
+    items: [
+      { id: 'profile', label: 'Profile', icon: User },
+      { id: 'appearance', label: 'Appearance', icon: Palette },
+    ],
   },
 ];
 
@@ -150,6 +157,7 @@ const SECTION_COMPONENTS: Record<
   skills: SkillsSettingsPage,
   integrations: IntegrationsSettingsPage,
   billing: BillingPlaceholder as unknown as React.LazyExoticComponent<React.ComponentType>,
+  appearance: AppearanceSettingsPage,
 };
 
 function PanelSkeleton() {
