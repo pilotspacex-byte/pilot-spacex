@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Tauri Desktop Client
 status: executing
-stopped_at: Completed 40-05-PLAN.md
-last_updated: "2026-03-23T17:28:53.494Z"
-last_activity: "2026-03-24 - Completed 40-04: Monaco AI Providers and Yjs Collaboration"
+stopped_at: Completed 40-06-PLAN.md
+last_updated: "2026-03-24T00:59:31.187Z"
+last_activity: "2026-03-24 - Completed 40-05: IDE File Browser UI (FileTree, TabBar, QuickOpen, MonacoFileEditor)"
 progress:
   total_phases: 13
   completed_phases: 10
   total_plans: 36
-  completed_plans: 31
-  percent: 67
+  completed_plans: 32
+  percent: 89
 ---
 
 # Project State
@@ -26,11 +26,11 @@ See: .planning/PROJECT.md (updated 2026-03-20)
 ## Current Position
 
 Phase: 40 of 40 (WebGPU Canvas IDE Editor)
-Plan: 6 of 6 in current phase
+Plan: 7 of 7 in current phase
 Status: Executing Phase 40 plans
-Last activity: 2026-03-24 - Completed 40-05: IDE File Browser UI (FileTree, TabBar, QuickOpen, MonacoFileEditor)
+Last activity: 2026-03-24 - Completed 40-06: Editor Layout Integration (EditorLayout, Lenis scroll, auto-save, NoteCanvas migration)
 
-Progress: [████████░░] 83% (Phase 40: 5/6 plans)
+Progress: [█████████░] 89% (Phase 40: 6/7 plans)
 
 ## Milestone History
 
@@ -129,6 +129,7 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 40-04]: MonacoNoteEditor uses useState (not useRef) for editor/monaco instances consumed during render — React 19 refs rule
 - [Phase 40]: FileIconByExt is a standalone component (not dynamic useMemo) to satisfy React 19 static-components lint rule
 - [Phase 40]: useQuickOpen resets selectedIndex in setQuery callback rather than useEffect to satisfy React 19 set-state-in-effect lint rule
+- [Phase 40]: Preview panel replaces editor content via toggle, not a separate third panel (per UI-SPEC)
 
 ### Roadmap Evolution
 
@@ -151,7 +152,7 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-23T17:28:53.492Z
-Stopped at: Completed 40-05-PLAN.md
+Last session: 2026-03-24T00:59:31.184Z
+Stopped at: Completed 40-06-PLAN.md
 Resume file: None
 Next action: Execute 40-05 plan (next in Phase 40 sequence)
