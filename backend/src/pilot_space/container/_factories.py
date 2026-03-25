@@ -206,6 +206,42 @@ def create_pilotspace_agent(
     )
 
 
+def create_secure_key_storage() -> Any:
+    """Create SecureKeyStorage bound to the current request session.
+
+    Returns:
+        SecureKeyStorage instance with session from ContextVar and encryption key
+        from settings.
+    """
+    from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
+    from pilot_space.dependencies.auth import get_current_session
+
+    settings = get_settings()
+    session = get_current_session()
+    encryption_key = settings.encryption_key.get_secret_value()
+    return SecureKeyStorage(db=session, master_secret=encryption_key)
+
+
+def create_llm_gateway(
+    executor: ResilientExecutor,
+    cost_tracker: Any,
+    key_storage: Any,
+) -> Any:
+    """Create LLMGateway with all dependencies.
+
+    Args:
+        executor: ResilientExecutor for retry and circuit breaking.
+        cost_tracker: CostTracker for persistent cost recording.
+        key_storage: SecureKeyStorage for BYOK key resolution.
+
+    Returns:
+        LLMGateway instance.
+    """
+    from pilot_space.ai.proxy.llm_gateway import LLMGateway
+
+    return LLMGateway(executor=executor, cost_tracker=cost_tracker, key_storage=key_storage)
+
+
 def get_default_redirect_origin(settings: Settings) -> str:
     """Get default redirect origin from CORS origins.
 

@@ -113,9 +113,11 @@ from pilot_space.config import Settings
 from pilot_space.container._base import InfraContainer
 from pilot_space.container._factories import (
     create_anthropic_client_pool,
+    create_llm_gateway,
     create_pilotspace_agent,
     create_provider_selector,
     create_resilient_executor,
+    create_secure_key_storage,
     create_session_manager,
     create_space_manager,
     create_tool_registry,
@@ -164,6 +166,15 @@ class Container(SkillContainer, PluginContainer):
             "pilot_space.api.v1.routers.project_artifacts",
             "pilot_space.api.v1.routers.artifact_annotations",
             "pilot_space.api.v1.routers.notes_ai",
+            # LLMGateway migration targets (Plan 47-02)
+            "pilot_space.application.services.note.contextual_enrichment",
+            "pilot_space.application.services.extraction.extract_issues_service",
+            "pilot_space.application.services.memory.graph_extraction_service",
+            "pilot_space.application.services.intent.detection_service",
+            "pilot_space.application.services.role_skill.generate_role_skill_service",
+            "pilot_space.application.services.version.digest_service",
+            "pilot_space.ai.jobs.digest_job",
+            "pilot_space.application.services.embedding_service",
         ],
     )
 
@@ -199,6 +210,17 @@ class Container(SkillContainer, PluginContainer):
     cost_tracker = providers.Factory(
         CostTracker,
         session=providers.Callable(get_current_session),
+    )
+
+    # Secure Key Storage — Factory per request (session-bound)
+    secure_key_storage = providers.Factory(create_secure_key_storage)
+
+    # LLM Gateway (Plan 47) — Factory per request (cost_tracker + key_storage are session-bound)
+    llm_gateway = providers.Factory(
+        create_llm_gateway,
+        executor=resilient_executor,
+        cost_tracker=cost_tracker,
+        key_storage=secure_key_storage,
     )
 
     # AI Policy Repository (AIGOV-01) — Factory per request
