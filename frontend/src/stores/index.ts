@@ -16,6 +16,7 @@ export {
   useTaskStore,
   useArtifactStore,
   useFileStore,
+  useGitWebStore,
 } from './RootStore';
 
 // Auth Store

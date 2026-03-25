@@ -24,7 +24,7 @@ export function useCommit(repo: GitRepo | null) {
 
       // Fetch current content for each staged file
       const files: FileChange[] = await Promise.all(
-        stagedFiles.map(async (f) => {
+        stagedFiles.map(async (f: { path: string; status: string }) => {
           if (f.status === 'deleted') {
             return { path: f.path, content: '', action: 'delete' as const };
           }

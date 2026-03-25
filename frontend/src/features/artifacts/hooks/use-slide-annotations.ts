@@ -14,7 +14,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { annotationApi, type ArtifactAnnotation } from '@/services/api/artifact-annotations';
+import { annotationsApi, type AnnotationResponse } from '@/services/api/artifact-annotations';
 
 // ---------------------------------------------------------------------------
 // Query key factory
@@ -46,9 +46,9 @@ export function useSlideAnnotations(
   artifactId: string,
   slideIndex: number
 ) {
-  return useQuery<ArtifactAnnotation[]>({
+  return useQuery<AnnotationResponse[]>({
     queryKey: annotationKeys.slide(workspaceId, projectId, artifactId, slideIndex),
-    queryFn: () => annotationApi.list(workspaceId, projectId, artifactId, slideIndex),
+    queryFn: () => annotationsApi.list(workspaceId, projectId, artifactId, slideIndex),
     enabled: !!workspaceId && !!projectId && !!artifactId,
     staleTime: 30 * 1000, // 30 seconds
   });
@@ -72,7 +72,7 @@ export function useCreateAnnotation(workspaceId: string, projectId: string, arti
 
   return useMutation({
     mutationFn: (input: CreateAnnotationInput) =>
-      annotationApi.create(workspaceId, projectId, artifactId, input),
+      annotationsApi.create(workspaceId, projectId, artifactId, input),
 
     onMutate: async (input: CreateAnnotationInput) => {
       const slideKey = annotationKeys.slide(workspaceId, projectId, artifactId, input.slideIndex);
@@ -81,10 +81,10 @@ export function useCreateAnnotation(workspaceId: string, projectId: string, arti
       await queryClient.cancelQueries({ queryKey: slideKey });
 
       // Snapshot previous value for rollback
-      const previousAnnotations = queryClient.getQueryData<ArtifactAnnotation[]>(slideKey);
+      const previousAnnotations = queryClient.getQueryData<AnnotationResponse[]>(slideKey);
 
       // Optimistically append the new annotation with a temp ID
-      const tempAnnotation: ArtifactAnnotation = {
+      const tempAnnotation: AnnotationResponse = {
         id: `temp-${Date.now()}`,
         artifactId,
         slideIndex: input.slideIndex,
@@ -95,7 +95,7 @@ export function useCreateAnnotation(workspaceId: string, projectId: string, arti
         updatedAt: new Date().toISOString(),
       };
 
-      queryClient.setQueryData<ArtifactAnnotation[]>(slideKey, (old) =>
+      queryClient.setQueryData<AnnotationResponse[]>(slideKey, (old) =>
         old ? [...old, tempAnnotation] : [tempAnnotation]
       );
 
@@ -104,7 +104,7 @@ export function useCreateAnnotation(workspaceId: string, projectId: string, arti
 
     onError: (_err, _input, context) => {
       if (context?.previousAnnotations !== undefined) {
-        queryClient.setQueryData<ArtifactAnnotation[]>(
+        queryClient.setQueryData<AnnotationResponse[]>(
           context.slideKey,
           context.previousAnnotations
         );
@@ -139,7 +139,7 @@ export function useUpdateAnnotation(workspaceId: string, projectId: string, arti
 
   return useMutation({
     mutationFn: (input: UpdateAnnotationInput) =>
-      annotationApi.update(workspaceId, projectId, artifactId, input.annotationId, {
+      annotationsApi.update(workspaceId, projectId, artifactId, input.annotationId, {
         content: input.content,
       }),
 
@@ -150,10 +150,10 @@ export function useUpdateAnnotation(workspaceId: string, projectId: string, arti
       await queryClient.cancelQueries({ queryKey: slideKey });
 
       // Snapshot previous value for rollback
-      const previousAnnotations = queryClient.getQueryData<ArtifactAnnotation[]>(slideKey);
+      const previousAnnotations = queryClient.getQueryData<AnnotationResponse[]>(slideKey);
 
       // Optimistically update content in cache
-      queryClient.setQueryData<ArtifactAnnotation[]>(slideKey, (old) =>
+      queryClient.setQueryData<AnnotationResponse[]>(slideKey, (old) =>
         old
           ? old.map((a) =>
               a.id === input.annotationId
@@ -168,7 +168,7 @@ export function useUpdateAnnotation(workspaceId: string, projectId: string, arti
 
     onError: (_err, _input, context) => {
       if (context?.previousAnnotations !== undefined) {
-        queryClient.setQueryData<ArtifactAnnotation[]>(
+        queryClient.setQueryData<AnnotationResponse[]>(
           context.slideKey,
           context.previousAnnotations
         );
@@ -202,7 +202,7 @@ export function useDeleteAnnotation(workspaceId: string, projectId: string, arti
 
   return useMutation({
     mutationFn: (input: DeleteAnnotationInput) =>
-      annotationApi.delete(workspaceId, projectId, artifactId, input.annotationId),
+      annotationsApi.delete(workspaceId, projectId, artifactId, input.annotationId),
 
     onMutate: async (input: DeleteAnnotationInput) => {
       const slideKey = annotationKeys.slide(workspaceId, projectId, artifactId, input.slideIndex);
@@ -211,10 +211,10 @@ export function useDeleteAnnotation(workspaceId: string, projectId: string, arti
       await queryClient.cancelQueries({ queryKey: slideKey });
 
       // Snapshot previous value for rollback
-      const previousAnnotations = queryClient.getQueryData<ArtifactAnnotation[]>(slideKey);
+      const previousAnnotations = queryClient.getQueryData<AnnotationResponse[]>(slideKey);
 
       // Optimistically remove the annotation
-      queryClient.setQueryData<ArtifactAnnotation[]>(slideKey, (old) =>
+      queryClient.setQueryData<AnnotationResponse[]>(slideKey, (old) =>
         old ? old.filter((a) => a.id !== input.annotationId) : []
       );
 
@@ -223,7 +223,7 @@ export function useDeleteAnnotation(workspaceId: string, projectId: string, arti
 
     onError: (_err, _input, context) => {
       if (context?.previousAnnotations !== undefined) {
-        queryClient.setQueryData<ArtifactAnnotation[]>(
+        queryClient.setQueryData<AnnotationResponse[]>(
           context.slideKey,
           context.previousAnnotations
         );

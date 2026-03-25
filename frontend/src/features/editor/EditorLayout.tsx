@@ -125,7 +125,7 @@ export const EditorLayout = observer(function EditorLayout({
   const changedFileCount = gitWebStore.changedFileCount;
   const selectedDiffPath = gitWebStore.selectedFilePath;
   const selectedFileStatus = selectedDiffPath
-    ? gitWebStore.changedFiles.find((f) => f.path === selectedDiffPath)?.status
+    ? gitWebStore.changedFiles.find((f: { path: string }) => f.path === selectedDiffPath)?.status
     : undefined;
   const [leftPanelTab, setLeftPanelTab] = useState<'files' | 'scm'>('files');
 

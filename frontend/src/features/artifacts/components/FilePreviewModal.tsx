@@ -358,19 +358,22 @@ export function FilePreviewModal({
       return <DownloadFallback filename={filename} signedUrl={signedUrl} reason="error" />;
     }
 
+    // Text-based renderers receive string; binary renderers (xlsx/docx/pptx) receive ArrayBuffer.
+    const textContent = content as string;
+
     switch (rendererType) {
       case 'markdown':
-        return <MarkdownRenderer content={content} />;
+        return <MarkdownRenderer content={textContent} />;
       case 'text':
-        return <TextRenderer content={content} />;
+        return <TextRenderer content={textContent} />;
       case 'json':
-        return <JsonRenderer content={content} />;
+        return <JsonRenderer content={textContent} />;
       case 'code':
-        return <CodeRenderer content={content} language={getLanguageForFile(filename)} />;
+        return <CodeRenderer content={textContent} language={getLanguageForFile(filename)} />;
       case 'html-preview':
-        return <HtmlRenderer content={content} filename={filename} />;
+        return <HtmlRenderer content={textContent} filename={filename} />;
       case 'csv':
-        return <CsvRenderer content={content} />;
+        return <CsvRenderer content={textContent} />;
       default:
         return <DownloadFallback filename={filename} signedUrl={signedUrl} reason="unsupported" />;
     }

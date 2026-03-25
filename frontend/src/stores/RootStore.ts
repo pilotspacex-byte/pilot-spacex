@@ -162,6 +162,11 @@ export function useFileStore(): FileStore {
   return useStores().fileStore;
 }
 
+/** Hook to access the GitWebStore from context. */
+export function useGitWebStore(): GitWebStore {
+  return useStores().gitWebStore;
+}
+
 /**
  * Convenient hook to access multiple stores at once.
  * Returns an object with named stores for destructuring.
