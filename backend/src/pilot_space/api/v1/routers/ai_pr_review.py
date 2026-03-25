@@ -130,6 +130,8 @@ async def stream_pr_review(
         StreamingResponse with text/event-stream content type.
     """
     from pilot_space.ai.infrastructure.cost_tracker import CostTracker
+    from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
+    from pilot_space.config import get_settings
     from pilot_space.infrastructure.database.repositories.integration_repository import (
         IntegrationRepository,
     )
@@ -142,6 +144,10 @@ async def stream_pr_review(
     provider_selector = container.provider_selector()
     resilient_executor = container.resilient_executor()
     cost_tracker = CostTracker(session=session)
+    key_storage = SecureKeyStorage(
+        db=session,
+        master_secret=get_settings().encryption_key.get_secret_value(),
+    )
 
     # Look up active GitHub integration for this workspace
     integration_repo = IntegrationRepository(session)
@@ -171,6 +177,7 @@ async def stream_pr_review(
             provider_selector=provider_selector,
             cost_tracker=cost_tracker,
             resilient_executor=resilient_executor,
+            key_storage=key_storage,
         )
 
         pr_input = PRReviewInput(

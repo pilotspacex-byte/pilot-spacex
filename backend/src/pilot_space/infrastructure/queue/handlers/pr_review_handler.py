@@ -200,10 +200,19 @@ class PRReviewJobHandler:
         self._integration_repo = integration_repo
         self._ai_config_repo = ai_config_repo
         self._integration_link_repo = integration_link_repo
+
+        from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
+        from pilot_space.config import get_settings
+
+        key_storage = SecureKeyStorage(
+            db=session,
+            master_secret=get_settings().encryption_key.get_secret_value(),
+        )
         self._agent = PRReviewSubagent(
             provider_selector=provider_selector,
             cost_tracker=cost_tracker,
             resilient_executor=resilient_executor,
+            key_storage=key_storage,
         )
 
     async def execute(self, payload: PRReviewJobPayload) -> PRReviewJobResult:
