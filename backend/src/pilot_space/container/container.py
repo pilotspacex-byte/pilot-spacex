@@ -166,6 +166,7 @@ class Container(SkillContainer, PluginContainer):
             "pilot_space.api.v1.routers.project_artifacts",
             "pilot_space.api.v1.routers.artifact_annotations",
             "pilot_space.api.v1.routers.notes_ai",
+            "pilot_space.api.v1.routers.ai_extraction",
             # LLMGateway migration targets (Plan 47-02)
             "pilot_space.application.services.note.contextual_enrichment",
             "pilot_space.application.services.extraction.extract_issues_service",

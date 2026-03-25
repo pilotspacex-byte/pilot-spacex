@@ -1,10 +1,10 @@
-"""IssueExtractionService: extract structured issues from note content via Claude Sonnet.
+"""IssueExtractionService: extract structured issues from note content via LLMGateway.
 
 Implements the Note-First extraction pipeline (DD-013, DD-048):
 - Takes TipTap JSON content and extracts actionable issues
-- Uses Claude Sonnet via ProviderSelector (DD-011)
+- Uses LLMGateway for provider-agnostic LLM completion (DD-011)
 - Returns structured issues with confidence scores and rationale
-- Resilient execution via ResilientExecutor with retry + circuit breaker
+- Gains automatic cost tracking, retry/circuit-breaking, and Langfuse tracing
 
 Feature 009: Intent-to-Issues extraction pipeline.
 """
@@ -17,19 +17,16 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from pilot_space.ai.exceptions import ProviderUnavailableError
-from pilot_space.ai.infrastructure.resilience import ResilientExecutor, RetryConfig
-from pilot_space.ai.providers.provider_selector import (
-    ProviderSelector,
-    TaskType,
-    resolve_workspace_llm_config,
-)
+from pilot_space.ai.providers.provider_selector import TaskType
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
-    from sqlalchemy.ext.asyncio import AsyncSession
+    from pilot_space.ai.proxy.llm_gateway import LLMGateway
 
 logger = get_logger(__name__)
+
+# Sentinel user ID for system-initiated extraction (no real user context)
+_SYSTEM_USER_ID = UUID("00000000-0000-0000-0000-000000000000")
 
 # Confidence tag thresholds
 _CONFIDENCE_EXPLICIT = 0.7
@@ -206,14 +203,15 @@ def _parse_extraction_response(raw: str) -> list[dict[str, Any]]:
 
 
 class IssueExtractionService:
-    """Extracts structured issues from note content via Claude Sonnet.
+    """Extracts structured issues from note content via LLMGateway.
 
-    Uses the ProviderSelector (DD-011) to route to Sonnet for extraction tasks,
-    and ResilientExecutor for retry + circuit breaker resilience.
+    Uses LLMGateway for provider-agnostic completion with automatic cost
+    tracking, retry + circuit breaker resilience, and Langfuse tracing.
     """
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: object, llm_gateway: LLMGateway | None = None) -> None:
         self._session = session
+        self._llm_gateway = llm_gateway
 
     async def extract(self, payload: ExtractIssuesPayload) -> ExtractIssuesResult:
         """Extract issues from note content.
@@ -281,21 +279,14 @@ class IssueExtractionService:
         payload: ExtractIssuesPayload,
         note_text: str,
     ) -> tuple[list[dict[str, Any]], str]:
-        """Call LLM for structured issue extraction using workspace provider config.
+        """Call LLM for structured issue extraction via LLMGateway.
 
         Returns:
             Tuple of (raw issue dicts, model name).
         """
-        ws_config = await resolve_workspace_llm_config(self._session, payload.workspace_id)
-        if ws_config is None:
-            logger.info("No LLM provider configured for issue extraction")
+        if self._llm_gateway is None:
+            logger.info("No LLM gateway configured for issue extraction")
             return [], "noop"
-
-        selector = ProviderSelector()
-        config = selector.select_with_config(
-            TaskType.ISSUE_EXTRACTION, workspace_override=ws_config
-        )
-        model = config.model
 
         # Build prompt
         labels_section = ""
@@ -320,64 +311,19 @@ class IssueExtractionService:
             note_content=note_text,
         )
 
-        executor = ResilientExecutor()
-        retry_config = RetryConfig(max_retries=2, base_delay_seconds=1.0)
-        # Cloud-proxied Ollama models relay to remote APIs and need longer timeouts
-        timeout_sec = 90.0 if ws_config.provider == "ollama" else 60.0
-
         try:
-            from anthropic import AsyncAnthropic
-
-            from pilot_space.ai.infrastructure.cost_tracker import (
-                extract_response_usage,
-                track_cost,
+            response = await self._llm_gateway.complete(
+                workspace_id=payload.workspace_id,
+                user_id=_SYSTEM_USER_ID,
+                task_type=TaskType.ISSUE_EXTRACTION,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=4096,
+                temperature=0.7,
+                agent_name="issue_extraction",
             )
 
-            client = AsyncAnthropic(api_key=ws_config.api_key, base_url=ws_config.base_url or None)
-            _usage: tuple[int, int] = (0, 0)
+            return _parse_extraction_response(response.text), response.model
 
-            async def _call_api() -> str:
-                nonlocal _usage
-                response = await client.messages.create(
-                    model=model,
-                    max_tokens=4096,
-                    messages=[{"role": "user", "content": prompt}],
-                )
-                _usage = extract_response_usage(response)
-                for block in response.content:
-                    if block.type == "text":
-                        return block.text
-                return "[]"
-
-            raw = await executor.execute(
-                provider=ws_config.provider,
-                operation=_call_api,
-                timeout_sec=timeout_sec,
-                retry_config=retry_config,
-            )
-
-            # Track cost (non-fatal)
-            if _usage != (0, 0):
-                await track_cost(
-                    self._session,
-                    workspace_id=payload.workspace_id,
-                    user_id=None,
-                    agent_name="issue_extraction",
-                    provider=ws_config.provider,
-                    model=model,
-                    input_tokens=_usage[0],
-                    output_tokens=_usage[1],
-                    operation_type="issue_extraction",
-                )
-
-            return _parse_extraction_response(raw), model
-
-        except ProviderUnavailableError:
-            logger.warning(
-                "Provider unavailable for issue extraction",
-                extra={"provider": ws_config.provider},
-            )
-            return [], "noop"
         except Exception:
             logger.exception("Issue extraction LLM call failed")
             return [], "noop"

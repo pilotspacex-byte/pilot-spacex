@@ -88,12 +88,14 @@ class KgPopulateHandler:
         embedding_service: EmbeddingService,
         queue: SupabaseQueueClient | None,
         anthropic_api_key: str | None = None,
+        llm_gateway: object | None = None,
     ) -> None:
         self._session = session
         self._fallback_embedding = embedding_service
         self._embedding = embedding_service
         self._queue = queue
         self._anthropic_api_key = anthropic_api_key
+        self._llm_gateway = llm_gateway
         self._repo = KnowledgeGraphRepository(session)
         self._converter = ContentConverter()
 
@@ -183,7 +185,9 @@ class KgPopulateHandler:
             chunks = chunk_markdown_by_headings(issue_md, min_chunk_chars=_MIN_CHUNK_CHARS)
             try:
                 chunks = await enrich_chunks_with_context(
-                    chunks, issue_md, api_key=self._anthropic_api_key
+                    chunks, issue_md,
+                    llm_gateway=self._llm_gateway,
+                    workspace_id=issue.workspace_id,
                 )
             except Exception as exc:
                 logger.warning("KgPopulateHandler: issue chunk enrichment failed: %s", exc)
@@ -318,7 +322,9 @@ class KgPopulateHandler:
         chunks = chunk_markdown_by_headings(markdown, min_chunk_chars=_MIN_CHUNK_CHARS)
         try:
             chunks = await enrich_chunks_with_context(
-                chunks, markdown, api_key=self._anthropic_api_key
+                chunks, markdown,
+                llm_gateway=self._llm_gateway,
+                workspace_id=note.workspace_id,
             )
         except Exception as exc:
             logger.warning("KgPopulateHandler: note chunk enrichment failed: %s", exc)

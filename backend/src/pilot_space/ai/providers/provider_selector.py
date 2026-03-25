@@ -58,6 +58,12 @@ class TaskType(Enum):
     DIAGRAM_GENERATION = "diagram_generation"
     TEMPLATE_FILLING = "template_filling"
 
+    # Knowledge graph / contextual tasks (Claude Haiku — lightweight extraction)
+    CONTEXTUAL_RETRIEVAL = "contextual_retrieval"
+    GRAPH_EXTRACTION = "graph_extraction"
+    INTENT_DETECTION = "intent_detection"
+    ROLE_SKILL_GENERATION = "role_skill_generation"
+
     # Latency-sensitive tasks (Claude Haiku)
     GHOST_TEXT = "ghost_text"
     NOTIFICATION_PRIORITY = "notification_priority"
@@ -221,6 +227,35 @@ class ProviderSelector:
             provider=Provider.ANTHROPIC.value,
             model=ANTHROPIC_SONNET,
             reason="AI-powered template completion",
+            fallback_provider=Provider.ANTHROPIC.value,
+            fallback_model=ANTHROPIC_HAIKU,
+        ),
+        # Knowledge graph / contextual tasks → Claude Haiku (lightweight extraction)
+        TaskType.CONTEXTUAL_RETRIEVAL: ProviderConfig(
+            provider=Provider.ANTHROPIC.value,
+            model=ANTHROPIC_HAIKU,
+            reason="Lightweight context prefix generation for chunk enrichment",
+            fallback_provider=Provider.ANTHROPIC.value,
+            fallback_model=ANTHROPIC_SONNET,
+        ),
+        TaskType.GRAPH_EXTRACTION: ProviderConfig(
+            provider=Provider.ANTHROPIC.value,
+            model=ANTHROPIC_HAIKU,
+            reason="Lightweight graph knowledge extraction from conversations",
+            fallback_provider=Provider.ANTHROPIC.value,
+            fallback_model=ANTHROPIC_SONNET,
+        ),
+        TaskType.INTENT_DETECTION: ProviderConfig(
+            provider=Provider.ANTHROPIC.value,
+            model=ANTHROPIC_SONNET,
+            reason="Structured intent detection with few-shot reasoning",
+            fallback_provider=Provider.ANTHROPIC.value,
+            fallback_model=ANTHROPIC_HAIKU,
+        ),
+        TaskType.ROLE_SKILL_GENERATION: ProviderConfig(
+            provider=Provider.ANTHROPIC.value,
+            model=ANTHROPIC_SONNET,
+            reason="AI-powered skill profile generation with template context",
             fallback_provider=Provider.ANTHROPIC.value,
             fallback_model=ANTHROPIC_HAIKU,
         ),
