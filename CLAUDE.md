@@ -20,46 +20,6 @@ scripts/       Utility scripts
 design-system/ Design tokens and references
 ```
 
-## Commands
-
-```bash
-# Install
-cd backend && uv sync          # Backend deps
-cd frontend && pnpm install    # Frontend deps
-make sync-docs                 # Sync .planning submodule (pilotspace/pilot-space-docs)
-
-# Dev servers
-cd backend && uv run uvicorn pilot_space.main:app --reload --port 8000
-cd frontend && pnpm dev        # port 3000
-
-# Quality gates (run before every commit)
-make quality-gates-backend     # pyright + ruff check + pytest --cov
-make quality-gates-frontend    # eslint + tsc --noEmit + vitest
-
-# Backend only
-cd backend && uv run ruff check                    # Lint
-cd backend && uv run ruff check --fix              # Lint autofix
-cd backend && uv run pyright                       # Type check
-cd backend && uv run pytest                        # All tests
-cd backend && uv run pytest tests/cli/ -q          # CLI tests only
-
-# Frontend only
-cd frontend && pnpm lint                           # ESLint
-cd frontend && pnpm type-check                     # tsc --noEmit
-cd frontend && pnpm test                           # Vitest
-cd frontend && pnpm test:e2e                       # Playwright
-
-# CLI
-cd cli && uv run pilot login
-cd cli && uv run pilot implement PS-1              # Interactive
-cd cli && uv run pilot implement PS-1 --oneshot    # Non-interactive (CI)
-
-# Migrations
-cd backend && alembic heads    # Verify single head
-cd backend && alembic check    # Head matches models
-cd backend && alembic upgrade head
-```
-
 ## Environment Setup
 
 Each package requires its own `.env`. Copy from examples:
