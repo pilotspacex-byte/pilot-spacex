@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="67.28px" height="67.28px"
+    xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 67.28 67.28"
+    style="shape-rendering: geometricprecision; text-rendering: geometricprecision; image-rendering: auto; fill-rule: evenodd; clip-rule: evenodd;">
+    <g>
+        <path fill="#fab444"
+            d="M36.431 10.602c-2.656 0.612 -4.835 1.993 -6.536 4.145H10.921V10.602h25.51Z"
+            style="opacity: 0.971;"></path>
+    </g>
+    <g>
+        <path fill="#0da9df"
+            d="M36.431 10.602h20.407v4.145c-6.643 -0.026 -13.286 0 -19.93 0.08 -2.748 0.835 -4.369 2.669 -4.862 5.501a4087.984 4087.984 0 0 0 -0.08 36.191h-4.145V22.56H10.921v-4.145c5.74 0.026 11.479 0 17.219 -0.08a12.503 12.503 0 0 1 1.754 -3.587c1.702 -2.152 3.881 -3.534 6.536 -4.145Z"
+            style="opacity: 0.964;"></path>
+    </g>
+
+    <g>
+        <path fill="#fab543"
+            d="M40.895 18.414h15.943v4.145c-5.155 -0.026 -10.31 0 -15.464 0.08a1.469 1.469 0 0 0 -0.877 1.036c-0.08 10.948 -0.107 21.895 -0.08 32.843h-3.986c-0.026 -11.374 0 -22.746 0.08 -34.118 0.72 -2.152 2.18 -3.481 4.385 -3.986Z"
+            style="opacity: 0.981;"></path>
+    </g>
+</svg>

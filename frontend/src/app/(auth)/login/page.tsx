@@ -5,13 +5,15 @@ import { observer } from 'mobx-react-lite';
 import { motion } from 'motion/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Compass, Github, Mail, Loader2, Eye, EyeOff, KeyRound, AlertTriangle } from 'lucide-react';
+import Image from 'next/image';
+import { Github, Mail, Loader2, Eye, EyeOff, KeyRound, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { authStore, isAuthCoreMode } from '@/stores/AuthStore';
+import { ENV } from '@/env';
 import { useWorkspaceSsoStatus, useSsoLogin } from '@/features/auth/hooks/use-sso-login';
 
 type AuthMode = 'login' | 'signup';
@@ -155,13 +157,13 @@ const LoginPage = observer(function LoginPage() {
     >
       <Card className="shadow-warm-lg">
         <CardHeader className="text-center">
-          <motion.div
-            className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-primary/10"
-            whileHover={{ rotate: 15 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 10 }}
+          <div
+            className="mx-auto mb-4 flex h-24 w-24 items-center justify-center"
+            // whileHover={{ rotate: 15 }}
+            // transition={{ type: 'spring', stiffness: 400, damping: 10 }}
           >
-            <Compass className="h-7 w-7 text-primary" />
-          </motion.div>
+            <Image src="/logo.svg" alt="Pilot Space logo" width={100} height={100} priority />
+          </div>
           <CardTitle className="text-2xl">
             {mode === 'login' ? 'Welcome to Pilot Space' : 'Create your account'}
           </CardTitle>
@@ -313,7 +315,7 @@ const LoginPage = observer(function LoginPage() {
             </div>
           )}
 
-          {!isAuthCoreMode && showEmailForm && (
+          {!isAuthCoreMode && showEmailForm && ENV.GITHUB_AUTH_ENABLED && (
             <>
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
