@@ -7,11 +7,12 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
 from pilot_space.ai.exceptions import AINotConfiguredError
+from pilot_space.ai.infrastructure.key_storage import APIKeyInfo
 from pilot_space.ai.proxy.llm_gateway import EmbeddingResponse, LLMGateway, LLMResponse
 from pilot_space.ai.proxy.provider_config import (
     TASK_TYPE_MODEL_MAP,
@@ -92,6 +93,7 @@ def mock_key_storage() -> AsyncMock:
     """SecureKeyStorage mock that returns a test key."""
     storage = AsyncMock()
     storage.get_api_key = AsyncMock(return_value="sk-test-key")
+    storage.get_key_info = AsyncMock(return_value=None)
     return storage
 
 
@@ -326,3 +328,159 @@ def test_extract_model_name_with_prefix() -> None:
 
 def test_extract_model_name_no_prefix() -> None:
     assert extract_model_name("claude-sonnet-4") == "claude-sonnet-4"
+
+
+# -- base_url forwarding tests ------------------------------------------------
+
+def _make_key_info(
+    base_url: str | None = None,
+    workspace_id: UUID | None = None,
+) -> APIKeyInfo:
+    """Create an APIKeyInfo with optional base_url."""
+    from datetime import UTC, datetime
+
+    return APIKeyInfo(
+        workspace_id=workspace_id or WS_ID,
+        provider="anthropic",
+        service_type="llm",
+        is_valid=True,
+        last_validated_at=datetime.now(UTC),
+        validation_error=None,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+        base_url=base_url,
+    )
+
+
+@patch("pilot_space.ai.proxy.llm_gateway.anthropic")
+async def test_complete_anthropic_forwards_base_url(
+    mock_anthropic_mod: MagicMock,
+    gateway: LLMGateway,
+    mock_key_storage: AsyncMock,
+) -> None:
+    """complete() with Anthropic provider forwards base_url from key_info to client."""
+    mock_key_storage.get_key_info = AsyncMock(
+        return_value=_make_key_info(base_url="https://proxy.example.com")
+    )
+
+    # Create a mock client that the AsyncAnthropic constructor returns
+    mock_client = MagicMock()
+    mock_client.messages.create = AsyncMock(return_value=_make_anthropic_response())
+    mock_anthropic_mod.AsyncAnthropic.return_value = mock_client
+
+    # Clear any cached clients so _get_anthropic_client creates a new one
+    gateway._anthropic_clients.clear()  # noqa: SLF001
+
+    await gateway.complete(
+        workspace_id=WS_ID,
+        user_id=USER_ID,
+        task_type=TaskType.PR_REVIEW,
+        messages=[{"role": "user", "content": "review this"}],
+    )
+
+    # Verify AsyncAnthropic was created with base_url
+    mock_anthropic_mod.AsyncAnthropic.assert_called_once_with(
+        api_key="sk-test-key", base_url="https://proxy.example.com"
+    )
+
+
+@patch("pilot_space.ai.proxy.llm_gateway.openai")
+async def test_complete_openai_forwards_base_url(
+    mock_openai_mod: MagicMock,
+    gateway: LLMGateway,
+    mock_key_storage: AsyncMock,
+) -> None:
+    """complete() with OpenAI provider forwards base_url from key_info to client."""
+    mock_key_storage.get_key_info = AsyncMock(
+        return_value=_make_key_info(base_url="https://openai-proxy.example.com")
+    )
+
+    mock_client = MagicMock()
+    mock_client.chat.completions.create = AsyncMock(return_value=_make_openai_response())
+    mock_openai_mod.AsyncOpenAI.return_value = mock_client
+
+    gateway._openai_clients.clear()  # noqa: SLF001
+
+    await gateway.complete(
+        workspace_id=WS_ID,
+        user_id=USER_ID,
+        task_type=TaskType.PR_REVIEW,
+        messages=[{"role": "user", "content": "review this"}],
+        model="openai/gpt-4o",
+    )
+
+    mock_openai_mod.AsyncOpenAI.assert_called_once_with(
+        api_key="sk-test-key", base_url="https://openai-proxy.example.com"
+    )
+
+
+async def test_client_cache_differentiates_base_url(
+    gateway: LLMGateway,
+) -> None:
+    """Same api_key with different base_url produces different cached clients."""
+    with patch("pilot_space.ai.proxy.llm_gateway.anthropic") as mock_mod:
+        mock_mod.AsyncAnthropic.side_effect = lambda **kw: MagicMock(name=f"client-{kw.get('base_url')}")
+
+        gateway._anthropic_clients.clear()  # noqa: SLF001
+
+        client1 = gateway._get_anthropic_client("sk-test", base_url=None)  # noqa: SLF001
+        client2 = gateway._get_anthropic_client("sk-test", base_url="https://proxy.example.com")  # noqa: SLF001
+
+        assert client1 is not client2
+        assert len(gateway._anthropic_clients) == 2  # noqa: SLF001
+
+
+@patch("pilot_space.ai.proxy.llm_gateway.openai")
+async def test_embed_forwards_base_url(
+    mock_openai_mod: MagicMock,
+    gateway: LLMGateway,
+    mock_key_storage: AsyncMock,
+) -> None:
+    """embed() forwards base_url from key_info to OpenAI client."""
+    mock_key_storage.get_key_info = AsyncMock(
+        return_value=_make_key_info(base_url="https://embed-proxy.example.com")
+    )
+
+    mock_client = MagicMock()
+    mock_client.embeddings.create = AsyncMock(
+        return_value=_make_embedding_response([[0.1, 0.2]])
+    )
+    mock_openai_mod.AsyncOpenAI.return_value = mock_client
+
+    gateway._openai_clients.clear()  # noqa: SLF001
+
+    await gateway.embed(
+        workspace_id=WS_ID,
+        user_id=USER_ID,
+        texts=["hello"],
+    )
+
+    mock_openai_mod.AsyncOpenAI.assert_called_once_with(
+        api_key="sk-test-key", base_url="https://embed-proxy.example.com"
+    )
+
+
+@patch("pilot_space.ai.proxy.llm_gateway.anthropic")
+async def test_complete_anthropic_no_base_url_omits_kwarg(
+    mock_anthropic_mod: MagicMock,
+    gateway: LLMGateway,
+    mock_key_storage: AsyncMock,
+) -> None:
+    """complete() with no base_url creates AsyncAnthropic without base_url kwarg."""
+    mock_key_storage.get_key_info = AsyncMock(return_value=None)
+
+    mock_client = MagicMock()
+    mock_client.messages.create = AsyncMock(return_value=_make_anthropic_response())
+    mock_anthropic_mod.AsyncAnthropic.return_value = mock_client
+
+    gateway._anthropic_clients.clear()  # noqa: SLF001
+
+    await gateway.complete(
+        workspace_id=WS_ID,
+        user_id=USER_ID,
+        task_type=TaskType.PR_REVIEW,
+        messages=[{"role": "user", "content": "review this"}],
+    )
+
+    # Should be called with api_key only, no base_url
+    mock_anthropic_mod.AsyncAnthropic.assert_called_once_with(api_key="sk-test-key")
