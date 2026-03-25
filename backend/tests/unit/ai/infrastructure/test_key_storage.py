@@ -402,16 +402,16 @@ class TestSecureKeyStorage:
 
     @pytest.mark.asyncio
     async def test_valid_providers_set(self, key_storage: SecureKeyStorage) -> None:
-        """Verify google, anthropic, ollama, elevenlabs are valid."""
+        """Verify all expected providers are valid."""
         assert (
-            frozenset({"google", "anthropic", "ollama", "elevenlabs"})
+            frozenset({"google", "anthropic", "ollama", "elevenlabs", "hunyuan_ocr", "tencent_ocr"})
             == key_storage.VALID_PROVIDERS
         )
 
     @pytest.mark.asyncio
     async def test_valid_service_types_set(self, key_storage: SecureKeyStorage) -> None:
-        """Verify embedding, llm, and stt are valid service types."""
-        assert frozenset({"embedding", "llm", "stt"}) == key_storage.VALID_SERVICE_TYPES
+        """Verify embedding, llm, ocr, and stt are valid service types."""
+        assert frozenset({"embedding", "llm", "ocr", "stt"}) == key_storage.VALID_SERVICE_TYPES
 
     @pytest.mark.asyncio
     @patch("anthropic.AsyncAnthropic")

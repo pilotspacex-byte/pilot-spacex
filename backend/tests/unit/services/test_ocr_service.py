@@ -159,7 +159,7 @@ async def test_successful_extraction_persists_to_db() -> None:
     assert added_obj.extracted_text == "persisted text"
     assert added_obj.provider_used == "hunyuan_ocr"
     assert added_obj.attachment_id == ATTACHMENT_ID
-    session.commit.assert_called_once()
+    session.flush.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

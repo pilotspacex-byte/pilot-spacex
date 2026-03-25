@@ -5,8 +5,8 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, String, Text, func
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy import JSON, DateTime, Float, ForeignKey, String, Text, func
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from pilot_space.infrastructure.database.base import Base
@@ -46,7 +46,7 @@ class OcrResultModel(Base):
         index=True,
     )
     extracted_text: Mapped[str] = mapped_column(Text, nullable=False)
-    tables_json: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
+    tables_json: Mapped[dict[str, object] | None] = mapped_column(JSON, nullable=True)
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     language: Mapped[str | None] = mapped_column(String(32), nullable=True)
     provider_used: Mapped[str] = mapped_column(String(64), nullable=False)

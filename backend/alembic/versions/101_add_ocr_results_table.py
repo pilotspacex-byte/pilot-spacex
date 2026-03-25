@@ -1,7 +1,7 @@
 """Add ocr_results table for persisted OCR extraction output.
 
-Revision ID: 091_add_ocr_results_table
-Revises: 090_add_tags_and_usage_to_skills
+Revision ID: 101_add_ocr_results_table
+Revises: 100_add_pgmq_set_vt_wrapper
 Create Date: 2026-03-23
 
 Creates ocr_results table to store OCR extraction output independently of
@@ -16,8 +16,8 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 
 from alembic import op
 
-revision: str = "091_add_ocr_results_table"
-down_revision: str = "090_add_tags_and_usage_to_skills"
+revision: str = "101_add_ocr_results_table"
+down_revision: str = "100_add_pgmq_set_vt_wrapper"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

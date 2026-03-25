@@ -192,7 +192,7 @@ class OcrService:
             provider_used=result.provider_used,
         )
         session.add(row)
-        await session.commit()
+        await session.flush()  # Caller owns commit
 
     async def validate_connection(
         self,

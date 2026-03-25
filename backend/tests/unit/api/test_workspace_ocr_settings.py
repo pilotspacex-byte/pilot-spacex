@@ -5,6 +5,7 @@ Tests call endpoint functions directly with mocked dependencies.
 Covers:
 - GET returns 404 when workspace not found
 - GET returns 403 when user is not admin
+- GET returns provider_type='none' when no OCR provider is configured
 - PUT with provider_type="hunyuan_ocr" calls store_api_key with service_type="ocr"
 - POST /test calls validate_connection and returns success/failure response
 """
@@ -69,6 +70,15 @@ def _make_workspace(
     return workspace
 
 
+def _make_key_storage(key_info: MagicMock | None = None) -> MagicMock:
+    """Build a mock KeyStorage (SecureKeyStorage)."""
+    ks = MagicMock()
+    ks.get_key_info = AsyncMock(return_value=key_info)
+    ks.store_api_key = AsyncMock()
+    ks.delete_api_key = AsyncMock()
+    return ks
+
+
 def _make_api_key_info(
     provider: str = "hunyuan_ocr",
     base_url: str = "http://localhost:8080/v1",
@@ -89,6 +99,9 @@ def _make_api_key_info(
 # GET /workspaces/{id}/ocr/settings
 # ---------------------------------------------------------------------------
 
+# Patch path for the local import of WorkspaceRepository inside _get_admin_workspace
+_WS_REPO_PATCH = "pilot_space.infrastructure.database.repositories.workspace_repository.WorkspaceRepository"
+
 
 async def test_get_ocr_settings_workspace_not_found() -> None:
     """GET returns 404 when workspace not found."""
@@ -96,16 +109,14 @@ async def test_get_ocr_settings_workspace_not_found() -> None:
     workspace_repo.get_with_members = AsyncMock(return_value=None)
 
     with (
-        patch(
-            "pilot_space.api.v1.routers.workspace_ocr_settings.WorkspaceRepository",
-            return_value=workspace_repo,
-        ),
+        patch(_WS_REPO_PATCH, return_value=workspace_repo),
         pytest.raises(HTTPException) as exc_info,
     ):
         await router_get_ocr_settings(
             workspace_id=TEST_WORKSPACE_ID,
             current_user=_make_current_user(),
             session=_make_session(),
+            key_storage=_make_key_storage(),
         )
 
     assert exc_info.value.status_code == 404
@@ -118,16 +129,14 @@ async def test_get_ocr_settings_not_admin_returns_403() -> None:
     workspace_repo.get_with_members = AsyncMock(return_value=workspace)
 
     with (
-        patch(
-            "pilot_space.api.v1.routers.workspace_ocr_settings.WorkspaceRepository",
-            return_value=workspace_repo,
-        ),
+        patch(_WS_REPO_PATCH, return_value=workspace_repo),
         pytest.raises(HTTPException) as exc_info,
     ):
         await router_get_ocr_settings(
             workspace_id=TEST_WORKSPACE_ID,
             current_user=_make_current_user(),
             session=_make_session(),
+            key_storage=_make_key_storage(),
         )
 
     assert exc_info.value.status_code == 403
@@ -139,29 +148,14 @@ async def test_get_ocr_settings_no_provider_returns_none() -> None:
     workspace_repo = MagicMock()
     workspace_repo.get_with_members = AsyncMock(return_value=workspace)
 
-    mock_key_storage = MagicMock()
-    mock_key_storage.get_key_info = AsyncMock(return_value=None)
+    mock_key_storage = _make_key_storage(key_info=None)
 
-    with (
-        patch(
-            "pilot_space.api.v1.routers.workspace_ocr_settings.WorkspaceRepository",
-            return_value=workspace_repo,
-        ),
-        patch(
-            "pilot_space.api.v1.routers.workspace_ocr_settings.SecureKeyStorage",
-            return_value=mock_key_storage,
-        ),
-        patch(
-            "pilot_space.api.v1.routers.workspace_ocr_settings.get_settings",
-            return_value=MagicMock(
-                encryption_key=MagicMock(get_secret_value=MagicMock(return_value="secret"))
-            ),
-        ),
-    ):
+    with patch(_WS_REPO_PATCH, return_value=workspace_repo):
         response = await router_get_ocr_settings(
             workspace_id=TEST_WORKSPACE_ID,
             current_user=_make_current_user(),
             session=_make_session(),
+            key_storage=mock_key_storage,
         )
 
     assert response.provider_type == "none"
@@ -179,10 +173,8 @@ async def test_put_ocr_settings_hunyuan_calls_store_api_key() -> None:
     workspace_repo = MagicMock()
     workspace_repo.get_with_members = AsyncMock(return_value=workspace)
 
-    mock_key_storage = MagicMock()
-    mock_key_storage.store_api_key = AsyncMock()
-    mock_key_storage.get_key_info = AsyncMock(
-        return_value=_make_api_key_info(
+    mock_key_storage = _make_key_storage(
+        key_info=_make_api_key_info(
             provider="hunyuan_ocr",
             base_url="http://localhost:8080/v1",
             model_name="tencent/HunyuanOCR",
@@ -196,27 +188,13 @@ async def test_put_ocr_settings_hunyuan_calls_store_api_key() -> None:
         model_name="tencent/HunyuanOCR",
     )
 
-    with (
-        patch(
-            "pilot_space.api.v1.routers.workspace_ocr_settings.WorkspaceRepository",
-            return_value=workspace_repo,
-        ),
-        patch(
-            "pilot_space.api.v1.routers.workspace_ocr_settings.SecureKeyStorage",
-            return_value=mock_key_storage,
-        ),
-        patch(
-            "pilot_space.api.v1.routers.workspace_ocr_settings.get_settings",
-            return_value=MagicMock(
-                encryption_key=MagicMock(get_secret_value=MagicMock(return_value="secret"))
-            ),
-        ),
-    ):
+    with patch(_WS_REPO_PATCH, return_value=workspace_repo):
         response = await router_update_ocr_settings(
             workspace_id=TEST_WORKSPACE_ID,
             body=body,
             current_user=_make_current_user(),
             session=_make_session(),
+            key_storage=mock_key_storage,
         )
 
     # Confirm store_api_key was called with service_type="ocr"
@@ -250,20 +228,14 @@ async def test_post_ocr_test_returns_success() -> None:
         api_key="test-key",  # pragma: allowlist secret
     )
 
+    mock_request = MagicMock()
+    mock_request.app.state.container.encryption_key.return_value = "secret"
+
     with (
+        patch(_WS_REPO_PATCH, return_value=workspace_repo),
         patch(
-            "pilot_space.api.v1.routers.workspace_ocr_settings.WorkspaceRepository",
-            return_value=workspace_repo,
-        ),
-        patch(
-            "pilot_space.api.v1.routers.workspace_ocr_settings.OcrService",
+            "pilot_space.application.services.ai.ocr_service.OcrService",
             return_value=mock_ocr_service,
-        ),
-        patch(
-            "pilot_space.api.v1.routers.workspace_ocr_settings.get_settings",
-            return_value=MagicMock(
-                encryption_key=MagicMock(get_secret_value=MagicMock(return_value="secret"))
-            ),
         ),
     ):
         response = await router_test_ocr_connection(
@@ -271,6 +243,8 @@ async def test_post_ocr_test_returns_success() -> None:
             body=body,
             current_user=_make_current_user(),
             session=_make_session(),
+            key_storage=_make_key_storage(),
+            request=mock_request,
         )
 
     assert response.success is True
@@ -295,20 +269,14 @@ async def test_post_ocr_test_returns_failure() -> None:
         api_key="bad-key",  # pragma: allowlist secret
     )
 
+    mock_request = MagicMock()
+    mock_request.app.state.container.encryption_key.return_value = "secret"
+
     with (
+        patch(_WS_REPO_PATCH, return_value=workspace_repo),
         patch(
-            "pilot_space.api.v1.routers.workspace_ocr_settings.WorkspaceRepository",
-            return_value=workspace_repo,
-        ),
-        patch(
-            "pilot_space.api.v1.routers.workspace_ocr_settings.OcrService",
+            "pilot_space.application.services.ai.ocr_service.OcrService",
             return_value=mock_ocr_service,
-        ),
-        patch(
-            "pilot_space.api.v1.routers.workspace_ocr_settings.get_settings",
-            return_value=MagicMock(
-                encryption_key=MagicMock(get_secret_value=MagicMock(return_value="secret"))
-            ),
         ),
     ):
         response = await router_test_ocr_connection(
@@ -316,6 +284,8 @@ async def test_post_ocr_test_returns_failure() -> None:
             body=body,
             current_user=_make_current_user(),
             session=_make_session(),
+            key_storage=_make_key_storage(),
+            request=mock_request,
         )
 
     assert response.success is False

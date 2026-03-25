@@ -1,7 +1,7 @@
 """Add extracted_text column to chat_attachments.
 
-Revision ID: 092_add_extracted_text_to_chat_attachments
-Revises: 091_add_ocr_results_table
+Revision ID: 102_add_extracted_text_to_chat_attachments
+Revises: 101_add_ocr_results_table
 Create Date: 2026-03-23
 
 Adds a nullable TEXT column to cache extracted markdown text from Office
@@ -18,8 +18,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision: str = "092_add_extracted_text_to_chat_attachments"
-down_revision: str = "091_add_ocr_results_table"
+revision: str = "102_add_extracted_text_to_chat_attachments"
+down_revision: str = "101_add_ocr_results_table"
 branch_labels: None = None
 depends_on: None = None
 
