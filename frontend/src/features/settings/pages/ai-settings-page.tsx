@@ -13,11 +13,12 @@
 import * as React from 'react';
 import { observer } from 'mobx-react-lite';
 import { useParams } from 'next/navigation';
-import { AlertCircle, Database, BrainCircuit, Mic, CheckCircle2, Circle } from 'lucide-react';
+import { AlertCircle, Database, BrainCircuit, Mic, ScanLine, CheckCircle2, Circle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ProviderSection } from '../components/provider-section';
+import { OcrProviderSection } from '../components/ocr-provider-section';
 import { AIFeatureToggles } from '../components/ai-feature-toggles';
 import { useStore } from '@/stores';
 import { cn } from '@/lib/utils';
@@ -165,7 +166,7 @@ export const AISettingsPage = observer(function AISettingsPage() {
         <SetupProgress />
 
         {/* Tabbed provider panel */}
-        <ProviderTabs onSaved={handleProviderSaved} />
+        <ProviderTabs onSaved={handleProviderSaved} workspaceId={workspaceId} />
 
         {/* Feature toggles */}
         <AIFeatureToggles />
@@ -174,8 +175,8 @@ export const AISettingsPage = observer(function AISettingsPage() {
   );
 });
 
-/** Tabbed panel for Embedding / LLM provider selection. */
-const ProviderTabs = observer(function ProviderTabs({ onSaved }: { onSaved: () => void }) {
+/** Tabbed panel for Embedding / LLM / Voice / OCR provider selection. */
+const ProviderTabs = observer(function ProviderTabs({ onSaved, workspaceId }: { onSaved: () => void; workspaceId: string }) {
   const { ai } = useStore();
   const { settings } = ai;
 
@@ -208,6 +209,10 @@ const ProviderTabs = observer(function ProviderTabs({ onSaved }: { onSaved: () =
           Voice
           {sttConnected && <CheckCircle2 className="h-3 w-3 text-primary" />}
         </TabsTrigger>
+        <TabsTrigger value="ocr" className="gap-2 px-4">
+          <ScanLine className="h-3.5 w-3.5" />
+          OCR
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="llm" className="mt-4">
@@ -232,6 +237,10 @@ const ProviderTabs = observer(function ProviderTabs({ onSaved }: { onSaved: () =
           description="Used for voice-to-text transcription in AI Chat."
           onSaved={onSaved}
         />
+      </TabsContent>
+
+      <TabsContent value="ocr" className="mt-4">
+        <OcrProviderSection workspaceId={workspaceId} onSaved={onSaved} />
       </TabsContent>
     </Tabs>
   );
