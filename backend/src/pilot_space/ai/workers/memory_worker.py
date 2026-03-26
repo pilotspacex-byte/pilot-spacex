@@ -46,6 +46,7 @@ TASK_MEMORY_DLQ = "memory_dlq_reconciliation"
 TASK_GRAPH_EXPIRATION = "graph_expiration"
 TASK_DOCUMENT_INGESTION = "document_ingestion"
 TASK_ARTIFACT_CLEANUP = "artifact_cleanup"
+TASK_SEND_INVITATION_EMAIL = "send_invitation_email"
 
 # _BATCH_SIZE MUST remain 1: _process() handles only messages[0].
 # Increasing this without updating the loop would silently drop messages 1..N.
@@ -180,6 +181,7 @@ class MemoryWorker:
             TASK_GRAPH_EXPIRATION,
             TASK_DOCUMENT_INGESTION,
             TASK_ARTIFACT_CLEANUP,
+            TASK_SEND_INVITATION_EMAIL,
         ):
             logger.debug("MemoryWorker: skipping unknown task_type %s", task_type)
             await self.queue.nack(
@@ -312,6 +314,14 @@ class MemoryWorker:
                 return {"task_type": task_type, "deleted_count": 0, "skipped": True}
             count = await run_artifact_cleanup(session, self._storage_client)
             return {"task_type": task_type, "deleted_count": count}
+
+        if task_type == TASK_SEND_INVITATION_EMAIL:
+            from pilot_space.infrastructure.queue.handlers.invitation_email_handler import (
+                send_invitation_email,
+            )
+
+            await send_invitation_email(payload)
+            return {"task_type": task_type, "invitation_id": payload.get("invitation_id")}
 
         raise AssertionError(f"Unreachable: _dispatch called with unknown task_type {task_type!r}")
 

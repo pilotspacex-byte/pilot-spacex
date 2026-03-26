@@ -41,11 +41,9 @@ if TYPE_CHECKING:
     from pilot_space.infrastructure.database.repositories.workspace_repository import (
         WorkspaceRepository,
     )
+    from pilot_space.infrastructure.queue.supabase_queue import SupabaseQueueClient
 
 logger = get_logger(__name__)
-
-# Prevent fire-and-forget tasks from being garbage-collected before completion
-_background_tasks: set[object] = set()
 
 
 # ===== Payloads & Results =====
@@ -187,11 +185,13 @@ class WorkspaceService:
         user_repo: UserRepository,
         invitation_repo: InvitationRepository,
         label_repo: LabelRepository,
+        queue: SupabaseQueueClient | None = None,
     ) -> None:
         self.workspace_repo = workspace_repo
         self.user_repo = user_repo
         self.invitation_repo = invitation_repo
         self.label_repo = label_repo
+        self._queue = queue
 
     @staticmethod
     def _is_valid_uuid(value: str) -> bool:
@@ -584,59 +584,22 @@ class WorkspaceService:
             },
         )
 
-        # Fire-and-forget: send email without blocking the API response
-        import asyncio
+        # Enqueue email delivery — written in the same DB transaction as the
+        # invitation, so if the transaction rolls back, the email job also
+        # rolls back (transactional outbox via pgmq).
+        if self._queue is not None:
+            try:
+                from pilot_space.infrastructure.queue.models import QueueName
 
-        task = asyncio.create_task(
-            self._send_invitation_email(
-                email=normalized_email,
-                invitation_id=invitation.id,
-            )
-        )
-        task.add_done_callback(_background_tasks.discard)
-        _background_tasks.add(task)
+                await self._queue.enqueue(
+                    QueueName.AI_NORMAL,
+                    {
+                        "task_type": "send_invitation_email",
+                        "email": normalized_email,
+                        "invitation_id": str(invitation.id),
+                    },
+                )
+            except Exception as exc:
+                logger.warning("Failed to enqueue invitation email: %s", exc)
 
         return InviteMemberResult(is_immediate=False, invitation=invitation)
-
-    async def _send_invitation_email(
-        self,
-        email: str,
-        invitation_id: UUID,
-    ) -> None:
-        """Send invitation email via Supabase Admin API.
-
-        Runs as a background task after the response is sent, ensuring
-        the DB transaction has committed before the email is dispatched.
-        Non-fatal: if email fails, the invitation still exists in the DB.
-        """
-        # Yield control so the request handler returns and commits first
-        import asyncio
-
-        await asyncio.sleep(0)
-
-        try:
-            from pilot_space.config import get_settings
-            from pilot_space.infrastructure.supabase_client import get_supabase_client
-
-            settings = get_settings()
-            redirect_url = f"{settings.frontend_url}/accept-invite?invitation_id={invitation_id}"
-
-            client = await get_supabase_client()
-            await client.auth.admin.invite_user_by_email(
-                email,
-                options={
-                    "redirect_to": redirect_url,
-                    "data": {"invitation_id": str(invitation_id)},
-                },
-            )
-
-            logger.info(
-                "Invitation email sent via Supabase",
-                extra={"invitation_id": str(invitation_id)},
-            )
-        except Exception:
-            logger.warning(
-                "Failed to send invitation email — invitation still valid in DB",
-                extra={"invitation_id": str(invitation_id)},
-                exc_info=True,
-            )

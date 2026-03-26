@@ -522,6 +522,7 @@ class Container(SkillContainer, PluginContainer):
         user_repo=InfraContainer.user_repository,
         invitation_repo=InfraContainer.invitation_repository,
         label_repo=InfraContainer.label_repository,
+        queue=InfraContainer.queue_client,
     )
 
     workspace_member_service = providers.Factory(
