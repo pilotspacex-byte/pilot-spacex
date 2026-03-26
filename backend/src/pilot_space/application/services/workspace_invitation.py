@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from pilot_space.domain.exceptions import ForbiddenError, NotFoundError
+from pilot_space.domain.exceptions import ConflictError, ForbiddenError, NotFoundError
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -67,6 +67,29 @@ class CancelInvitationResult:
 
     invitation_id: UUID
     cancelled_at: datetime
+
+
+@dataclass
+class InvitationDetailResult:
+    """Public invitation details for the accept-invite page."""
+
+    id: UUID
+    workspace_name: str
+    workspace_slug: str
+    inviter_name: str | None
+    role: str
+    email_masked: str
+    status: str
+    expires_at: datetime
+
+
+@dataclass
+class AcceptInvitationResult:
+    """Result after accepting an invitation."""
+
+    workspace_slug: str
+    workspace_name: str
+    role: str
 
 
 class WorkspaceInvitationService:
@@ -175,10 +198,142 @@ class WorkspaceInvitationService:
             cancelled_at=datetime.now(tz=UTC),
         )
 
+    async def get_invitation_details(
+        self,
+        invitation_id: UUID,
+    ) -> InvitationDetailResult:
+        """Get public-facing invitation details (no auth required).
+
+        Args:
+            invitation_id: The invitation UUID.
+
+        Returns:
+            Public invitation details for the accept-invite page.
+
+        Raises:
+            NotFoundError: If invitation not found, expired, or not pending.
+        """
+        invitation = await self.invitation_repo.get_by_id(invitation_id)
+        if invitation is None or invitation.is_deleted:
+            msg = "Invitation not found"
+            raise NotFoundError(msg)
+
+        # Mark expired invitations on read
+        if invitation.is_expired and invitation.status.value == "pending":
+            await self.invitation_repo.mark_expired(invitation_id)
+            invitation.status = invitation.status.__class__("expired")
+
+        return InvitationDetailResult(
+            id=invitation.id,
+            workspace_name=invitation.workspace.name if invitation.workspace else "Unknown",
+            workspace_slug=invitation.workspace.slug if invitation.workspace else "",
+            inviter_name=invitation.inviter.full_name if invitation.inviter else None,
+            role=invitation.role.value,
+            email_masked=_mask_email(invitation.email),
+            status=invitation.status.value,
+            expires_at=invitation.expires_at,
+        )
+
+    async def accept_invitation(
+        self,
+        invitation_id: UUID,
+        user_id: UUID,
+        user_email: str,
+    ) -> AcceptInvitationResult:
+        """Accept a pending invitation.
+
+        Verifies the authenticated user's email matches the invitation,
+        adds them to the workspace, and marks the invitation as accepted.
+
+        Args:
+            invitation_id: The invitation UUID.
+            user_id: The authenticated user's UUID.
+            user_email: The authenticated user's email.
+
+        Returns:
+            Accept result with workspace slug for redirect.
+
+        Raises:
+            NotFoundError: If invitation not found or not pending.
+            ForbiddenError: If email doesn't match the invitation.
+            ConflictError: If user is already a member.
+        """
+        invitation = await self.invitation_repo.get_by_id(invitation_id)
+        if invitation is None or invitation.is_deleted:
+            msg = "Invitation not found"
+            raise NotFoundError(msg)
+
+        if invitation.is_expired:
+            await self.invitation_repo.mark_expired(invitation_id)
+            msg = "Invitation has expired"
+            raise NotFoundError(msg)
+
+        if invitation.status.value != "pending":
+            msg = "Invitation is no longer pending"
+            raise NotFoundError(msg)
+
+        # Verify email match
+        if invitation.email.lower() != user_email.strip().lower():
+            msg = "This invitation was sent to a different email address"
+            raise ForbiddenError(msg)
+
+        # Check if already a member
+        is_member = await self.workspace_repo.is_member(
+            invitation.workspace_id, user_id
+        )
+        if is_member:
+            # Already a member, just mark invitation accepted
+            await self.invitation_repo.mark_accepted(invitation_id)
+            msg = "You are already a member of this workspace"
+            raise ConflictError(msg)
+
+        # Add to workspace
+        from pilot_space.infrastructure.database.models.workspace_member import (
+            WorkspaceRole,
+        )
+
+        await self.workspace_repo.add_member(
+            workspace_id=invitation.workspace_id,
+            user_id=user_id,
+            role=WorkspaceRole(invitation.role.value),
+        )
+        await self.invitation_repo.mark_accepted(invitation_id)
+
+        logger.info(
+            "Invitation accepted",
+            extra={
+                "invitation_id": str(invitation_id),
+                "user_id": str(user_id),
+                "workspace_id": str(invitation.workspace_id),
+            },
+        )
+
+        workspace_name = invitation.workspace.name if invitation.workspace else "Unknown"
+        workspace_slug = invitation.workspace.slug if invitation.workspace else ""
+
+        return AcceptInvitationResult(
+            workspace_slug=workspace_slug,
+            workspace_name=workspace_name,
+            role=invitation.role.value,
+        )
+
+
+def _mask_email(email: str) -> str:
+    """Mask an email address for public display (e.g. t***@example.com)."""
+    parts = email.split("@")
+    if len(parts) != 2:
+        return "***"
+    local = parts[0]
+    if len(local) <= 1:
+        return f"*@{parts[1]}"
+    return f"{local[0]}{'*' * (len(local) - 1)}@{parts[1]}"
+
 
 __all__ = [
+    "AcceptInvitationResult",
     "CancelInvitationPayload",
     "CancelInvitationResult",
+    "InvitationDetailResult",
     "ListInvitationsPayload",
     "ListInvitationsResult",
     "WorkspaceInvitationService",

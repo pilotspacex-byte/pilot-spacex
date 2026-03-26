@@ -169,11 +169,50 @@ class InvitationResponse(BaseSchema):
     role: str = Field(description="Intended role upon acceptance")
     status: str = Field(description="Invitation status (pending/accepted/expired/cancelled)")
     invited_by: UUID = Field(description="Inviter user ID")
+    invited_by_name: str | None = Field(default=None, description="Inviter display name")
     suggested_sdlc_role: str | None = Field(
         default=None, description="Owner's suggested SDLC role hint"
     )
     expires_at: datetime = Field(description="Invitation expiry timestamp")
     created_at: datetime = Field(description="Invitation creation timestamp")
+
+
+class InvitationPublicDetailResponse(BaseSchema):
+    """Public-facing invitation details (no auth required).
+
+    Attributes:
+        id: Invitation UUID.
+        workspace_name: Workspace display name.
+        workspace_slug: Workspace URL slug.
+        inviter_name: Name of the person who sent the invitation.
+        role: Intended role upon acceptance.
+        email_masked: Masked email (e.g. t***@example.com).
+        status: Invitation status.
+        expires_at: When the invitation expires.
+    """
+
+    id: UUID = Field(description="Invitation UUID")
+    workspace_name: str = Field(description="Workspace display name")
+    workspace_slug: str = Field(description="Workspace URL slug")
+    inviter_name: str | None = Field(default=None, description="Inviter display name")
+    role: str = Field(description="Intended role upon acceptance")
+    email_masked: str = Field(description="Masked email address")
+    status: str = Field(description="Invitation status")
+    expires_at: datetime = Field(description="Invitation expiry timestamp")
+
+
+class InvitationAcceptResponse(BaseSchema):
+    """Response after accepting an invitation.
+
+    Attributes:
+        workspace_slug: Workspace slug for redirect.
+        workspace_name: Workspace display name.
+        role: Role assigned to the new member.
+    """
+
+    workspace_slug: str = Field(description="Workspace slug for redirect")
+    workspace_name: str = Field(description="Workspace display name")
+    role: str = Field(description="Assigned role")
 
 
 class InvitationCreateRequest(BaseSchema):
@@ -524,7 +563,9 @@ class WorkspaceAISettingsUpdateResponse(BaseSchema):
 __all__ = [
     "AIFeatureToggles",
     "APIKeyUpdate",
+    "InvitationAcceptResponse",
     "InvitationCreateRequest",
+    "InvitationPublicDetailResponse",
     "InvitationResponse",
     "KeyValidationResult",
     "MemberActivityItem",

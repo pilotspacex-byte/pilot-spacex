@@ -13,7 +13,7 @@ export interface WorkspaceInvitation {
   email: string;
   role: 'admin' | 'member' | 'guest';
   status: 'pending' | 'accepted' | 'expired' | 'cancelled';
-  invitedById: string;
+  invitedBy: string;
   invitedByName: string | null;
   createdAt: string;
   expiresAt: string;

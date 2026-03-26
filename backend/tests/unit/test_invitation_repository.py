@@ -68,7 +68,8 @@ class TestGetByWorkspace:
 
         # Assert
         assert len(results) == 2
-        session.execute.assert_awaited_once()
+        # 2 calls: expire stale invitations UPDATE + SELECT query
+        assert session.execute.await_count == 2
 
     async def test_get_by_workspace_with_status_filter(self) -> None:
         """Filters invitations by status when status_filter provided."""
@@ -87,7 +88,8 @@ class TestGetByWorkspace:
 
         # Assert
         assert len(results) == 1
-        session.execute.assert_awaited_once()
+        # 2 calls: expire stale invitations UPDATE + SELECT query
+        assert session.execute.await_count == 2
 
 
 class TestExistsPending:

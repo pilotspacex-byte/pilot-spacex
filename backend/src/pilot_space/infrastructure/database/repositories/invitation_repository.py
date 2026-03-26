@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, select, update
 
 from pilot_space.infrastructure.database.models.workspace_invitation import (
     InvitationStatus,
@@ -43,6 +43,8 @@ class InvitationRepository(BaseRepository[WorkspaceInvitation]):
     ) -> Sequence[WorkspaceInvitation]:
         """List invitations for a workspace, optionally filtered by status.
 
+        Marks expired pending invitations on read (write-on-read cleanup).
+
         Args:
             workspace_id: The workspace UUID.
             status_filter: Optional status to filter by.
@@ -50,6 +52,21 @@ class InvitationRepository(BaseRepository[WorkspaceInvitation]):
         Returns:
             List of invitations ordered by creation date descending.
         """
+        # Mark expired pending invitations before querying
+        expire_stmt = (
+            update(WorkspaceInvitation)
+            .where(
+                and_(
+                    WorkspaceInvitation.workspace_id == workspace_id,
+                    WorkspaceInvitation.status == InvitationStatus.PENDING,
+                    WorkspaceInvitation.expires_at < datetime.now(tz=UTC),
+                    WorkspaceInvitation.is_deleted == False,  # noqa: E712
+                )
+            )
+            .values(status=InvitationStatus.EXPIRED)
+        )
+        await self.session.execute(expire_stmt)
+
         query = select(WorkspaceInvitation).where(
             and_(
                 WorkspaceInvitation.workspace_id == workspace_id,

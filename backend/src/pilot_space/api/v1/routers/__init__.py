@@ -89,7 +89,10 @@ from pilot_space.api.v1.routers.workspace_encryption import router as workspace_
 from pilot_space.api.v1.routers.workspace_feature_toggles import (
     router as workspace_feature_toggles_router,
 )
-from pilot_space.api.v1.routers.workspace_invitations import router as workspace_invitations_router
+from pilot_space.api.v1.routers.workspace_invitations import (
+    invitation_router,
+    router as workspace_invitations_router,
+)
 from pilot_space.api.v1.routers.workspace_issue_branches import (
     router as workspace_issue_branches_router,
 )
@@ -187,6 +190,7 @@ __all__ = [
     "homepage_router",
     "integrations_router",
     "intents_router",
+    "invitation_router",
     "issue_implement_router",
     "issues_ai_context_router",
     "issues_ai_context_streaming_router",

@@ -144,13 +144,23 @@ export const workspacesApi = {
 
   /**
    * Invite a new member to the workspace.
+   *
+   * Backend returns WorkspaceMemberResponse if user exists (immediate add),
+   * or InvitationResponse if user doesn't exist (pending invitation).
    */
-  async inviteMember(workspaceId: string, data: InviteMemberData): Promise<WorkspaceMember> {
-    const response = await apiClient.post<WorkspaceMemberResponse>(
+  async inviteMember(
+    workspaceId: string,
+    data: InviteMemberData
+  ): Promise<WorkspaceMember | { invitation: true; id: string; email: string }> {
+    const response = await apiClient.post<Record<string, unknown>>(
       `/workspaces/${workspaceId}/members`,
       { ...data, role: data.role.toUpperCase() }
     );
-    return transformWorkspaceMember(response);
+    // Discriminate by presence of 'status' field (InvitationResponse has it, WorkspaceMemberResponse doesn't)
+    if ('status' in response && typeof response.status === 'string') {
+      return { invitation: true, id: response.id as string, email: response.email as string };
+    }
+    return transformWorkspaceMember(response as unknown as WorkspaceMemberResponse);
   },
 
   /**

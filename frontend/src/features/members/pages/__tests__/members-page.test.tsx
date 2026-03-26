@@ -202,7 +202,7 @@ const sampleInvitations = [
     email: 'pending@example.com',
     role: 'member',
     status: 'pending',
-    invitedById: 'user-1',
+    invitedBy: 'user-1',
     invitedByName: null,
     createdAt: '2025-02-01T00:00:00Z',
     expiresAt: '2025-02-08T00:00:00Z',

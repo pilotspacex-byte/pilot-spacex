@@ -581,4 +581,50 @@ class WorkspaceService:
             },
         )
 
+        # Send invitation email via Supabase Admin API (non-fatal)
+        await self._send_invitation_email(
+            email=normalized_email,
+            invitation_id=invitation.id,
+        )
+
         return InviteMemberResult(is_immediate=False, invitation=invitation)
+
+    async def _send_invitation_email(
+        self,
+        email: str,
+        invitation_id: UUID,
+    ) -> None:
+        """Send invitation email via Supabase Admin API.
+
+        Non-fatal: if email fails, the invitation still exists in the DB.
+        The user can be re-invited or can sign up independently.
+        """
+        try:
+            from pilot_space.config import get_settings
+            from pilot_space.infrastructure.supabase_client import get_supabase_client
+
+            settings = get_settings()
+            redirect_url = (
+                f"{settings.frontend_url}/accept-invite"
+                f"?invitation_id={invitation_id}"
+            )
+
+            client = await get_supabase_client()
+            await client.auth.admin.invite_user_by_email(
+                email,
+                options={
+                    "redirect_to": redirect_url,
+                    "data": {"invitation_id": str(invitation_id)},
+                },
+            )
+
+            logger.info(
+                "Invitation email sent via Supabase",
+                extra={"email": email, "invitation_id": str(invitation_id)},
+            )
+        except Exception:
+            logger.warning(
+                "Failed to send invitation email — invitation still valid in DB",
+                extra={"email": email, "invitation_id": str(invitation_id)},
+                exc_info=True,
+            )

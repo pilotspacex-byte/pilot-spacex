@@ -28,7 +28,10 @@ interface WorkspaceApi {
   update(id: string, data: UpdateWorkspaceData): Promise<Workspace>;
   delete(id: string): Promise<void>;
   getMembers(workspaceId: string): Promise<WorkspaceMember[]>;
-  inviteMember(workspaceId: string, data: InviteMemberData): Promise<WorkspaceMember>;
+  inviteMember(
+    workspaceId: string,
+    data: InviteMemberData
+  ): Promise<WorkspaceMember | { invitation: true; id: string; email: string }>;
   removeMember(workspaceId: string, memberId: string): Promise<void>;
   updateMemberRole(
     workspaceId: string,
@@ -361,15 +364,18 @@ export class WorkspaceStore {
     this.error = null;
 
     try {
-      const member = await this.api.inviteMember(workspaceId, data);
+      const result = await this.api.inviteMember(workspaceId, data);
 
       runInAction(() => {
-        const currentMembers = this.members.get(workspaceId) || [];
-        this.members.set(workspaceId, [...currentMembers, member]);
+        // Only add to members list if user was added immediately (not a pending invitation)
+        if (!('invitation' in result)) {
+          const currentMembers = this.members.get(workspaceId) || [];
+          this.members.set(workspaceId, [...currentMembers, result]);
+        }
         this.isSaving = false;
       });
 
-      return member;
+      return 'invitation' in result ? null : result;
     } catch (err) {
       runInAction(() => {
         this.error = err instanceof Error ? err.message : 'Failed to invite member';
