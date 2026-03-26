@@ -210,7 +210,11 @@ def _classify_stream_error(exc: Exception) -> tuple[str, str, bool]:
             exit_code = getattr(exc, "exit_code", None)
             stderr_text = getattr(exc, "stderr", "") or ""
             # API key / auth errors from the CLI
-            if exit_code == 1 and ("api key" in stderr_text.lower() or "unauthorized" in stderr_text.lower() or stderr_text == "Check stderr output for details"):
+            if exit_code == 1 and (
+                "api key" in stderr_text.lower()
+                or "unauthorized" in stderr_text.lower()
+                or stderr_text == "Check stderr output for details"
+            ):
                 return (
                     "ai_not_configured",
                     "No API key configured for this workspace. "

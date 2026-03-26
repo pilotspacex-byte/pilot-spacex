@@ -39,7 +39,14 @@ class TestProviderConstants:
     def test_slots_have_expected_providers(self) -> None:
         """Slots should contain google, anthropic, ollama, elevenlabs, and OCR entries."""
         slot_providers = {p for p, _, _ in PROVIDER_SERVICE_SLOTS}
-        assert slot_providers == {"google", "anthropic", "ollama", "elevenlabs", "hunyuan_ocr", "tencent_ocr"}
+        assert slot_providers == {
+            "google",
+            "anthropic",
+            "ollama",
+            "elevenlabs",
+            "hunyuan_ocr",
+            "tencent_ocr",
+        }
 
     def test_ollama_supports_both(self) -> None:
         """Ollama slots should have supports_both=True."""

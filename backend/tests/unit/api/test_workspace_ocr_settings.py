@@ -100,7 +100,9 @@ def _make_api_key_info(
 # ---------------------------------------------------------------------------
 
 # Patch path for the local import of WorkspaceRepository inside _get_admin_workspace
-_WS_REPO_PATCH = "pilot_space.infrastructure.database.repositories.workspace_repository.WorkspaceRepository"
+_WS_REPO_PATCH = (
+    "pilot_space.infrastructure.database.repositories.workspace_repository.WorkspaceRepository"
+)
 
 
 async def test_get_ocr_settings_workspace_not_found() -> None:
