@@ -605,9 +605,15 @@ class WorkspaceService:
     ) -> None:
         """Send invitation email via Supabase Admin API.
 
+        Runs as a background task after the response is sent, ensuring
+        the DB transaction has committed before the email is dispatched.
         Non-fatal: if email fails, the invitation still exists in the DB.
-        The user can be re-invited or can sign up independently.
         """
+        # Yield control so the request handler returns and commits first
+        import asyncio
+
+        await asyncio.sleep(0)
+
         try:
             from pilot_space.config import get_settings
             from pilot_space.infrastructure.supabase_client import get_supabase_client

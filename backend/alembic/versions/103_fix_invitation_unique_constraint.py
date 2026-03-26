@@ -35,7 +35,7 @@ def upgrade() -> None:
             """
             CREATE UNIQUE INDEX uq_workspace_invitations_pending
             ON workspace_invitations (workspace_id, email)
-            WHERE status = 'pending' AND is_deleted = false
+            WHERE status = 'PENDING' AND is_deleted = false
             """
         )
     )
