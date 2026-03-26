@@ -14,59 +14,16 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Query, status
-from pydantic import BaseModel, Field
 
 from pilot_space.api.v1.dependencies import SprintBoardServiceDep
+from pilot_space.api.v1.schemas.pm_sprint_board import (
+    ProposeTransitionRequest,
+    ProposeTransitionResponse,
+    SprintBoardResponse,
+)
 from pilot_space.dependencies.auth import CurrentUserId, SessionDep, require_workspace_member
 
 router = APIRouter(prefix="", tags=["pm-blocks"])
-
-
-# -- Response Schemas ----------------------------------------------------------
-
-
-class SprintBoardIssueCard(BaseModel):
-    id: str
-    identifier: str
-    name: str
-    priority: str
-    state_name: str
-    state_id: str
-    assignee_id: str | None = None
-    assignee_name: str | None = None
-    labels: list[str] = Field(default_factory=list)
-    estimate_hours: float | None = None
-
-
-class SprintBoardLane(BaseModel):
-    state_id: str
-    state_name: str
-    state_group: str
-    count: int
-    issues: list[SprintBoardIssueCard]
-
-
-class SprintBoardResponse(BaseModel):
-    cycle_id: str
-    cycle_name: str
-    lanes: list[SprintBoardLane]
-    total_issues: int
-    is_read_only: bool = False
-
-
-class ProposeTransitionRequest(BaseModel):
-    """Request body for an AI-proposed issue state transition."""
-
-    issue_id: str = Field(..., description="Issue UUID to transition")
-    proposed_state: str = Field(..., description="Target state group key")
-    reason: str | None = Field(None, description="AI rationale for the proposal")
-
-
-class ProposeTransitionResponse(BaseModel):
-    """Response confirming the approval request was created."""
-
-    approval_id: str
-    status: str = "pending"
 
 
 # -- Sprint Board Endpoint (T-231) --------------------------------------------

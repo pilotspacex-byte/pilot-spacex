@@ -14,37 +14,16 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Path, Query
-from pydantic import BaseModel
 
 from pilot_space.api.v1.dependencies import DependencyGraphServiceDep
+from pilot_space.api.v1.schemas.dependency_graph import (
+    DependencyEdge,
+    DependencyGraphResponse,
+    DependencyNode,
+)
 from pilot_space.dependencies.auth import CurrentUserId, SessionDep
 
 router = APIRouter(prefix="/projects", tags=["dependency-graph"])
-
-
-# -- Response Schemas ----------------------------------------------------------
-
-
-class DependencyNode(BaseModel):
-    id: str
-    identifier: str
-    name: str
-    state: str
-    state_group: str
-
-
-class DependencyEdge(BaseModel):
-    source_id: str
-    target_id: str
-    is_critical: bool = False
-
-
-class DependencyGraphResponse(BaseModel):
-    nodes: list[DependencyNode]
-    edges: list[DependencyEdge]
-    critical_path: list[str]
-    circular_deps: list[list[str]]
-    has_circular: bool
 
 
 # -- Endpoint ------------------------------------------------------------------

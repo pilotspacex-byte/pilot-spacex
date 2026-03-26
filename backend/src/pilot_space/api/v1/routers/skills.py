@@ -7,31 +7,15 @@ No auth required — skill list is not workspace-specific.
 from __future__ import annotations
 
 from fastapi import APIRouter
-from pydantic import BaseModel
 
 from pilot_space.ai.skills.skill_discovery import SkillInfo, discover_skills
+from pilot_space.api.v1.schemas.skills import SkillListResponse, SkillResponse
 from pilot_space.config import get_settings
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/skills", tags=["skills"])
-
-
-class SkillResponse(BaseModel):
-    """Single skill in the list response."""
-
-    name: str
-    description: str
-    category: str
-    icon: str
-    examples: list[str]
-
-
-class SkillListResponse(BaseModel):
-    """Response for GET /api/v1/skills."""
-
-    skills: list[SkillResponse]
 
 
 def _to_response(info: SkillInfo) -> SkillResponse:

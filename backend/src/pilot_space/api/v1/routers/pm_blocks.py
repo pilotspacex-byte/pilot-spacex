@@ -20,16 +20,15 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Query, status
-from pydantic import BaseModel, ConfigDict, Field
 
 from pilot_space.api.v1.dependencies import PMBlockInsightServiceDep, WorkspaceRepositoryDep
 from pilot_space.api.v1.routers.pm_capacity import router as pm_capacity_router
 from pilot_space.api.v1.routers.pm_dependency_graph import router as pm_dependency_graph_router
 from pilot_space.api.v1.routers.pm_release_notes import router as pm_release_notes_router
 from pilot_space.api.v1.routers.pm_sprint_board import router as pm_sprint_board_router
+from pilot_space.api.v1.schemas.pm_blocks import PMBlockInsightResponse, RefreshInsightsRequest
 from pilot_space.dependencies.auth import CurrentUserId, SessionDep, require_workspace_member
 from pilot_space.domain.exceptions import NotFoundError
-from pilot_space.domain.pm_block_insight import InsightSeverity, PMBlockType
 from pilot_space.infrastructure.database.models.pm_block_insight import (
     PMBlockInsight as PMBlockInsightModel,
 )
@@ -41,33 +40,6 @@ router.include_router(pm_sprint_board_router)
 router.include_router(pm_dependency_graph_router)
 router.include_router(pm_capacity_router)
 router.include_router(pm_release_notes_router)
-
-
-# -- Response Schemas ----------------------------------------------------------
-
-
-class PMBlockInsightResponse(BaseModel):
-    """Response schema for a single PMBlockInsight."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    id: UUID
-    workspace_id: UUID
-    block_id: str
-    block_type: PMBlockType
-    insight_type: str
-    severity: InsightSeverity
-    title: str
-    analysis: str
-    references: list[str]
-    suggested_actions: list[str]
-    confidence: float
-    dismissed: bool
-
-
-class RefreshInsightsRequest(BaseModel):
-    block_type: str = Field(..., description="PM block type enum value")
-    data: dict[str, object] = Field(default_factory=dict)
 
 
 # -- Helpers -------------------------------------------------------------------

@@ -17,7 +17,8 @@ from uuid import UUID
 from fastapi import APIRouter, Query, Request, status
 from fastapi.responses import RedirectResponse
 
-from pilot_space.api.v1.routers._mcp_server_schemas import (
+from pilot_space.api.v1.routers._workspace_admin import get_admin_workspace
+from pilot_space.api.v1.schemas.mcp_server import (
     WORKSPACE_SLUG_RE,
     ErrorServerEntry,
     ImportedServerEntry,
@@ -32,7 +33,6 @@ from pilot_space.api.v1.routers._mcp_server_schemas import (
     WorkspaceMcpServerResponse,
     WorkspaceMcpServerUpdate,
 )
-from pilot_space.api.v1.routers._workspace_admin import get_admin_workspace
 from pilot_space.application.services.mcp_oauth import McpOAuthService
 from pilot_space.application.services.mcp_server import McpServerService
 from pilot_space.dependencies import (
