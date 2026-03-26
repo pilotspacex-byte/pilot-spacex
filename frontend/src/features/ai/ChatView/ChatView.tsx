@@ -30,6 +30,8 @@ import { Square, AlertCircle, X } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { FilePreviewModal } from '@/features/artifacts/components/FilePreviewModal';
 import { useAttachmentPreview } from './hooks/useAttachmentPreview';
+import { useSkillPreview } from './hooks/useSkillPreview';
+import { SkillGenerateForm } from './ChatInput/SkillGenerateForm';
 import type { PilotSpaceStore } from '@/stores/ai/PilotSpaceStore';
 import type { ApprovalStore } from '@/stores/ai/ApprovalStore';
 import { SessionListStore } from '@/stores/ai/SessionListStore';
@@ -101,6 +103,9 @@ const ChatViewInternal = observer<ChatViewProps>(
 
     // Attachment preview — opens FilePreviewModal when AttachmentChip is clicked
     const attachmentPreview = useAttachmentPreview();
+
+    // Skill preview — opens FilePreviewModal when SkillPreviewCard "Preview" is clicked
+    const skillPreview = useSkillPreview();
 
     // Initialize SessionListStore (T075-T079)
     const [sessionListStore] = useState(() => new SessionListStore(store));
@@ -319,6 +324,10 @@ const ChatViewInternal = observer<ChatViewProps>(
       setInputValue(prompt);
     }, []);
 
+    const handleGenerateSkill = useCallback(() => {
+      store.startSkillGeneration();
+    }, [store]);
+
     const handleNewSession = useCallback(() => {
       store.clear();
       setInputValue('');
@@ -520,6 +529,11 @@ const ChatViewInternal = observer<ChatViewProps>(
         {/* T-059: ConfirmAll button — above ChatInput when >= 2 pending intents */}
         <ConfirmAllButton store={store} />
 
+        {/* Skill generation form — shown when \generate-skill is selected */}
+        {(store.skillGenerationState === 'form' || store.skillGenerationState === 'generating') && (
+          <SkillGenerateForm store={store} workspaceId={store.workspaceId ?? ''} />
+        )}
+
         {/* Input */}
         <ChatInput
           value={inputValue}
@@ -564,6 +578,7 @@ const ChatViewInternal = observer<ChatViewProps>(
           onClearProjectContext={handleClearProjectContext}
           noteHeadings={noteHeadings}
           onSelectSection={onSelectSection}
+          onGenerateSkill={handleGenerateSkill}
         />
 
         {/* Modal for destructive actions — non-dismissable (DD-003) */}
@@ -585,6 +600,9 @@ const ChatViewInternal = observer<ChatViewProps>(
 
         {/* File preview modal — opens when AttachmentChip is clicked */}
         {attachmentPreview.signedUrl && <FilePreviewModal {...attachmentPreview} />}
+
+        {/* Skill preview modal — opens when SkillPreviewCard "Preview" is clicked */}
+        {skillPreview.signedUrl && <FilePreviewModal {...skillPreview} />}
 
         {/* Clear conversation confirmation dialog */}
         <AlertDialog open={showClearDialog} onOpenChange={setShowClearDialog}>

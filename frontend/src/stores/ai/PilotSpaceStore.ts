@@ -23,6 +23,7 @@ import type {
   TaskStatus,
 } from './types/events';
 import type { SkillDefinition } from './types/skills';
+import type { GenerateSkillResponse } from '@/services/api/role-skills';
 import { PilotSpaceStreamHandler } from './PilotSpaceStreamHandler';
 import { PilotSpaceActions } from './PilotSpaceActions';
 
@@ -137,6 +138,17 @@ export class PilotSpaceStore {
 
   /** Available skills registry */
   skills: SkillDefinition[] = [];
+
+  // Skill Generation State (ChatView \generate-skill flow)
+
+  /** Current skill generation step */
+  skillGenerationState: 'idle' | 'form' | 'generating' | 'preview' = 'idle';
+
+  /** Generated skill data (populated after successful generation) */
+  generatedSkill: GenerateSkillResponse | null = null;
+
+  /** Experience description used for the current/last generation */
+  skillDescription: string = '';
 
   // Message Pagination State (scroll-up loading)
 
@@ -607,6 +619,26 @@ export class PilotSpaceStore {
     if (!this.mentionedAgents.includes(agent)) {
       this.mentionedAgents.push(agent);
     }
+  }
+
+  // Skill Generation Actions
+
+  startSkillGeneration(): void {
+    this.skillGenerationState = 'form';
+    this.generatedSkill = null;
+    this.skillDescription = '';
+  }
+
+  setGeneratedSkill(skill: GenerateSkillResponse, description: string): void {
+    this.generatedSkill = skill;
+    this.skillDescription = description;
+    this.skillGenerationState = 'preview';
+  }
+
+  resetSkillGeneration(): void {
+    this.skillGenerationState = 'idle';
+    this.generatedSkill = null;
+    this.skillDescription = '';
   }
 
   // Feature 015: Intent Management Actions

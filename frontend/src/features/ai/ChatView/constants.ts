@@ -24,6 +24,13 @@ export const SESSION_SKILLS: SkillDefinition[] = [
     icon: 'Plus',
     examples: ['Start new chat', 'Fresh conversation'],
   },
+  {
+    name: 'generate-skill',
+    description: 'Generate a personalized AI skill from your experience',
+    category: 'my-skills',
+    icon: 'FilePlus',
+    examples: ['Create a skill for Python backend', 'Generate skill from my expertise'],
+  },
 ];
 
 /**

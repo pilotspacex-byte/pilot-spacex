@@ -31,6 +31,8 @@ import type {
 import Link from 'next/link';
 import { ContextNotesResultCard, ContextIssuesResultCard } from './ContextCards';
 import { StandupResultCard } from './StandupResultCard';
+import { SkillPreviewCard } from './SkillPreviewCard';
+import type { GenerateSkillResponse } from '@/services/api/role-skills';
 import type { CreatedIssueData } from './AssistantMessage';
 
 // Re-export so existing barrel imports continue to work
@@ -559,6 +561,18 @@ export const StructuredResultCard = memo<StructuredResultCardProps>(
           return <ContextNotesResultCard data={data} />;
         case 'context_issues_result':
           return <ContextIssuesResultCard data={data} />;
+        case 'skill_generation_result': {
+          const { experienceDescription, ...skillData } = data as Record<string, unknown> & {
+            experienceDescription: string;
+          };
+          return (
+            <SkillPreviewCard
+              generatedSkill={skillData as unknown as GenerateSkillResponse}
+              experienceDescription={experienceDescription}
+              workspaceId={workspaceSlug ?? ''}
+            />
+          );
+        }
         default:
           return (
             <div className="text-xs text-muted-foreground">Unknown result type: {schemaType}</div>
