@@ -781,6 +781,10 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         sdk_env = sdk_params.get("env", {})
         if "PATH" not in sdk_env:
             sdk_env["PATH"] = os.environ.get("PATH", "")
+        # Unset CLAUDECODE to prevent "nested session" block when the backend
+        # server itself runs inside a Claude Code session (e.g. dev mode).
+        sdk_env.pop("CLAUDECODE", None)
+        sdk_env["CLAUDECODE"] = ""
 
         can_use_tool_cb = create_can_use_tool_callback(tool_event_queue, context.user_id)
 
