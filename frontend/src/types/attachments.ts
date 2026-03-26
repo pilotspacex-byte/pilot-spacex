@@ -58,11 +58,20 @@ export interface AttachmentUploadResponse {
  */
 export const ACCEPTED_MIME_TYPES = [
   'application/pdf',
+  // Office documents (Phase 41 – DOCX/XLSX/PPTX extraction)
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
+  'application/msword', // .doc (legacy)
+  'application/vnd.ms-excel', // .xls (legacy)
+  'application/vnd.ms-powerpoint', // .ppt (legacy)
+  // Text / code
   'text/plain',
   'text/markdown',
   'text/csv',
   'text/x-python',
   'application/x-python',
+  'text/x-python-script', // browser-reported variant for .py
   'text/typescript',
   'application/typescript',
   'text/javascript',
@@ -75,6 +84,7 @@ export const ACCEPTED_MIME_TYPES = [
   'text/x-java',
   'text/x-csrc',
   'text/x-c++src',
+  // Images
   'image/jpeg',
   'image/png',
   'image/webp',
@@ -87,6 +97,13 @@ export const ACCEPTED_MIME_TYPES = [
  */
 export const FILE_SIZE_LIMITS: Record<string, number> = {
   'application/pdf': 25 * 1024 * 1024, // 25MB for PDF/docs
+  // Office documents — 25MB matching backend validation
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 25 * 1024 * 1024,
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 25 * 1024 * 1024,
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 25 * 1024 * 1024,
+  'application/msword': 25 * 1024 * 1024,
+  'application/vnd.ms-excel': 25 * 1024 * 1024,
+  'application/vnd.ms-powerpoint': 25 * 1024 * 1024,
   'text/plain': 5 * 1024 * 1024, // 5MB for text/code
   'image/jpeg': 10 * 1024 * 1024, // 10MB for images
   'image/png': 10 * 1024 * 1024,
