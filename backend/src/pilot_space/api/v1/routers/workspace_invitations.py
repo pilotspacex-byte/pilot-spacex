@@ -27,11 +27,29 @@ from pilot_space.application.services.workspace_invitation import (
 )
 from pilot_space.dependencies.auth import CurrentUser, SessionDep
 from pilot_space.domain.exceptions import AppError, ValidationError
+from pilot_space.infrastructure.database.models.workspace_invitation import (
+    WorkspaceInvitation,
+)
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces", "invitations"])
+
+
+def _to_invitation_response(inv: WorkspaceInvitation) -> InvitationResponse:
+    """Convert a WorkspaceInvitation model to response schema."""
+    return InvitationResponse(
+        id=inv.id,
+        email=inv.email,
+        role=inv.role.value,
+        status=inv.status.value,
+        invited_by=inv.invited_by,
+        invited_by_name=inv.inviter.full_name if inv.inviter else None,
+        suggested_sdlc_role=inv.suggested_sdlc_role,
+        expires_at=inv.expires_at,
+        created_at=inv.created_at,
+    )
 
 
 @router.post(
@@ -79,17 +97,7 @@ async def add_workspace_member(
     invitation = result.invitation
     if invitation is None:
         raise AppError("Unexpected error creating invitation")
-    return InvitationResponse(
-        id=invitation.id,
-        email=invitation.email,
-        role=invitation.role.value,
-        status=invitation.status.value,
-        invited_by=invitation.invited_by,
-        invited_by_name=invitation.inviter.full_name if invitation.inviter else None,
-        suggested_sdlc_role=invitation.suggested_sdlc_role,
-        expires_at=invitation.expires_at,
-        created_at=invitation.created_at,
-    )
+    return _to_invitation_response(invitation)
 
 
 @router.get(
@@ -115,20 +123,7 @@ async def list_workspace_invitations(
         )
     )
 
-    return [
-        InvitationResponse(
-            id=inv.id,
-            email=inv.email,
-            role=inv.role.value,
-            status=inv.status.value,
-            invited_by=inv.invited_by,
-            invited_by_name=inv.inviter.full_name if inv.inviter else None,
-            suggested_sdlc_role=inv.suggested_sdlc_role,
-            expires_at=inv.expires_at,
-            created_at=inv.created_at,
-        )
-        for inv in result.invitations
-    ]
+    return [_to_invitation_response(inv) for inv in result.invitations]
 
 
 @router.delete(

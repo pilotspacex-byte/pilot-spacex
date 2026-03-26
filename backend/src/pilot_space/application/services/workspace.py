@@ -44,6 +44,9 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+# Prevent fire-and-forget tasks from being garbage-collected before completion
+_background_tasks: set[object] = set()
+
 
 # ===== Payloads & Results =====
 
@@ -581,11 +584,17 @@ class WorkspaceService:
             },
         )
 
-        # Send invitation email via Supabase Admin API (non-fatal)
-        await self._send_invitation_email(
-            email=normalized_email,
-            invitation_id=invitation.id,
+        # Fire-and-forget: send email without blocking the API response
+        import asyncio
+
+        task = asyncio.create_task(
+            self._send_invitation_email(
+                email=normalized_email,
+                invitation_id=invitation.id,
+            )
         )
+        task.add_done_callback(_background_tasks.discard)
+        _background_tasks.add(task)
 
         return InviteMemberResult(is_immediate=False, invitation=invitation)
 

@@ -18,6 +18,9 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from pilot_space.domain.exceptions import ForbiddenError, NotFoundError
+from pilot_space.infrastructure.database.models.workspace_invitation import (
+    InvitationStatus,
+)
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -219,9 +222,9 @@ class WorkspaceInvitationService:
             raise NotFoundError(msg)
 
         # Mark expired invitations on read
-        if invitation.is_expired and invitation.status.value == "pending":
+        if invitation.is_expired and invitation.status == InvitationStatus.PENDING:
             await self.invitation_repo.mark_expired(invitation_id)
-            invitation.status = invitation.status.__class__("expired")
+            invitation.status = InvitationStatus.EXPIRED
 
         return InvitationDetailResult(
             id=invitation.id,
@@ -265,7 +268,7 @@ class WorkspaceInvitationService:
         # Check pending status first, then expiry (avoids mark_expired on
         # already-accepted/cancelled invitations whose transaction would
         # roll back anyway).
-        if invitation.status.value != "pending":
+        if invitation.status != InvitationStatus.PENDING:
             msg = "Invitation is no longer pending"
             raise NotFoundError(msg)
 
@@ -274,7 +277,6 @@ class WorkspaceInvitationService:
             msg = "Invitation has expired"
             raise NotFoundError(msg)
 
-        # Verify email match
         if invitation.email.lower() != user_email.strip().lower():
             msg = "This invitation was sent to a different email address"
             raise ForbiddenError(msg)
