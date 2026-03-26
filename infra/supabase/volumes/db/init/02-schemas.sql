@@ -149,8 +149,12 @@ $$;
 -- EMBEDDING QUEUE SETUP
 -- =============================================================================
 
--- Create embedding jobs queue using pgmq
+-- Create queues using pgmq
 SELECT pgmq.create('embedding_jobs');
+SELECT pgmq.create('ai_low');
+SELECT pgmq.create('ai_normal');
+SELECT pgmq.create('notifications');
+SELECT pgmq.create('dead_letter');
 
 -- Generic trigger function to queue embedding jobs
 CREATE OR REPLACE FUNCTION util.queue_embeddings()

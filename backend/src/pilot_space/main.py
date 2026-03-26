@@ -172,6 +172,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             await queue_client.create_queue(QueueName.AI_LOW)
             await queue_client.create_queue(QueueName.AI_NORMAL)
             await queue_client.create_queue(QueueName.NOTIFICATIONS)
+            await queue_client.create_queue(QueueName.DEAD_LETTER)
         except QueueConnectionError:
             logger.warning("Queue unavailable — workers will not start (degraded mode)")
             queue_client = None
