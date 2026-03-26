@@ -629,6 +629,10 @@ export class PilotSpaceStore {
     this.skillDescription = '';
   }
 
+  setSkillGenerationState(state: 'idle' | 'form' | 'generating' | 'preview'): void {
+    this.skillGenerationState = state;
+  }
+
   setGeneratedSkill(skill: GenerateSkillResponse, description: string): void {
     this.generatedSkill = skill;
     this.skillDescription = description;

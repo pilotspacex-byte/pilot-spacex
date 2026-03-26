@@ -38,7 +38,7 @@ export const SkillGenerateForm = observer<SkillGenerateFormProps>(({ store, work
   const handleGenerate = useCallback(async () => {
     if (!isValid || isGenerating) return;
 
-    store.skillGenerationState = 'generating';
+    store.setSkillGenerationState('generating');
 
     try {
       const result = await generateSkill.mutateAsync({
@@ -63,7 +63,7 @@ export const SkillGenerateForm = observer<SkillGenerateFormProps>(({ store, work
 
       store.setGeneratedSkill(result, description.trim());
     } catch {
-      store.skillGenerationState = 'form';
+      store.setSkillGenerationState('form');
     }
   }, [isValid, isGenerating, description, generateSkill, store]);
 
@@ -77,21 +77,25 @@ export const SkillGenerateForm = observer<SkillGenerateFormProps>(({ store, work
         e.preventDefault();
         handleCancel();
       }
-      if (e.key === 'Enter' && !e.shiftKey && isValid && !isGenerating) {
-        e.preventDefault();
-        void handleGenerate();
-      }
     },
-    [handleCancel, handleGenerate, isValid, isGenerating]
+    [handleCancel]
+  );
+
+  const handleFormSubmit = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+      void handleGenerate();
+    },
+    [handleGenerate]
   );
 
   return (
-    <div
+    <form
+      onSubmit={handleFormSubmit}
       className={cn(
         'mx-3 mb-2 rounded-[12px] border border-border bg-background-subtle p-3',
         'shadow-warm-sm animate-in slide-in-from-bottom-2 duration-200'
       )}
-      role="form"
       aria-label="Generate AI skill"
     >
       <div className="flex items-center justify-between mb-2">
@@ -136,9 +140,9 @@ export const SkillGenerateForm = observer<SkillGenerateFormProps>(({ store, work
         </span>
 
         <Button
+          type="submit"
           size="sm"
           className="gap-1.5 text-xs h-7 bg-[var(--ai)] hover:bg-[var(--ai)]/90 text-white"
-          onClick={() => void handleGenerate()}
           disabled={!isValid || isGenerating}
         >
           {isGenerating ? (
@@ -154,7 +158,7 @@ export const SkillGenerateForm = observer<SkillGenerateFormProps>(({ store, work
           )}
         </Button>
       </div>
-    </div>
+    </form>
   );
 });
 
