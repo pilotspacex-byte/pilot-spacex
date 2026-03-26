@@ -94,6 +94,9 @@ from pilot_space.application.services.pm_block_insight_service import PMBlockIns
 from pilot_space.application.services.feature_toggle import FeatureToggleService
 from pilot_space.application.services.block_ownership import BlockOwnershipService
 from pilot_space.application.services.dependency_graph import DependencyGraphService
+from pilot_space.application.services.mcp_oauth import McpOAuthService
+from pilot_space.application.services.note_template import NoteTemplateService
+from pilot_space.application.services.mcp_server import McpServerService
 from pilot_space.application.services.rate_limit import RateLimitService
 from pilot_space.application.services.rbac_service import RbacService
 from pilot_space.application.services.scim_service import ScimService
@@ -230,9 +233,28 @@ class Container(SkillContainer, PluginContainer):
         session=providers.Callable(get_current_session),
     )
 
+    # Note Template Service
+    note_template_service = providers.Factory(
+        NoteTemplateService,
+        session=providers.Callable(get_current_session),
+    )
+
     # Rate Limit Service — Redis-backed INCR+EXPIRE
     rate_limit_service = providers.Factory(
         RateLimitService,
+        redis=InfraContainer.redis_client,
+    )
+
+    # MCP Server Service — CRUD, validation, encryption, status probing
+    mcp_server_service = providers.Factory(
+        McpServerService,
+        session=providers.Callable(get_current_session),
+    )
+
+    # MCP OAuth Service — OAuth 2.0 authorization flows
+    mcp_oauth_service = providers.Factory(
+        McpOAuthService,
+        session=providers.Callable(get_current_session),
         redis=InfraContainer.redis_client,
     )
 

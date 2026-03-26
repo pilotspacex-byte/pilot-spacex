@@ -27,6 +27,7 @@ from pilot_space.application.services.annotation import (
 )
 from pilot_space.application.services.block_ownership import BlockOwnershipService
 from pilot_space.application.services.dependency_graph import DependencyGraphService
+from pilot_space.application.services.note_template import NoteTemplateService
 from pilot_space.application.services.auth import AuthService
 from pilot_space.application.services.cycle import (
     AddIssueToCycleService,
@@ -82,6 +83,8 @@ from pilot_space.application.services.onboarding import (
     UpdateOnboardingService,
 )
 from pilot_space.application.services.feature_toggle import FeatureToggleService
+from pilot_space.application.services.mcp_oauth import McpOAuthService
+from pilot_space.application.services.mcp_server import McpServerService
 from pilot_space.application.services.rate_limit import RateLimitService
 from pilot_space.application.services.rbac_service import RbacService
 from pilot_space.application.services.scim_service import ScimService
@@ -128,6 +131,20 @@ def _get_dependency_graph_service(
 
 DependencyGraphServiceDep = Annotated[
     DependencyGraphService, Depends(_get_dependency_graph_service)
+]
+
+# ===== Note Template Service Dependencies =====
+
+
+@inject
+def _get_note_template_service(
+    svc: NoteTemplateService = Depends(Provide[Container.note_template_service]),
+) -> NoteTemplateService:
+    return svc
+
+
+NoteTemplateServiceDep = Annotated[
+    NoteTemplateService, Depends(_get_note_template_service)
 ]
 
 # ===== Issue Service Dependencies =====
@@ -775,6 +792,7 @@ __all__ = [  # noqa: RUF022
     "ActivityServiceDep",
     "BlockOwnershipServiceDep",
     "DependencyGraphServiceDep",
+    "NoteTemplateServiceDep",
     "AddIssueToCycleServiceDep",
     "AutoTransitionServiceDep",
     "ConnectGitHubServiceDep",
