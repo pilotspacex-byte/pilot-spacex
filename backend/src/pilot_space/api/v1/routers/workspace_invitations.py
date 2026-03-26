@@ -26,7 +26,7 @@ from pilot_space.application.services.workspace_invitation import (
     ListInvitationsPayload,
 )
 from pilot_space.dependencies.auth import CurrentUser, SessionDep
-from pilot_space.domain.exceptions import AppError
+from pilot_space.domain.exceptions import AppError, ValidationError
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -208,7 +208,7 @@ async def accept_invitation(
     and marks the invitation as accepted.
     """
     if not current_user.email:
-        raise AppError("User email is required to accept an invitation")
+        raise ValidationError("User email is required to accept an invitation")
     result = await service.accept_invitation(
         invitation_id=invitation_id,
         user_id=current_user.user_id,

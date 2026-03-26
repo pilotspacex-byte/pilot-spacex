@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
-import { apiClient } from '@/services/api';
+import { ApiError, apiClient } from '@/services/api';
 
 interface InvitationDetails {
   id: string;
@@ -58,8 +58,12 @@ export default function AcceptInvitePage() {
     let invitation: InvitationDetails;
     try {
       invitation = await apiClient.get<InvitationDetails>(`/invitations/${id}`);
-    } catch {
-      setState({ kind: 'error', message: 'Invitation not found or has expired.' });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        setState({ kind: 'error', message: 'Invitation not found or has expired.' });
+      } else {
+        setState({ kind: 'error', message: 'Unable to load invitation. Please try again.' });
+      }
       return;
     }
 
@@ -80,6 +84,8 @@ export default function AcceptInvitePage() {
     if (accessToken && refreshToken) {
       // Magic link flow — set session and auto-accept
       setState({ kind: 'accepting' });
+      // Clear tokens from URL hash immediately to prevent leakage via history/sharing
+      window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
       try {
         await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
         const result = await apiClient.post<{ workspaceSlug: string; workspaceName: string }>(
@@ -192,8 +198,7 @@ export default function AcceptInvitePage() {
     );
   }
 
-  // Shared invitation card for 'details' and 'unauthenticated' states
-  const invitation = state.kind === 'details' ? state.invitation : state.invitation;
+  const invitation = state.invitation;
 
   return (
     <Card>

@@ -354,7 +354,10 @@ export class WorkspaceStore {
     }
   }
 
-  async inviteMember(workspaceId: string, data: InviteMemberData): Promise<WorkspaceMember | null> {
+  async inviteMember(
+    workspaceId: string,
+    data: InviteMemberData
+  ): Promise<WorkspaceMember | { invitation: true; id: string; email: string } | null> {
     if (!this.api) {
       this.error = 'Workspace API not initialized';
       return null;
@@ -375,7 +378,7 @@ export class WorkspaceStore {
         this.isSaving = false;
       });
 
-      return 'invitation' in result ? null : result;
+      return result;
     } catch (err) {
       runInAction(() => {
         this.error = err instanceof Error ? err.message : 'Failed to invite member';

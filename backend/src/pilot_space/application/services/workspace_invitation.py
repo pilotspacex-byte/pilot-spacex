@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from pilot_space.domain.exceptions import ConflictError, ForbiddenError, NotFoundError
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -254,13 +254,19 @@ class WorkspaceInvitationService:
             Accept result with workspace slug for redirect.
 
         Raises:
-            NotFoundError: If invitation not found or not pending.
+            NotFoundError: If invitation not found, expired, or not pending.
             ForbiddenError: If email doesn't match the invitation.
-            ConflictError: If user is already a member.
         """
         invitation = await self.invitation_repo.get_by_id(invitation_id)
         if invitation is None or invitation.is_deleted:
             msg = "Invitation not found"
+            raise NotFoundError(msg)
+
+        # Check pending status first, then expiry (avoids mark_expired on
+        # already-accepted/cancelled invitations whose transaction would
+        # roll back anyway).
+        if invitation.status.value != "pending":
+            msg = "Invitation is no longer pending"
             raise NotFoundError(msg)
 
         if invitation.is_expired:
@@ -268,24 +274,23 @@ class WorkspaceInvitationService:
             msg = "Invitation has expired"
             raise NotFoundError(msg)
 
-        if invitation.status.value != "pending":
-            msg = "Invitation is no longer pending"
-            raise NotFoundError(msg)
-
         # Verify email match
         if invitation.email.lower() != user_email.strip().lower():
             msg = "This invitation was sent to a different email address"
             raise ForbiddenError(msg)
 
-        # Check if already a member
-        is_member = await self.workspace_repo.is_member(
-            invitation.workspace_id, user_id
-        )
+        workspace_name = invitation.workspace.name if invitation.workspace else "Unknown"
+        workspace_slug = invitation.workspace.slug if invitation.workspace else ""
+
+        # Check if already a member — treat as idempotent success
+        is_member = await self.workspace_repo.is_member(invitation.workspace_id, user_id)
         if is_member:
-            # Already a member, just mark invitation accepted
             await self.invitation_repo.mark_accepted(invitation_id)
-            msg = "You are already a member of this workspace"
-            raise ConflictError(msg)
+            return AcceptInvitationResult(
+                workspace_slug=workspace_slug,
+                workspace_name=workspace_name,
+                role=invitation.role.value,
+            )
 
         # Add to workspace
         from pilot_space.infrastructure.database.models.workspace_member import (
@@ -307,9 +312,6 @@ class WorkspaceInvitationService:
                 "workspace_id": str(invitation.workspace_id),
             },
         )
-
-        workspace_name = invitation.workspace.name if invitation.workspace else "Unknown"
-        workspace_slug = invitation.workspace.slug if invitation.workspace else ""
 
         return AcceptInvitationResult(
             workspace_slug=workspace_slug,

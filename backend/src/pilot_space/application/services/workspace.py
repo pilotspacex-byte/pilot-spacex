@@ -604,10 +604,7 @@ class WorkspaceService:
             from pilot_space.infrastructure.supabase_client import get_supabase_client
 
             settings = get_settings()
-            redirect_url = (
-                f"{settings.frontend_url}/accept-invite"
-                f"?invitation_id={invitation_id}"
-            )
+            redirect_url = f"{settings.frontend_url}/accept-invite?invitation_id={invitation_id}"
 
             client = await get_supabase_client()
             await client.auth.admin.invite_user_by_email(
@@ -620,11 +617,11 @@ class WorkspaceService:
 
             logger.info(
                 "Invitation email sent via Supabase",
-                extra={"email": email, "invitation_id": str(invitation_id)},
+                extra={"invitation_id": str(invitation_id)},
             )
         except Exception:
             logger.warning(
                 "Failed to send invitation email — invitation still valid in DB",
-                extra={"email": email, "invitation_id": str(invitation_id)},
+                extra={"invitation_id": str(invitation_id)},
                 exc_info=True,
             )

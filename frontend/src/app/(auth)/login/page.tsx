@@ -52,7 +52,9 @@ const LoginPage = observer(function LoginPage() {
   // workspace_id may be passed via query param (e.g. when redirected from a workspace login page)
   const workspaceId = searchParams.get('workspace_id');
   // redirect URL after successful auth (e.g. from accept-invite page)
-  const redirectTo = searchParams.get('redirect');
+  // Only allow relative paths starting with / to prevent open redirect
+  const rawRedirect = searchParams.get('redirect');
+  const redirectTo = rawRedirect && rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') ? rawRedirect : null;
 
   // Allowlist of known session error codes — prevents phishing via arbitrary query params
   const KNOWN_SESSION_ERRORS: Record<string, string> = {

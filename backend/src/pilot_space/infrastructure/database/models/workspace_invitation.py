@@ -115,7 +115,7 @@ class WorkspaceInvitation(BaseModel):
 
     # Indexes and constraints
     # NOTE: Partial unique index uq_workspace_invitations_pending is managed
-    # by migration 101 (WHERE status='pending' AND is_deleted=false).
+    # by migration 103 (WHERE status='pending' AND is_deleted=false).
     __table_args__ = (
         Index("ix_workspace_invitations_email_status", "email", "status"),
         Index("ix_workspace_invitations_workspace_status", "workspace_id", "status"),

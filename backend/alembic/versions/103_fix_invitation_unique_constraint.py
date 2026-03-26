@@ -1,12 +1,15 @@
 """Replace full unique constraint with partial unique index on workspace_invitations.
 
-Revision ID: 101_fix_invitation_unique_constraint
-Revises: 100_add_pgmq_set_vt_wrapper
+Revision ID: 103_fix_invitation_unique_constraint
+Revises: 102_add_extracted_text_to_chat_attachments
 Create Date: 2026-03-26
 
 The existing UniqueConstraint(workspace_id, email) blocks re-inviting users
 whose previous invitation was cancelled or expired. Replace with a partial
 unique index that only applies to PENDING invitations.
+
+This migration is irreversible: once re-invitations create multiple rows per
+(workspace_id, email), the old full unique constraint cannot be safely restored.
 """
 
 from __future__ import annotations
@@ -15,8 +18,8 @@ from sqlalchemy import text
 
 from alembic import op
 
-revision = "101_fix_invitation_unique_constraint"
-down_revision = "100_add_pgmq_set_vt_wrapper"
+revision = "103_fix_invitation_unique_constraint"
+down_revision = "102_add_extracted_text_to_chat_attachments"
 branch_labels = None
 depends_on = None
 
@@ -39,11 +42,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute(
-        text("DROP INDEX IF EXISTS uq_workspace_invitations_pending")
+    msg = (
+        "Migration 103 is irreversible: re-invitations may have created "
+        "duplicate (workspace_id, email) rows that violate the old full "
+        "unique constraint."
     )
-    op.create_unique_constraint(
-        "uq_workspace_invitations_pending",
-        "workspace_invitations",
-        ["workspace_id", "email"],
-    )
+    raise NotImplementedError(msg)
