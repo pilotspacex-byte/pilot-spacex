@@ -161,9 +161,6 @@ class PluginLifecycleService:
         self, workspace_id: UUID, repo_url: str, is_active: bool
     ) -> list[object]:
         """Toggle all plugins from a repo. Returns updated plugin models."""
-        from sqlalchemy import update as sa_update
-
-        from pilot_space.infrastructure.database.models.workspace_plugin import WorkspacePlugin
         from pilot_space.infrastructure.database.repositories.workspace_plugin_repository import (
             WorkspacePluginRepository,
         )
@@ -177,12 +174,7 @@ class PluginLifecycleService:
             raise NotFoundError("No plugins from this repo.")
 
         plugin_ids = [p.id for p in plugins]
-        await self._session.execute(
-            sa_update(WorkspacePlugin)
-            .where(WorkspacePlugin.id.in_(plugin_ids))
-            .values(is_active=is_active)
-        )
-        await self._session.flush()
+        await plugin_repo.bulk_set_active(plugin_ids, is_active)
 
         for plugin in plugins:
             await self._session.refresh(plugin)
@@ -198,12 +190,9 @@ class PluginLifecycleService:
 
     async def uninstall_repo_plugins(self, workspace_id: UUID, repo_url: str) -> int:
         """Soft-delete all plugins from a repo. Returns count of uninstalled plugins."""
-        from sqlalchemy import update as sa_update
-
-        from pilot_space.infrastructure.database.models.skill_action_button import (
-            SkillActionButton,
+        from pilot_space.infrastructure.database.repositories.skill_action_button_repository import (
+            SkillActionButtonRepository,
         )
-        from pilot_space.infrastructure.database.models.workspace_plugin import WorkspacePlugin
         from pilot_space.infrastructure.database.repositories.workspace_plugin_repository import (
             WorkspacePluginRepository,
         )
@@ -217,33 +206,25 @@ class PluginLifecycleService:
             raise NotFoundError("No plugins from this repo.")
 
         plugin_ids = [p.id for p in plugins]
-        plugin_id_strs = [str(pid) for pid in plugin_ids]
 
         # Bulk deactivate associated action buttons (non-fatal)
-        try:
-            await self._session.execute(
-                sa_update(SkillActionButton)
-                .where(
-                    SkillActionButton.workspace_id == workspace_id,
-                    SkillActionButton.binding_metadata["plugin_id"].astext.in_(plugin_id_strs),
-                    SkillActionButton.is_deleted == False,  # noqa: E712
+        button_repo = SkillActionButtonRepository(self._session)
+        for plugin_id in plugin_ids:
+            try:
+                await button_repo.deactivate_by_plugin_id(
+                    workspace_id=workspace_id,
+                    plugin_id=str(plugin_id),
                 )
-                .values(is_active=False)
-            )
-        except Exception:
-            logger.warning(
-                "Failed to bulk-deactivate action buttons for plugins in workspace %s",
-                workspace_id,
-                exc_info=True,
-            )
+            except Exception:
+                logger.warning(
+                    "Failed to bulk-deactivate action buttons for plugin %s in workspace %s",
+                    plugin_id,
+                    workspace_id,
+                    exc_info=True,
+                )
 
         # Bulk soft-delete all plugins
-        await self._session.execute(
-            sa_update(WorkspacePlugin)
-            .where(WorkspacePlugin.id.in_(plugin_ids))
-            .values(is_deleted=True, is_active=False)
-        )
-        await self._session.flush()
+        await plugin_repo.bulk_soft_delete(plugin_ids)
 
         logger.info(
             "[Plugins] Uninstalled %d from %s/%s in workspace %s",

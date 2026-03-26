@@ -11,12 +11,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pilot_space.domain.graph_edge import EdgeType
 from pilot_space.domain.graph_node import NodeType
-from pilot_space.infrastructure.database.models.issue import Issue
+from pilot_space.infrastructure.database.repositories.issue_repository import (
+    IssueRepository,
+)
 from pilot_space.infrastructure.database.repositories.issue_suggestion_dismissal_repository import (
     IssueSuggestionDismissalRepository,
 )
@@ -53,8 +54,13 @@ class RelatedIssuesSuggestionService:
     semantic match).
     """
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        issue_repository: IssueRepository,
+    ) -> None:
         self._session = session
+        self._issue_repo = issue_repository
 
     async def suggest_related(
         self,
@@ -103,15 +109,7 @@ class RelatedIssuesSuggestionService:
 
         # Batch-fetch issue records for enrichment
         candidate_issue_ids = [sn.node.external_id for sn in candidates if sn.node.external_id]
-        issues_result = await self._session.execute(
-            select(Issue).where(
-                Issue.id.in_(candidate_issue_ids),
-                Issue.is_deleted == False,  # noqa: E712
-            )
-        )
-        issues_by_id: dict[UUID, Issue] = {
-            issue.id: issue for issue in issues_result.scalars().all()
-        }
+        issues_by_id = await self._issue_repo.get_active_by_ids(candidate_issue_ids)
 
         # Enrich reasons via KG edges
         candidate_node_ids = [sn.node.id for sn in candidates if sn.node.id]

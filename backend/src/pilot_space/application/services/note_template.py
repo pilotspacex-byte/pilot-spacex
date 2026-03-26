@@ -13,18 +13,18 @@ from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pilot_space.domain.exceptions import ForbiddenError, NotFoundError
-from pilot_space.infrastructure.database.models.workspace_member import (
-    WorkspaceMember,
-    WorkspaceRole,
-)
+from pilot_space.infrastructure.database.models.workspace_member import WorkspaceRole
 from pilot_space.infrastructure.database.repositories.note_template_repository import (
     NoteTemplateRepository,
 )
+from pilot_space.infrastructure.database.repositories.workspace_member_repository import (
+    WorkspaceMemberRepository,
+)
 from pilot_space.infrastructure.logging import get_logger
+from pilot_space.schemas.note_template import NoteTemplateResult
 
 logger = get_logger(__name__)
 
@@ -65,34 +65,36 @@ class NoteTemplateService:
     """Business logic for note template CRUD.
 
     Owns workspace access checks and template lifecycle.
-    All DB access is delegated to NoteTemplateRepository.
+    All DB access is delegated to NoteTemplateRepository and WorkspaceMemberRepository.
     """
 
     def __init__(
         self,
         session: AsyncSession,
         note_template_repository: NoteTemplateRepository,
+        workspace_member_repository: WorkspaceMemberRepository,
     ) -> None:
         self._session = session
         self._repo = note_template_repository
+        self._member_repo = workspace_member_repository
 
-    async def list_templates(self, workspace_id: UUID) -> list[dict[str, Any]]:
+    async def list_templates(self, workspace_id: UUID) -> list[NoteTemplateResult]:
         """List system templates + workspace custom templates."""
         templates = await self._repo.list_for_workspace(workspace_id)
-        return [self._to_dict(t) for t in templates]
+        return [self._to_result(t) for t in templates]
 
     async def get_template(
         self, template_id: UUID, workspace_id: UUID
-    ) -> dict[str, Any]:
+    ) -> NoteTemplateResult:
         """Get a template by ID. Validates workspace access."""
         template = await self._repo.get_by_id(template_id)
         if not template:
             raise NotFoundError("Template not found.")
         if not template.is_system and template.workspace_id != workspace_id:
             raise ForbiddenError("Access denied.")
-        return self._to_dict(template)
+        return self._to_result(template)
 
-    async def create_template(self, payload: CreateTemplatePayload) -> dict[str, Any]:
+    async def create_template(self, payload: CreateTemplatePayload) -> NoteTemplateResult:
         """Create a custom workspace template."""
         template = await self._repo.create(
             workspace_id=payload.workspace_id,
@@ -111,9 +113,9 @@ class NoteTemplateService:
             template_id=str(template.id),
             workspace_id=str(payload.workspace_id),
         )
-        return self._to_dict(template)
+        return self._to_result(template)
 
-    async def update_template(self, payload: UpdateTemplatePayload) -> dict[str, Any]:
+    async def update_template(self, payload: UpdateTemplatePayload) -> NoteTemplateResult:
         """Update a custom template. Admin/owner or creator."""
         template = await self._repo.get_by_id(payload.template_id)
         if not template:
@@ -142,7 +144,7 @@ class NoteTemplateService:
             await self._session.commit()
             await self._session.refresh(template)
 
-        return self._to_dict(template)
+        return self._to_result(template)
 
     async def delete_template(self, payload: DeleteTemplatePayload) -> None:
         """Delete a custom template. Admin/owner or creator."""
@@ -171,19 +173,19 @@ class NoteTemplateService:
     # -- Private helpers -------------------------------------------------------
 
     @staticmethod
-    def _to_dict(template: Any) -> dict[str, Any]:
-        """Convert a NoteTemplate ORM instance to a plain dict."""
-        return {
-            "id": str(template.id),
-            "workspace_id": str(template.workspace_id) if template.workspace_id else None,
-            "name": template.name,
-            "description": template.description,
-            "content": template.content,
-            "is_system": template.is_system,
-            "created_by": str(template.created_by) if template.created_by else None,
-            "created_at": template.created_at,
-            "updated_at": template.updated_at,
-        }
+    def _to_result(template: Any) -> NoteTemplateResult:
+        """Convert a NoteTemplate ORM instance to a typed result."""
+        return NoteTemplateResult(
+            id=template.id,
+            workspace_id=template.workspace_id,
+            name=template.name,
+            description=template.description,
+            content=template.content,
+            is_system=template.is_system,
+            created_by=template.created_by,
+            created_at=template.created_at,
+            updated_at=template.updated_at,
+        )
 
     async def _require_creator_or_admin(
         self,
@@ -195,12 +197,9 @@ class NoteTemplateService:
         if created_by is not None and created_by == current_user_id:
             return
 
-        result = await self._session.execute(
-            select(WorkspaceMember.role).where(
-                WorkspaceMember.workspace_id == workspace_id,
-                WorkspaceMember.user_id == current_user_id,
-            )
+        role = await self._member_repo.get_role_by_user_workspace(
+            user_id=current_user_id,
+            workspace_id=workspace_id,
         )
-        role = result.scalar()
         if role not in (WorkspaceRole.OWNER, WorkspaceRole.ADMIN):
             raise ForbiddenError("Access denied.")

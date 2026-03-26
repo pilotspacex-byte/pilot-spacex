@@ -92,10 +92,11 @@ def _make_upload_service(
 
 
 def _make_db_session(role: WorkspaceRole | None = WorkspaceRole.MEMBER) -> AsyncMock:
-    """Build a mock AsyncSession that returns the given role from scalar()."""
+    """Build a mock AsyncSession that returns the given role from scalar queries."""
     db = AsyncMock()
     scalar_result = MagicMock()
     scalar_result.scalar = MagicMock(return_value=role)
+    scalar_result.scalar_one_or_none = MagicMock(return_value=role)
     db.execute = AsyncMock(return_value=scalar_result)
 
     # Mock workspace for quota check: 5GB quota, 0 used (passes quota)

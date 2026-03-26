@@ -12,6 +12,7 @@ from dependency_injector import containers, providers
 from pilot_space.ai.infrastructure.approval import ApprovalService
 from pilot_space.ai.infrastructure.cost_tracker import CostTracker
 from pilot_space.application.services.action_button import ActionButtonService
+from pilot_space.application.services.admin_dashboard import AdminDashboardService
 from pilot_space.application.services.ai import (
     AttachmentContentService,
     AttachmentUploadService,
@@ -19,12 +20,15 @@ from pilot_space.application.services.ai import (
     TriggerPRReviewService,
 )
 from pilot_space.application.services.ai.ocr_service import OcrService
+from pilot_space.application.services.ai_configuration import AIConfigurationService
 from pilot_space.application.services.ai_context import (
     ExportAIContextService,
     GenerateAIContextService,
     GenerateImplementationPlanService,
     RefineAIContextService,
 )
+from pilot_space.application.services.ai_extraction import CreateExtractedIssuesService
+from pilot_space.application.services.ai_governance import GovernanceRollbackService
 from pilot_space.application.services.annotation import CreateAnnotationService
 from pilot_space.application.services.artifact.artifact_upload_service import (
     ArtifactUploadService,
@@ -101,6 +105,7 @@ from pilot_space.application.services.onboarding import (
     GetOnboardingService,
     UpdateOnboardingService,
 )
+from pilot_space.application.services.plugin_lifecycle import PluginLifecycleService
 from pilot_space.application.services.pm_block_insight_service import PMBlockInsightService
 from pilot_space.application.services.project_detail import ProjectDetailService
 from pilot_space.application.services.rate_limit import RateLimitService
@@ -294,12 +299,14 @@ class Container(SkillContainer, PluginContainer):
         NoteTemplateService,
         session=providers.Callable(get_current_session),
         note_template_repository=note_template_repository,
+        workspace_member_repository=InfraContainer.workspace_member_repository,
     )
 
     # Related Issues Suggestion Service
     related_issues_suggestion_service = providers.Factory(
         RelatedIssuesSuggestionService,
         session=providers.Callable(get_current_session),
+        issue_repository=InfraContainer.issue_repository,
     )
 
     # Workspace AI Settings Service
@@ -358,6 +365,9 @@ class Container(SkillContainer, PluginContainer):
         AttachmentManagementService,
         session=providers.Callable(get_current_session),
         storage_client=InfraContainer.storage_client,
+        workspace_member_repository=InfraContainer.workspace_member_repository,
+        chat_attachment_repository=InfraContainer.chat_attachment_repository,
+        ocr_result_repository=InfraContainer.ocr_result_repository,
     )
 
     # Feature Toggle Service
@@ -902,6 +912,39 @@ class Container(SkillContainer, PluginContainer):
         custom_role_repo=custom_role_repository,
         workspace_member_repo=workspace_member_rbac_repository,
         audit_log_repository=audit_log_repository,
+    )
+
+    # Admin Dashboard Service (TENANT-04) — Redis optional, no session needed
+    admin_dashboard_service = providers.Factory(
+        AdminDashboardService,
+        redis=InfraContainer.redis_client,
+    )
+
+    # AI Extraction Service — creates issues from AI extraction results
+    create_extracted_issues_service = providers.Factory(
+        CreateExtractedIssuesService,
+        session=providers.Callable(get_current_session),
+        project_repository=InfraContainer.project_repository,
+    )
+
+    # AI Governance Service — rollback, policy CRUD, BYOK status
+    governance_rollback_service = providers.Factory(
+        GovernanceRollbackService,
+        session=providers.Callable(get_current_session),
+    )
+
+    # Plugin Lifecycle Service — browse, toggle, uninstall, update checks
+    plugin_lifecycle_service = providers.Factory(
+        PluginLifecycleService,
+        session=providers.Callable(get_current_session),
+        redis=InfraContainer.redis_client,
+    )
+
+    # AI Configuration Service — workspace-level LLM provider management
+    ai_configuration_service = providers.Factory(
+        AIConfigurationService,
+        session=providers.Callable(get_current_session),
+        workspace_repository=InfraContainer.workspace_repository,
     )
 
 

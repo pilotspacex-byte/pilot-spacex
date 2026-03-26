@@ -14,16 +14,21 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pilot_space.domain.exceptions import ForbiddenError, NotFoundError
-from pilot_space.infrastructure.database.models.chat_attachment import ChatAttachment
-from pilot_space.infrastructure.database.models.workspace_member import (
-    WorkspaceMember,
-    WorkspaceRole,
+from pilot_space.infrastructure.database.models.workspace_member import WorkspaceRole
+from pilot_space.infrastructure.database.repositories.chat_attachment_repository import (
+    ChatAttachmentRepository,
+)
+from pilot_space.infrastructure.database.repositories.ocr_result_repository import (
+    OcrResultRepository,
+)
+from pilot_space.infrastructure.database.repositories.workspace_member_repository import (
+    WorkspaceMemberRepository,
 )
 from pilot_space.infrastructure.logging import get_logger
+from pilot_space.schemas.attachment_management import IngestResult, SignedUrlResult
 
 logger = get_logger(__name__)
 
@@ -44,9 +49,19 @@ class AttachmentManagementService:
     ingest enqueue.
     """
 
-    def __init__(self, session: AsyncSession, storage_client: Any = None) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        storage_client: Any = None,
+        workspace_member_repository: WorkspaceMemberRepository | None = None,
+        chat_attachment_repository: ChatAttachmentRepository | None = None,
+        ocr_result_repository: OcrResultRepository | None = None,
+    ) -> None:
         self._session = session
         self._storage_client = storage_client
+        self._member_repo = workspace_member_repository or WorkspaceMemberRepository(session)
+        self._attachment_repo = chat_attachment_repository or ChatAttachmentRepository(session)
+        self._ocr_repo = ocr_result_repository or OcrResultRepository(session)
 
     # ------------------------------------------------------------------
     # GUEST CHECK
@@ -62,13 +77,10 @@ class AttachmentManagementService:
         Raises:
             ForbiddenError: If the user has GUEST role.
         """
-        result = await self._session.execute(
-            select(WorkspaceMember.role).where(
-                WorkspaceMember.workspace_id == workspace_id,
-                WorkspaceMember.user_id == user_id,
-            )
+        role = await self._member_repo.get_role_by_user_workspace(
+            user_id=user_id,
+            workspace_id=workspace_id,
         )
-        role = result.scalar()
         if role == WorkspaceRole.GUEST:
             raise ForbiddenError(
                 "Guests cannot upload attachments", error_code="GUEST_NOT_ALLOWED"
@@ -125,7 +137,7 @@ class AttachmentManagementService:
         self,
         attachment_id: UUID,
         user_id: UUID,
-    ) -> dict[str, str | int]:
+    ) -> SignedUrlResult:
         """Get a 1-hour signed download URL for a chat attachment.
 
         Only the owning user can generate signed URLs.
@@ -134,10 +146,7 @@ class AttachmentManagementService:
             NotFoundError: Attachment not found.
             ForbiddenError: User does not own the attachment.
         """
-        result = await self._session.execute(
-            select(ChatAttachment).where(ChatAttachment.id == attachment_id)
-        )
-        attachment = result.scalar_one_or_none()
+        attachment = await self._attachment_repo.get_by_id(attachment_id)
         if attachment is None:
             raise NotFoundError("Attachment not found")
         if attachment.user_id != user_id:
@@ -148,7 +157,7 @@ class AttachmentManagementService:
             key=attachment.storage_key,
             expires_in=3600,
         )
-        return {"url": signed_url, "expiresIn": 3600}
+        return SignedUrlResult(url=signed_url, expires_in=3600)
 
     # ------------------------------------------------------------------
     # EXTRACTION RESULT
@@ -175,7 +184,6 @@ class AttachmentManagementService:
         from pilot_space.application.services.note.markdown_chunker import (
             chunk_markdown_by_headings,
         )
-        from pilot_space.infrastructure.database.models.ocr_result import OcrResultModel
 
         attachment = await attachment_repo.get_by_id(attachment_id)
         if attachment is None:
@@ -188,13 +196,7 @@ class AttachmentManagementService:
         provider_name: str | None = None
         tables: list[str] = []
 
-        ocr_row = await self._session.execute(
-            select(OcrResultModel)
-            .where(OcrResultModel.attachment_id == attachment_id)
-            .order_by(OcrResultModel.created_at.desc())
-            .limit(1)
-        )
-        ocr_result = ocr_row.scalar()
+        ocr_result = await self._ocr_repo.get_latest_by_attachment_id(attachment_id)
         if ocr_result and ocr_result.extracted_text:
             extracted_text = ocr_result.extracted_text
             extraction_source = "ocr"
@@ -259,7 +261,7 @@ class AttachmentManagementService:
         excluded_chunk_indices: list[int],
         attachment_repo: Any,
         queue_client: Any,
-    ) -> dict[str, str]:
+    ) -> IngestResult:
         """Enqueue the document for KG ingestion with optional chunk adjustments.
 
         Raises:
@@ -301,4 +303,4 @@ class AttachmentManagementService:
                 exc_info=True,
             )
 
-        return {"status": "queued", "attachment_id": str(attachment_id)}
+        return IngestResult(status="queued", attachment_id=attachment_id)

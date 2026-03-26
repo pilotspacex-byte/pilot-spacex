@@ -111,6 +111,9 @@ from pilot_space.infrastructure.database.repositories.note_version_repository im
 from pilot_space.infrastructure.database.repositories.note_yjs_state_repository import (
     NoteYjsStateRepository,
 )
+from pilot_space.infrastructure.database.repositories.ocr_result_repository import (
+    OcrResultRepository,
+)
 from pilot_space.infrastructure.database.repositories.onboarding_repository import (
     OnboardingRepository,
 )
@@ -140,6 +143,9 @@ from pilot_space.infrastructure.database.repositories.template_repository import
 )
 from pilot_space.infrastructure.database.repositories.user_repository import (
     UserRepository,
+)
+from pilot_space.infrastructure.database.repositories.workspace_member_repository import (
+    WorkspaceMemberRepository,
 )
 from pilot_space.infrastructure.database.repositories.workspace_repository import (
     WorkspaceRepository,
@@ -370,6 +376,16 @@ class InfraContainer(containers.DeclarativeContainer):
 
     pilot_api_key_repository = providers.Factory(
         PilotAPIKeyRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    workspace_member_repository = providers.Factory(
+        WorkspaceMemberRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    ocr_result_repository = providers.Factory(
+        OcrResultRepository,
         session=providers.Callable(get_current_session),
     )
 

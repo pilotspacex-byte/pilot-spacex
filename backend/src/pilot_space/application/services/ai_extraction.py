@@ -19,6 +19,10 @@ from pilot_space.infrastructure.logging import get_logger
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
+    from pilot_space.infrastructure.database.repositories.project_repository import (
+        ProjectRepository,
+    )
+
 logger = get_logger(__name__)
 
 
@@ -73,10 +77,16 @@ class CreateExtractedIssuesService:
 
     Args:
         session: Request-scoped async database session.
+        project_repository: Repository for project lookups.
     """
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        project_repository: ProjectRepository,
+    ) -> None:
         self._session = session
+        self._project_repo = project_repository
 
     async def execute(
         self, payload: CreateExtractedIssuesPayload
@@ -87,8 +97,6 @@ class CreateExtractedIssuesService:
             DomainValidationError: If no issues provided or invalid IDs.
             NotFoundError: If project not found.
         """
-        from sqlalchemy import select as sa_select
-
         from pilot_space.application.services.issue import (
             CreateIssuePayload,
             CreateIssueService,
@@ -98,7 +106,6 @@ class CreateExtractedIssuesService:
             NoteIssueLink,
             NoteLinkType,
         )
-        from pilot_space.infrastructure.database.models.project import Project
         from pilot_space.infrastructure.database.repositories import (
             ActivityRepository,
             IssueRepository,
@@ -118,10 +125,7 @@ class CreateExtractedIssuesService:
             raise DomainValidationError("Invalid project_id format") from None
 
         # Pre-fetch project identifier for constructing issue identifiers
-        project_row = await self._session.execute(
-            sa_select(Project.identifier).where(Project.id == project_id)
-        )
-        project_identifier = project_row.scalar_one_or_none()
+        project_identifier = await self._project_repo.get_identifier_by_id(project_id)
         if not project_identifier:
             raise NotFoundError(f"Project not found for id {project_id}")
 
