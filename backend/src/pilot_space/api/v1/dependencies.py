@@ -841,6 +841,30 @@ def _get_approval_service(
 
 ApprovalServiceDep = Annotated[ApprovalService, Depends(_get_approval_service)]
 
+# ===== Sprint Board Service Dependencies =====
+
+
+@inject
+def _get_sprint_board_service(
+    svc: SprintBoardService = Depends(Provide[Container.sprint_board_service]),
+) -> SprintBoardService:
+    return svc
+
+
+SprintBoardServiceDep = Annotated[SprintBoardService, Depends(_get_sprint_board_service)]
+
+# ===== Capacity Plan Service Dependencies =====
+
+
+@inject
+def _get_capacity_plan_service(
+    svc: CapacityPlanService = Depends(Provide[Container.capacity_plan_service]),
+) -> CapacityPlanService:
+    return svc
+
+
+CapacityPlanServiceDep = Annotated[CapacityPlanService, Depends(_get_capacity_plan_service)]
+
 __all__ = [  # noqa: RUF022
     "ActionButtonServiceDep",
     "ActivityRepositoryDep",
@@ -917,6 +941,8 @@ __all__ = [  # noqa: RUF022
     "McpOAuthServiceDep",
     "AttachmentManagementServiceDep",
     "WorkspaceAISettingsServiceDep",
+    "SprintBoardServiceDep",
+    "CapacityPlanServiceDep",
 ]
 
 
