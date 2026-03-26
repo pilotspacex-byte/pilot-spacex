@@ -10,9 +10,10 @@ import { LandingPersonas } from '@/components/landing/LandingPersonas';
 import { LandingClaudeCode } from '@/components/landing/LandingClaudeCode';
 import { LandingOpenSource } from '@/components/landing/LandingOpenSource';
 import { LandingCTA } from '@/components/landing/LandingCTA';
+import { ENV } from '@/env';
 
 export default function LandingPage() {
-  return (
+  const sections = !ENV.INTERNAL_MODE ? (
     <>
       <LandingHero />
       <LandingDemo />
@@ -27,5 +28,20 @@ export default function LandingPage() {
       <LandingOpenSource />
       <LandingCTA />
     </>
+  ) : (
+    <>
+      <LandingHero />
+      <LandingDemo />
+      <LandingProblem />
+      <LandingFeatures />
+      <LandingNoteAI />
+      <LandingAIFlow />
+      <LandingHowItWorks />
+      <LandingClaudeCode />
+      <LandingPersonas />
+    </>
+    
   );
+
+  return sections;
 }

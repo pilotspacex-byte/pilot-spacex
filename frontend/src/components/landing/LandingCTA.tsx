@@ -5,6 +5,7 @@ import { ArrowRight, Github } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { FadeIn } from './FadeIn';
 import { GITHUB_URL } from './constants';
+import { ENV } from '@/env';
 
 export function LandingCTA() {
   return (
@@ -33,12 +34,14 @@ export function LandingCTA() {
               <ArrowRight className="size-4" />
             </Link>
           </Button>
-          <Button asChild variant="outline" size="lg" className="gap-2">
+         {!ENV.INTERNAL_MODE && (
+           <Button asChild variant="outline" size="lg" className="gap-2">
             <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
               <Github className="size-4" />
               View on GitHub
             </a>
           </Button>
+         )}
         </FadeIn>
       </div>
     </section>

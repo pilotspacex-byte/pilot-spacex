@@ -315,7 +315,7 @@ const LoginPage = observer(function LoginPage() {
             </div>
           )}
 
-          {!isAuthCoreMode && showEmailForm && ENV.GITHUB_AUTH_ENABLED && (
+          {!isAuthCoreMode && showEmailForm && !ENV.INTERNAL_MODE && (
             <>
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
@@ -368,7 +368,7 @@ const LoginPage = observer(function LoginPage() {
             </div>
           )}
 
-          {ENV.SHOW_LEGAL_LINKS && (
+          {!ENV.INTERNAL_MODE && (
             <p className="text-center text-xs text-muted-foreground">
               By continuing, you agree to our{' '}
               <a

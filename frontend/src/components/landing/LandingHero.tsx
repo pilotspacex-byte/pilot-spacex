@@ -1,5 +1,6 @@
 'use client';
 
+import { ENV } from '@/env';
 import Link from 'next/link';
 import { motion, useReducedMotion } from 'motion/react';
 import {
@@ -93,12 +94,14 @@ export function LandingHero() {
               Documentation
             </Link>
           </Button>
-          <Button asChild variant="outline" size="lg" className="gap-2">
+          
+          {
+          !ENV.INTERNAL_MODE && (<Button asChild variant="outline" size="lg" className="gap-2">
             <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
               <Github className="size-4" />
               View on GitHub
             </a>
-          </Button>
+          </Button>)}
         </motion.div>
 
         {/* Decorative Canvas Mockup */}

@@ -1,5 +1,6 @@
 import { Github } from 'lucide-react';
 import { GITHUB_URL } from './constants';
+import { ENV } from '@/env';
 
 interface FooterLink {
   label: string;
@@ -7,7 +8,7 @@ interface FooterLink {
   external?: boolean;
 }
 
-const footerLinks: Record<string, FooterLink[]> = {
+const footerLinks: Record<string, FooterLink[]> = ENV.INTERNAL_MODE ? {} : {
   Product: [
     { label: 'Features', href: '#features' },
     { label: 'How It Works', href: '#how-it-works' },
@@ -31,8 +32,8 @@ export function LandingFooter() {
           {/* Brand column */}
           <div>
             <div className="mb-4 flex items-center gap-2">
-              <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10">
-                <img src="/logo.svg" alt="Logo" className="size-4" />
+              <div className="flex size-8 items-center justify-center">
+                <img src="/logo.svg" alt="Logo" className="size-8" />
               </div>
               <span className="font-display text-lg font-semibold text-foreground">
                 TAD
@@ -68,9 +69,9 @@ export function LandingFooter() {
         {/* Bottom row */}
         <div className="mt-10 flex flex-col items-center justify-between gap-4 border-t border-border pt-6 sm:flex-row">
           <span className="text-sm text-muted-foreground">
-            &copy; {currentYear} Pilot Space. MIT Licensed.
+            &copy; {currentYear} Trustify Technology. MIT Licensed.
           </span>
-          <div className="flex items-center gap-4">
+          {!ENV.INTERNAL_MODE && (<div className="flex items-center gap-4">
             <a
               href={GITHUB_URL}
               target="_blank"
@@ -80,7 +81,7 @@ export function LandingFooter() {
             >
               <Github className="size-4" />
             </a>
-          </div>
+          </div>)}
         </div>
       </div>
     </footer>

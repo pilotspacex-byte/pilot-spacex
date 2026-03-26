@@ -6,14 +6,20 @@ import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { Menu, X, Github } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { GITHUB_URL } from './constants';
+import { ENV } from '@/env';
 
-const navLinks = [
+const navLinks = ENV.INTERNAL_MODE ? [
   { label: 'Features', href: '#features' },
   { label: 'AI in SDLC', href: '#ai-flow' },
   { label: 'How It Works', href: '#how-it-works' },
   { label: 'Claude Code', href: '#claude-code' },
   { label: 'Docs', href: '/docs' },
-  { label: 'Open Source', href: '#open-source' },
+] : [{ label: 'Features', href: '#features' },
+{ label: 'AI in SDLC', href: '#ai-flow' },
+{ label: 'How It Works', href: '#how-it-works' },
+{ label: 'Claude Code', href: '#claude-code' },
+{ label: 'Docs', href: '/docs' },
+{ label: 'Open Source', href: '#open-source' },
 ];
 
 export function LandingNav() {
@@ -29,9 +35,8 @@ export function LandingNav() {
 
   return (
     <header
-      className={`fixed top-0 right-0 left-0 z-50 transition-all duration-200 ${
-        isScrolled ? 'border-b border-border bg-background/80 backdrop-blur-xl' : 'bg-transparent'
-      }`}
+      className={`fixed top-0 right-0 left-0 z-50 transition-all duration-200 ${isScrolled ? 'border-b border-border bg-background/80 backdrop-blur-xl' : 'bg-transparent'
+        }`}
     >
       <nav className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 lg:px-8">
         {/* Logo */}
@@ -40,8 +45,8 @@ export function LandingNav() {
           className="flex items-center gap-2 transition-opacity hover:opacity-80"
           aria-label="TAD Home"
         >
-          <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10">
-            <img src="/logo.svg" alt="Logo" className="size-4" />
+          <div className="flex size-8 items-center justify-center">
+            <img src="/logo.svg" alt="Logo" className="size-8" />
           </div>
           <span className="font-display text-lg font-semibold tracking-tight text-foreground">
             TAD
@@ -73,7 +78,7 @@ export function LandingNav() {
 
         {/* Desktop CTAs */}
         <div className="hidden items-center gap-3 md:flex">
-          <a
+          {!ENV.INTERNAL_MODE && (<a
             href={GITHUB_URL}
             target="_blank"
             rel="noopener noreferrer"
@@ -81,7 +86,7 @@ export function LandingNav() {
             aria-label="View on GitHub"
           >
             <Github className="size-5" />
-          </a>
+          </a>)}
           <Button asChild size="sm">
             <Link href="/login">Get Started</Link>
           </Button>
@@ -142,7 +147,7 @@ export function LandingNav() {
                 )
               )}
               <div className="mt-2 flex items-center gap-3 border-t border-border pt-3">
-                <a
+                {!ENV.INTERNAL_MODE && (<a
                   href={GITHUB_URL}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -150,7 +155,7 @@ export function LandingNav() {
                   aria-label="View on GitHub"
                 >
                   <Github className="size-5" />
-                </a>
+                </a>)}
                 <Button asChild size="sm" className="flex-1">
                   <Link href="/login">Get Started</Link>
                 </Button>
