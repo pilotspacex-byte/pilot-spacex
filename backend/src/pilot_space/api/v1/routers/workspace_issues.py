@@ -52,7 +52,9 @@ from pilot_space.domain.exceptions import (
     NotFoundError,
     ValidationError as DomainValidationError,
 )
-from pilot_space.infrastructure.database.models.issue import Issue, IssuePriority
+from pilot_space.domain.mappers.issue_priority import map_priority_string
+from pilot_space.domain.mappers.state_name import normalize_state_name
+from pilot_space.infrastructure.database.models.issue import Issue
 from pilot_space.infrastructure.database.models.state import State
 from pilot_space.infrastructure.database.models.workspace import Workspace
 from pilot_space.infrastructure.database.rls import set_rls_context
@@ -335,14 +337,7 @@ async def create_workspace_issue(
     if not issue_data.project_id:
         raise DomainValidationError("project_id is required")
 
-    priority_map = {
-        "urgent": IssuePriority.URGENT,
-        "high": IssuePriority.HIGH,
-        "medium": IssuePriority.MEDIUM,
-        "low": IssuePriority.LOW,
-        "none": IssuePriority.NONE,
-    }
-    priority = priority_map.get(issue_data.priority.lower(), IssuePriority.NONE)
+    priority = map_priority_string(issue_data.priority)
 
     label_uuids: list[UUID] = []
     if issue_data.label_ids:
@@ -433,14 +428,7 @@ async def update_workspace_issue(
 
     priority = UNCHANGED
     if issue_data.priority is not None:
-        priority_map = {
-            "urgent": IssuePriority.URGENT,
-            "high": IssuePriority.HIGH,
-            "medium": IssuePriority.MEDIUM,
-            "low": IssuePriority.LOW,
-            "none": IssuePriority.NONE,
-        }
-        priority = priority_map.get(issue_data.priority.lower(), IssuePriority.NONE)
+        priority = map_priority_string(issue_data.priority)
 
     from datetime import date as date_type
 
@@ -548,18 +536,7 @@ async def update_workspace_issue_state(
         raise ForbiddenError("Access denied")
 
     state_name = body.state
-    state_name_map = {
-        "backlog": "Backlog",
-        "todo": "Todo",
-        "in_progress": "In Progress",
-        "in-progress": "In Progress",
-        "in_review": "In Review",
-        "in-review": "In Review",
-        "done": "Done",
-        "cancelled": "Cancelled",
-        "canceled": "Cancelled",
-    }
-    normalized_state = state_name_map.get(state_name.lower(), state_name)
+    normalized_state = normalize_state_name(state_name)
 
     state_result = await session.execute(
         select(State)
