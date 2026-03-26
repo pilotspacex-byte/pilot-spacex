@@ -22,14 +22,14 @@ from fastapi.responses import StreamingResponse
 
 from pilot_space.ai.sdk.question_adapter import Question, get_question_adapter
 from pilot_space.ai.session.session_manager import AIMessage
-from pilot_space.api.v1.routers._chat_schemas import (
+from pilot_space.api.v1.routers.ai_chat_model_routing import resolve_model_override
+from pilot_space.api.v1.schemas.ai_chat import (
     AbortRequest,
     AbortResponse,
     ChatRequest,
     SkillListItem,
     SkillListResponse,
 )
-from pilot_space.api.v1.routers.ai_chat_model_routing import resolve_model_override
 from pilot_space.dependencies import (
     CurrentUserId,
     DbSession,

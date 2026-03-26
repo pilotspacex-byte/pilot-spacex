@@ -1,8 +1,8 @@
 """Model override resolution for per-session model selection (AIPR-04).
 
-Provides ModelOverride schema, ResolvedModelConfig dataclass, and
-resolve_model_override() function used by the chat endpoint to route
-a user-selected provider/model to the correct API key and base URL.
+Provides resolve_model_override() function used by the chat endpoint to
+route a user-selected provider/model to the correct API key and base URL.
+ModelOverride and ResolvedModelConfig are defined in the schemas package.
 
 Flow:
     ChatRequest.model_override (ModelOverride)
@@ -17,51 +17,12 @@ agent falls back to the workspace's default Anthropic configuration.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from uuid import UUID
 
-from pydantic import Field
-
-from pilot_space.api.v1.schemas.base import BaseSchema
+from pilot_space.api.v1.schemas.ai_chat_model_routing import ModelOverride, ResolvedModelConfig
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
-
-
-class ModelOverride(BaseSchema):
-    """User-selected model for a chat session.
-
-    Sent by the frontend when the user picks a specific provider/model
-    from the AI model picker. The config_id links to an AIConfiguration
-    row which holds the encrypted API key and optional base_url.
-    """
-
-    provider: str = Field(
-        ...,
-        description="Provider name, e.g. 'anthropic', 'kimi', 'custom'",
-    )
-    model: str = Field(
-        ...,
-        description="Model ID, e.g. 'claude-sonnet-4'",
-    )
-    config_id: str = Field(
-        ...,
-        description="AIConfiguration.id — used to look up api_key + base_url",
-    )
-
-
-@dataclass
-class ResolvedModelConfig:
-    """Resolved provider credentials for a user-selected model.
-
-    Produced by resolve_model_override() and passed through ChatInput
-    so PilotSpaceAgent can use the correct API key and model ID.
-    """
-
-    api_key: str
-    model: str
-    provider: str
-    base_url: str | None = None
 
 
 async def resolve_model_override(

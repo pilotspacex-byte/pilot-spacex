@@ -23,38 +23,16 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Path, status
-from pydantic import BaseModel
 
 from pilot_space.api.v1.dependencies import GovernanceRollbackServiceDep
+from pilot_space.api.v1.schemas.ai_governance import (
+    AIStatusResponse,
+    PolicyRowIn,
+    PolicyRowResponse,
+)
 from pilot_space.dependencies.auth import CurrentUser, SessionDep
 
 router = APIRouter(tags=["ai-governance"])
-
-
-# ---------------------------------------------------------------------------
-# Request / response models
-# ---------------------------------------------------------------------------
-
-
-class PolicyRowIn(BaseModel):
-    """Request body for policy upsert."""
-
-    requires_approval: bool
-
-
-class PolicyRowResponse(BaseModel):
-    """Response for a single policy row."""
-
-    role: str
-    action_type: str
-    requires_approval: bool
-
-
-class AIStatusResponse(BaseModel):
-    """Response for BYOK status endpoint."""
-
-    byok_configured: bool
-    providers: list[str]
 
 
 # ---------------------------------------------------------------------------

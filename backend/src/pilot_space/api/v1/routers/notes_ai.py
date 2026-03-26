@@ -16,11 +16,11 @@ from uuid import UUID
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from pilot_space.ai.agents.agent_base import AgentContext
 from pilot_space.ai.agents.pilotspace_agent import ChatInput, PilotSpaceAgent
+from pilot_space.api.v1.schemas.ghost_text import GhostTextStreamRequest
 from pilot_space.api.v1.streaming import create_sse_response
 from pilot_space.container import Container
 from pilot_space.dependencies.auth import SessionDep, get_current_user_id
@@ -38,27 +38,6 @@ def _get_pilotspace_agent(
 
 
 PilotSpaceAgentDep = Annotated[PilotSpaceAgent, Depends(_get_pilotspace_agent)]
-
-
-class GhostTextRequest(BaseModel):
-    """Request schema for ghost text generation.
-
-    Attributes:
-        context: Text content before cursor.
-        cursor_position: Cursor position in document.
-    """
-
-    context: str = Field(
-        ...,
-        description="Text content before cursor for context",
-        min_length=1,
-        max_length=10000,
-    )
-    cursor_position: int = Field(
-        ...,
-        description="Cursor position in document",
-        ge=0,
-    )
 
 
 @router.post(
@@ -81,7 +60,7 @@ class GhostTextRequest(BaseModel):
 )
 async def ghost_text_stream(
     note_id: Annotated[UUID, Path(description="Note UUID")],
-    request_body: GhostTextRequest,
+    request_body: GhostTextStreamRequest,
     request: Request,
     session: SessionDep,
     user_id: Annotated[UUID, Depends(get_current_user_id)],
