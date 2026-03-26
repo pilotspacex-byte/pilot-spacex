@@ -12,6 +12,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { observer } from 'mobx-react-lite';
 import { format } from 'date-fns';
 import {
@@ -22,6 +23,7 @@ import {
   FolderKanban,
   CircleDot,
   CalendarCheck,
+  Settings,
 } from 'lucide-react';
 import { getIssueStateKey } from '@/lib/issue-helpers';
 import { Badge } from '@/components/ui/badge';
@@ -133,10 +135,26 @@ export const DailyBrief = observer(function DailyBrief({ workspaceSlug }: DailyB
     rawDisplayName && rawDisplayName !== emailPrefix ? rawDisplayName.split(' ')[0] : '';
   const todayFormatted = format(new Date(), 'EEEE, MMMM d, yyyy');
 
+  // --- Feature visibility ---
+  const showNotesSection = workspaceStore.isFeatureEnabled('notes');
+  const showIssuesSection = workspaceStore.isFeatureEnabled('issues');
+  const showAISection = workspaceStore.isFeatureEnabled('skills');
+  const showProjectsSection = workspaceStore.isFeatureEnabled('projects');
+  const hasAnySection =
+    showNotesSection || showIssuesSection || showAISection || showProjectsSection;
+  const isAdmin = workspaceStore.isAdmin || workspaceStore.isOwner;
+
   // --- Data fetching ---
+  const shouldFetchNotes = showNotesSection;
+  const shouldFetchIssues = showIssuesSection;
+  const shouldFetchAI = showAISection;
+  const shouldFetchProjects = showProjectsSection;
+  const shouldFetchIssueDevObjects = showIssuesSection;
+  const shouldFetchCycleMetrics = showAISection;
 
   const { data: activityData, isLoading: notesLoading } = useHomepageActivity({
     workspaceId,
+    enabled: shouldFetchNotes,
   });
 
   // W6: Fetch 50 issues to reduce risk of missing active ones due to in-memory state
@@ -145,16 +163,16 @@ export const DailyBrief = observer(function DailyBrief({ workspaceSlug }: DailyB
   const { data: issueData, isLoading: issuesLoading } = useQuery({
     queryKey: ['homepage', 'active-issues', workspaceId],
     queryFn: () => issuesApi.list(workspaceId, {}, 1, 50),
-    enabled: !!workspaceId,
+    enabled: !!workspaceId && shouldFetchIssues,
     staleTime: 30_000,
   });
 
-  const digest = useWorkspaceDigest({ workspaceId });
+  const digest = useWorkspaceDigest({ workspaceId, enabled: shouldFetchAI });
 
   const { data: projectData, isLoading: projectsLoading } = useQuery({
     queryKey: ['homepage', 'projects', workspaceId],
     queryFn: () => projectsApi.list(workspaceId),
-    enabled: !!workspaceId,
+    enabled: !!workspaceId && shouldFetchProjects,
     staleTime: 60_000,
   });
 
@@ -205,7 +223,7 @@ export const DailyBrief = observer(function DailyBrief({ workspaceSlug }: DailyB
   const { devObjects, isLoading: devObjectsLoading } = useIssueDevObjects({
     workspaceId,
     issueIds: activeIssueIds,
-    enabled: activeIssueIds.length > 0,
+    enabled: shouldFetchIssueDevObjects && activeIssueIds.length > 0,
   });
 
   const {
@@ -216,7 +234,7 @@ export const DailyBrief = observer(function DailyBrief({ workspaceSlug }: DailyB
   } = useActiveCycleMetrics({
     workspaceId,
     projectIds,
-    enabled: projectIds.length > 0,
+    enabled: shouldFetchCycleMetrics && projectIds.length > 0,
   });
 
   const staleIssues = useStaleIssueDetection({
@@ -290,185 +308,223 @@ export const DailyBrief = observer(function DailyBrief({ workspaceSlug }: DailyB
       <OnboardingBanner workspaceId={workspaceId} />
 
       {/* ---------------------------------------------------------------- */}
-      {/* Recent Notes */}
+      {/* Feature-gated sections — rendered in order with dividers between */}
       {/* ---------------------------------------------------------------- */}
-      <section aria-label="Recent notes">
-        <div className="mb-3 flex items-center gap-2">
-          <FileText className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Recent Notes
-          </h2>
-        </div>
-
-        {notesLoading ? (
-          <NoteSkeleton />
-        ) : notes.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            No notes yet. Start writing!
-          </p>
-        ) : (
-          <div
-            className="overflow-hidden rounded-lg border border-border-subtle"
-            role="list"
-            aria-label="Recent notes"
-          >
-            {notes.map((note, idx) => (
-              <NoteEntry
-                key={note.id}
-                note={note}
-                onClick={() => navigateToNote(note.id)}
-                isLast={idx === notes.length - 1}
-                badge={<NoteContextBadge note={note} projects={projects} />}
-              />
-            ))}
+      {!hasAnySection ? (
+        <section
+          className="rounded-xl border border-dashed border-border-subtle bg-muted/20 px-5 py-6 text-center"
+          aria-label="Homepage modules disabled"
+          data-testid="homepage-features-disabled-empty-state"
+        >
+          <div className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-muted">
+            <Settings className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           </div>
-        )}
-      </section>
-
-      <SectionDivider />
-
-      {/* ---------------------------------------------------------------- */}
-      {/* Working On */}
-      {/* ---------------------------------------------------------------- */}
-      <section aria-label="Working issues">
-        <div className="mb-3 flex items-center gap-2">
-          <CircleDot className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Working On
-          </h2>
-          {activeIssues.length > 0 && (
-            <Badge variant="secondary" className="px-1.5 py-0 text-xs">
-              {activeIssues.length}
-            </Badge>
-          )}
-        </div>
-
-        {issuesLoading ? (
-          <IssueSkeleton />
-        ) : activeIssues.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            No active issues. All clear!
+          <h2 className="text-sm font-semibold text-foreground">No homepage sections are enabled</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Enable modules to show homepage content.
           </p>
-        ) : (
-          <>
-            <div className="space-y-0.5" role="list" aria-label="Working issues">
-              {visibleIssues.map((issue: Issue) => (
-                <IssueEntry
-                  key={issue.id}
-                  issue={issue}
-                  onClick={() => setSelectedIssueId(issue.id)}
-                  trailing={
-                    <DevObjectIndicators
-                      devObjects={devObjects.get(issue.id)}
-                      issueId={issue.id}
-                      isLoading={devObjectsLoading}
-                    />
-                  }
-                />
-              ))}
-            </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            {isAdmin ? (
+              <>
+                Go to{' '}
+                <Link
+                  href={`/${workspaceSlug}/settings/features`}
+                  className="font-medium text-foreground underline underline-offset-4"
+                >
+                  Settings → Features
+                </Link>{' '}
+                and turn on Notes, Issues, Projects, or AI Skills.
+              </>
+            ) : (
+              'Ask a workspace admin to enable Notes, Issues, Projects, or AI Skills in Settings → Features.'
+            )}
+          </p>
+        </section>
+      ) : (
+        <>
+          {/* Recent Notes */}
+          {showNotesSection && (
+            <>
+              <section aria-label="Recent notes">
+                <div className="mb-3 flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Recent Notes
+                  </h2>
+                </div>
 
-            {hiddenCount > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIssuesExpanded((prev) => !prev)}
-                className="mt-1 h-8 w-full gap-1.5 text-xs text-muted-foreground"
-              >
-                {issuesExpanded ? (
-                  <>
-                    <ChevronDown className="h-3 w-3" aria-hidden="true" />
-                    Show less
-                  </>
+                {notesLoading ? (
+                  <NoteSkeleton />
+                ) : notes.length === 0 ? (
+                  <p className="py-6 text-center text-sm text-muted-foreground">
+                    No notes yet. Start writing!
+                  </p>
+                ) : (
+                  <div
+                    className="overflow-hidden rounded-lg border border-border-subtle"
+                    role="list"
+                    aria-label="Recent notes"
+                  >
+                    {notes.map((note, idx) => (
+                      <NoteEntry
+                        key={note.id}
+                        note={note}
+                        onClick={() => navigateToNote(note.id)}
+                        isLast={idx === notes.length - 1}
+                        badge={<NoteContextBadge note={note} projects={projects} />}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
+              <SectionDivider />
+            </>
+          )}
+
+          {/* Working On */}
+          {showIssuesSection && (
+            <>
+              <section aria-label="Working issues">
+                <div className="mb-3 flex items-center gap-2">
+                  <CircleDot className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Working On
+                  </h2>
+                  {activeIssues.length > 0 && (
+                    <Badge variant="secondary" className="px-1.5 py-0 text-xs">
+                      {activeIssues.length}
+                    </Badge>
+                  )}
+                </div>
+
+                {issuesLoading ? (
+                  <IssueSkeleton />
+                ) : activeIssues.length === 0 ? (
+                  <p className="py-6 text-center text-sm text-muted-foreground">
+                    No active issues. All clear!
+                  </p>
                 ) : (
                   <>
-                    <ChevronRight className="h-3 w-3" aria-hidden="true" />
-                    Show {hiddenCount} more
+                    <div className="space-y-0.5" role="list" aria-label="Working issues">
+                      {visibleIssues.map((issue: Issue) => (
+                        <IssueEntry
+                          key={issue.id}
+                          issue={issue}
+                          onClick={() => setSelectedIssueId(issue.id)}
+                          trailing={
+                            <DevObjectIndicators
+                              devObjects={devObjects.get(issue.id)}
+                              issueId={issue.id}
+                              isLoading={devObjectsLoading}
+                            />
+                          }
+                        />
+                      ))}
+                    </div>
+
+                    {hiddenCount > 0 && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setIssuesExpanded((prev) => !prev)}
+                        className="mt-1 h-8 w-full gap-1.5 text-xs text-muted-foreground"
+                      >
+                        {issuesExpanded ? (
+                          <>
+                            <ChevronDown className="h-3 w-3" aria-hidden="true" />
+                            Show less
+                          </>
+                        ) : (
+                          <>
+                            <ChevronRight className="h-3 w-3" aria-hidden="true" />
+                            Show {hiddenCount} more
+                          </>
+                        )}
+                      </Button>
+                    )}
                   </>
                 )}
-              </Button>
-            )}
-          </>
-        )}
-      </section>
-
-      <SectionDivider />
-
-      {/* ---------------------------------------------------------------- */}
-      {/* AI Insights + SDLC Intelligence */}
-      {/* ---------------------------------------------------------------- */}
-      <section aria-label="AI insights">
-        <div className="mb-3 flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            AI Insights
-          </h2>
-          {digest.suggestionCount > 0 && (
-            <Badge variant="secondary" className="px-1.5 py-0 text-xs">
-              {digest.suggestionCount}
-            </Badge>
+              </section>
+              <SectionDivider />
+            </>
           )}
-          {/* Sprint sparkline */}
-          <span className="ml-auto">
-            <SprintSparkline
-              velocityData={velocityData}
-              averageVelocity={averageVelocity}
-              activeCycle={activeCycle}
-              isLoading={metricsLoading}
-            />
-          </span>
-        </div>
 
-        {/* Stale issue alert */}
-        <StaleLogicAlert staleIssues={staleIssues} className="mb-3" />
+          {/* AI Insights */}
+          {showAISection && (
+            <>
+              <section aria-label="AI insights">
+                <div className="mb-3 flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    AI Insights
+                  </h2>
+                  {digest.suggestionCount > 0 && (
+                    <Badge variant="secondary" className="px-1.5 py-0 text-xs">
+                      {digest.suggestionCount}
+                    </Badge>
+                  )}
+                  {/* Sprint sparkline */}
+                  <span className="ml-auto">
+                    <SprintSparkline
+                      velocityData={velocityData}
+                      averageVelocity={averageVelocity}
+                      activeCycle={activeCycle}
+                      isLoading={metricsLoading}
+                    />
+                  </span>
+                </div>
 
-        {/* SDLC suggestion cards */}
-        <SDLCSuggestionCards suggestions={suggestionCards} className="mb-3" />
+                {/* Stale issue alert */}
+                <StaleLogicAlert staleIssues={staleIssues} className="mb-3" />
 
-        <DigestInsights
-          groups={digest.groups}
-          generatedAt={digest.generatedAt}
-          isLoading={digest.isLoading}
-          isError={digest.isError}
-          isRefreshing={digest.isRefreshing}
-          onDismiss={digest.dismiss}
-          onRefresh={() => digest.refresh()}
-          onRetry={() => digest.refetch()}
-        />
-      </section>
+                {/* SDLC suggestion cards */}
+                <SDLCSuggestionCards suggestions={suggestionCards} className="mb-3" />
 
-      <SectionDivider />
-
-      {/* ---------------------------------------------------------------- */}
-      {/* Projects */}
-      {/* ---------------------------------------------------------------- */}
-      {(projectsLoading || projects.length > 0) && (
-        <section aria-label="Project progress">
-          <div className="mb-3 flex items-center gap-2">
-            <FolderKanban className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Projects
-            </h2>
-          </div>
-
-          {projectsLoading ? (
-            <div className="space-y-1.5">
-              {[1, 2].map((i) => (
-                <div key={i} className="h-10 motion-safe:animate-pulse rounded-md bg-muted/30" />
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-0.5" role="list" aria-label="Project progress">
-              {projects.map((project: Project) => (
-                <ProjectEntry
-                  key={project.id}
-                  project={project}
-                  onClick={() => navigateToProject(project.id)}
+                <DigestInsights
+                  groups={digest.groups}
+                  generatedAt={digest.generatedAt}
+                  isLoading={digest.isLoading}
+                  isError={digest.isError}
+                  isRefreshing={digest.isRefreshing}
+                  onDismiss={digest.dismiss}
+                  onRefresh={() => digest.refresh()}
+                  onRetry={() => digest.refetch()}
                 />
-              ))}
-            </div>
+              </section>
+              <SectionDivider />
+            </>
           )}
-        </section>
+
+          {/* Projects */}
+          {showProjectsSection && (projectsLoading || projects.length > 0) && (
+            <section aria-label="Project progress">
+              <div className="mb-3 flex items-center gap-2">
+                <FolderKanban className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Projects
+                </h2>
+              </div>
+
+              {projectsLoading ? (
+                <div className="space-y-1.5">
+                  {[1, 2].map((i) => (
+                    <div key={i} className="h-10 motion-safe:animate-pulse rounded-md bg-muted/30" />
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-0.5" role="list" aria-label="Project progress">
+                  {projects.map((project: Project) => (
+                    <ProjectEntry
+                      key={project.id}
+                      project={project}
+                      onClick={() => navigateToProject(project.id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+        </>
       )}
 
       {/* Issue Detail Sheet */}

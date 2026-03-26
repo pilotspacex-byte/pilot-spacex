@@ -28,11 +28,16 @@ const mockAuthStore = {
   user: { email: 'tin@example.com' },
 };
 
+const mockWorkspaceStore = {
+  currentWorkspace: { id: 'ws-1', slug: 'test-ws' },
+  isAdmin: true,
+  isOwner: true,
+  isFeatureEnabled: vi.fn(() => true),
+};
+
 vi.mock('@/stores/RootStore', () => ({
   useAuthStore: () => mockAuthStore,
-  useWorkspaceStore: () => ({
-    currentWorkspace: { id: 'ws-1', slug: 'test-ws' },
-  }),
+  useWorkspaceStore: () => mockWorkspaceStore,
   useOnboardingStore: () => ({ openModal: vi.fn() }),
 }));
 
@@ -151,6 +156,9 @@ describe('DailyBrief standup button', () => {
     // Reset to default display name with real name
     mockAuthStore.userDisplayName = 'Tin Dang';
     mockAuthStore.user = { email: 'tin@example.com' };
+    mockWorkspaceStore.isAdmin = true;
+    mockWorkspaceStore.isOwner = true;
+    mockWorkspaceStore.isFeatureEnabled.mockReturnValue(true);
   });
 
   it('renders the standup button with correct aria-label', () => {
@@ -189,6 +197,9 @@ describe('DailyBrief standup button', () => {
 describe('DailyBrief greeting display name', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockWorkspaceStore.isAdmin = true;
+    mockWorkspaceStore.isOwner = true;
+    mockWorkspaceStore.isFeatureEnabled.mockReturnValue(true);
   });
 
   it('shows first name when display name is a real name (not email-derived)', () => {
@@ -230,5 +241,38 @@ describe('DailyBrief greeting display name', () => {
     render(<DailyBrief workspaceSlug="test-ws" />);
 
     expect(screen.getByText(/^Good (morning|afternoon|evening)$/)).toBeInTheDocument();
+  });
+});
+
+describe('DailyBrief feature-gated homepage sections', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockWorkspaceStore.isAdmin = true;
+    mockWorkspaceStore.isOwner = true;
+    mockWorkspaceStore.isFeatureEnabled.mockReturnValue(false);
+  });
+
+  it('shows disabled empty state when all homepage modules are disabled', () => {
+    render(<DailyBrief workspaceSlug="test-ws" />);
+
+    expect(screen.getByTestId('homepage-features-disabled-empty-state')).toBeInTheDocument();
+    expect(screen.getByText('No homepage sections are enabled')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Settings → Features' })).toHaveAttribute(
+      'href',
+      '/test-ws/settings/features'
+    );
+  });
+
+  it('shows admin instruction text for non-admin members', () => {
+    mockWorkspaceStore.isAdmin = false;
+    mockWorkspaceStore.isOwner = false;
+    render(<DailyBrief workspaceSlug="test-ws" />);
+
+    expect(
+      screen.getByText(
+        'Ask a workspace admin to enable Notes, Issues, Projects, or AI Skills in Settings → Features.'
+      )
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Settings → Features' })).not.toBeInTheDocument();
   });
 });
