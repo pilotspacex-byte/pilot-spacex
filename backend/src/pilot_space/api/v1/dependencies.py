@@ -28,6 +28,7 @@ from pilot_space.application.services.annotation import (
 from pilot_space.application.services.block_ownership import BlockOwnershipService
 from pilot_space.application.services.dependency_graph import DependencyGraphService
 from pilot_space.application.services.note_template import NoteTemplateService
+from pilot_space.application.services.related_issues import RelatedIssuesSuggestionService
 from pilot_space.application.services.auth import AuthService
 from pilot_space.application.services.cycle import (
     AddIssueToCycleService,
@@ -145,6 +146,22 @@ def _get_note_template_service(
 
 NoteTemplateServiceDep = Annotated[
     NoteTemplateService, Depends(_get_note_template_service)
+]
+
+# ===== Related Issues Suggestion Service Dependencies =====
+
+
+@inject
+def _get_related_issues_suggestion_service(
+    svc: RelatedIssuesSuggestionService = Depends(
+        Provide[Container.related_issues_suggestion_service]
+    ),
+) -> RelatedIssuesSuggestionService:
+    return svc
+
+
+RelatedIssuesSuggestionServiceDep = Annotated[
+    RelatedIssuesSuggestionService, Depends(_get_related_issues_suggestion_service)
 ]
 
 # ===== Issue Service Dependencies =====
@@ -793,6 +810,7 @@ __all__ = [  # noqa: RUF022
     "BlockOwnershipServiceDep",
     "DependencyGraphServiceDep",
     "NoteTemplateServiceDep",
+    "RelatedIssuesSuggestionServiceDep",
     "AddIssueToCycleServiceDep",
     "AutoTransitionServiceDep",
     "ConnectGitHubServiceDep",

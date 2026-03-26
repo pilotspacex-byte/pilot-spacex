@@ -96,6 +96,7 @@ from pilot_space.application.services.block_ownership import BlockOwnershipServi
 from pilot_space.application.services.dependency_graph import DependencyGraphService
 from pilot_space.application.services.mcp_oauth import McpOAuthService
 from pilot_space.application.services.note_template import NoteTemplateService
+from pilot_space.application.services.related_issues import RelatedIssuesSuggestionService
 from pilot_space.application.services.mcp_server import McpServerService
 from pilot_space.application.services.rate_limit import RateLimitService
 from pilot_space.application.services.rbac_service import RbacService
@@ -236,6 +237,12 @@ class Container(SkillContainer, PluginContainer):
     # Note Template Service
     note_template_service = providers.Factory(
         NoteTemplateService,
+        session=providers.Callable(get_current_session),
+    )
+
+    # Related Issues Suggestion Service
+    related_issues_suggestion_service = providers.Factory(
+        RelatedIssuesSuggestionService,
         session=providers.Callable(get_current_session),
     )
 
