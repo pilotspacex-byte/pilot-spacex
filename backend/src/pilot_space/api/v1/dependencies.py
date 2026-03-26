@@ -954,8 +954,10 @@ __all__ = [  # noqa: RUF022
     "RateLimitServiceDep",
     "FeatureToggleServiceDep",
     "ScimServiceDep",
+    "MCPToolExecutionServiceDep",
     "McpServerServiceDep",
     "McpOAuthServiceDep",
+    "ProjectDetailServiceDep",
     "AttachmentManagementServiceDep",
     "WorkspaceAISettingsServiceDep",
     "SprintBoardServiceDep",
@@ -988,6 +990,33 @@ def _get_mcp_server_service(
 
 
 McpServerServiceDep = Annotated[McpServerService, Depends(_get_mcp_server_service)]
+
+
+# ===== MCP Tool Execution Service Dependencies =====
+
+
+@inject
+def _get_mcp_tool_execution_service(
+    svc: MCPToolExecutionService = Depends(Provide[Container.mcp_tool_execution_service]),
+) -> MCPToolExecutionService:
+    return svc
+
+
+MCPToolExecutionServiceDep = Annotated[
+    MCPToolExecutionService, Depends(_get_mcp_tool_execution_service)
+]
+
+# ===== Project Detail Service Dependencies =====
+
+
+@inject
+def _get_project_detail_service(
+    svc: ProjectDetailService = Depends(Provide[Container.project_detail_service]),
+) -> ProjectDetailService:
+    return svc
+
+
+ProjectDetailServiceDep = Annotated[ProjectDetailService, Depends(_get_project_detail_service)]
 
 
 @inject
