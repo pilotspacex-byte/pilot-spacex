@@ -13,10 +13,10 @@ Source: Phase 16, WRSKL-01..02
 
 from __future__ import annotations
 
-from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, status
+from sqlalchemy import select
 
 from pilot_space.api.middleware.request_context import WorkspaceId
 from pilot_space.api.v1.schemas.workspace_role_skill import (
@@ -25,7 +25,12 @@ from pilot_space.api.v1.schemas.workspace_role_skill import (
     WorkspaceRoleSkillResponse,
 )
 from pilot_space.dependencies import CurrentUserId, DbSession
-from pilot_space.dependencies.auth import require_workspace_admin
+from pilot_space.domain.exceptions import ForbiddenError
+from pilot_space.infrastructure.database.models.workspace_member import (
+    WorkspaceMember,
+    WorkspaceRole,
+)
+from pilot_space.infrastructure.database.rls import set_rls_context
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -34,6 +39,20 @@ router = APIRouter(
     prefix="/{workspace_id}/workspace-role-skills",
     tags=["Workspace Role Skills"],
 )
+
+
+async def _require_admin(user_id: UUID, workspace_id: UUID, session: DbSession) -> None:
+    stmt = select(WorkspaceMember.role).where(
+        WorkspaceMember.workspace_id == workspace_id,
+        WorkspaceMember.user_id == user_id,
+    )
+    result = await session.execute(stmt)
+    row = result.scalar()
+    if row is None:
+        raise ForbiddenError("Not a member of this workspace")
+    role = row.value if hasattr(row, "value") else str(row)
+    if role not in (WorkspaceRole.ADMIN.value, WorkspaceRole.OWNER.value):
+        raise ForbiddenError("Admin or owner role required")
 
 
 @router.post(
@@ -51,7 +70,6 @@ async def create_workspace_skill(
     request: GenerateWorkspaceSkillRequest,
     session: DbSession,
     current_user_id: CurrentUserId,
-    _: Annotated[UUID, Depends(require_workspace_admin)],
 ) -> WorkspaceRoleSkillResponse:
     """Generate + create a workspace role skill.
 
@@ -65,6 +83,8 @@ async def create_workspace_skill(
         Created WorkspaceRoleSkillResponse with is_active=False,
         or RFC 7807 problem response on error.
     """
+    await set_rls_context(session, current_user_id, workspace_id)
+    await _require_admin(current_user_id, workspace_id, session)
 
     from pilot_space.application.services.workspace_role_skill import (
         CreateWorkspaceSkillPayload,
@@ -103,7 +123,6 @@ async def list_workspace_skills(
     workspace_id: WorkspaceId,
     session: DbSession,
     current_user_id: CurrentUserId,
-    _: Annotated[UUID, Depends(require_workspace_admin)],
 ) -> WorkspaceRoleSkillListResponse:
     """List all non-deleted workspace role skills.
 
@@ -116,8 +135,10 @@ async def list_workspace_skills(
         WorkspaceRoleSkillListResponse with all non-deleted skills.
 
     Raises:
-        HTTPException: 403 if not admin/owner.
+        ForbiddenError: 403 if not admin/owner.
     """
+    await set_rls_context(session, current_user_id, workspace_id)
+    await _require_admin(current_user_id, workspace_id, session)
 
     from pilot_space.application.services.workspace_role_skill import (
         ListWorkspaceSkillsPayload,
@@ -147,7 +168,6 @@ async def activate_workspace_skill(
     skill_id: UUID,
     session: DbSession,
     current_user_id: CurrentUserId,
-    _: Annotated[UUID, Depends(require_workspace_admin)],
 ) -> WorkspaceRoleSkillResponse:
     """Activate a workspace role skill.
 
@@ -161,8 +181,10 @@ async def activate_workspace_skill(
         Updated WorkspaceRoleSkillResponse with is_active=True.
 
     Raises:
-        HTTPException: 403 if not admin/owner; 404 if skill not found; 422 on conflict.
+        ForbiddenError: 403 if not admin/owner; NotFoundError: 404 if skill not found.
     """
+    await set_rls_context(session, current_user_id, workspace_id)
+    await _require_admin(current_user_id, workspace_id, session)
 
     from pilot_space.application.services.workspace_role_skill import (
         ActivateWorkspaceSkillPayload,
@@ -198,7 +220,6 @@ async def delete_workspace_skill(
     skill_id: UUID,
     session: DbSession,
     current_user_id: CurrentUserId,
-    _: Annotated[UUID, Depends(require_workspace_admin)],
 ) -> None:
     """Soft-delete a workspace role skill.
 
@@ -209,8 +230,10 @@ async def delete_workspace_skill(
         current_user_id: Authenticated user UUID.
 
     Raises:
-        HTTPException: 403 if not admin/owner; 404 if skill not found.
+        ForbiddenError: 403 if not admin/owner; NotFoundError: 404 if skill not found.
     """
+    await set_rls_context(session, current_user_id, workspace_id)
+    await _require_admin(current_user_id, workspace_id, session)
 
     from pilot_space.application.services.workspace_role_skill import (
         DeleteWorkspaceSkillPayload,
