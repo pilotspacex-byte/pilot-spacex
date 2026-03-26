@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import joinedload, lazyload
 
 from pilot_space.infrastructure.database.models.workspace import Workspace
@@ -300,28 +301,70 @@ class WorkspaceRepository(BaseRepository[Workspace]):
         )
         self.session.add(member)
         await self.session.flush()
-        # Refresh only column attributes to pick up server defaults (created_at,
-        # updated_at, etc.). Passing attribute_names prevents SQLAlchemy from
-        # attempting to load lazy="select" relationships (user, workspace, etc.)
-        # which would raise MissingGreenlet in async mode.
-        await self.session.refresh(
-            member,
-            attribute_names=[
-                "id",
-                "created_at",
-                "updated_at",
-                "user_id",
-                "workspace_id",
-                "role",
-                "weekly_available_hours",
-                "custom_role_id",
-                "is_active",
-                "last_active_project_id",
-                "is_deleted",
-                "deleted_at",
-            ],
+        member_result = await self.session.execute(
+            select(WorkspaceMember)
+            .options(joinedload(WorkspaceMember.user))
+            .where(WorkspaceMember.id == member.id)
         )
-        return member
+        return member_result.scalar_one()
+
+    async def upsert_member(
+        self,
+        workspace_id: UUID,
+        user_id: UUID,
+        role: WorkspaceRole = WorkspaceRole.MEMBER,
+    ) -> WorkspaceMember:
+        """Add or reactivate a workspace member using upsert.
+
+        Handles re-invite of a previously soft-deleted member without raising
+        a UniqueConstraint error on (user_id, workspace_id).
+
+        On conflict with the unique constraint ``uq_workspace_members_user_workspace``:
+        - Restores the row: sets is_deleted=False, deleted_at=None, is_active=True
+        - Updates the role to the newly requested role
+
+        Args:
+            workspace_id: The workspace ID.
+            user_id: The user ID.
+            role: The member's role.
+
+        Returns:
+            The created or reactivated WorkspaceMember.
+        """
+        now = datetime.now(tz=UTC)
+        stmt = (
+            pg_insert(WorkspaceMember)
+            .values(
+                workspace_id=workspace_id,
+                user_id=user_id,
+                role=role,
+                is_deleted=False,
+                deleted_at=None,
+                is_active=True,
+                updated_at=now,
+            )
+            .on_conflict_do_update(
+                index_elements=[WorkspaceMember.__table__.c.user_id, WorkspaceMember.__table__.c.workspace_id],
+                set_={
+                    "role": role,
+                    "is_deleted": False,
+                    "deleted_at": None,
+                    "is_active": True,
+                    "updated_at": now,
+                },
+            )
+            .returning(WorkspaceMember.id)
+        )
+        result = await self.session.execute(stmt)
+        member_id = result.scalar_one()
+
+        # Fetch the full ORM object after upsert
+        member_result = await self.session.execute(
+            select(WorkspaceMember)
+            .options(joinedload(WorkspaceMember.user))
+            .where(WorkspaceMember.id == member_id)
+        )
+        return member_result.scalar_one()
 
     async def update_member_role(
         self,

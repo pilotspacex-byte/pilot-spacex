@@ -11,12 +11,14 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import and_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import lazyload
 
 from pilot_space.infrastructure.database.models.workspace_invitation import (
     InvitationStatus,
     WorkspaceInvitation,
 )
+from pilot_space.infrastructure.database.models.workspace_member import WorkspaceRole
 from pilot_space.infrastructure.database.repositories.base import BaseRepository
 
 if TYPE_CHECKING:
@@ -121,6 +123,74 @@ class InvitationRepository(BaseRepository[WorkspaceInvitation]):
         )
         result = await self.session.execute(query)
         return result.scalar_one_or_none() is not None
+
+    async def upsert_invitation(
+        self,
+        workspace_id: UUID,
+        email: str,
+        role: WorkspaceRole,
+        invited_by: UUID,
+        expires_at: datetime,
+    ) -> WorkspaceInvitation:
+        """Create or reactivate a workspace invitation using upsert.
+
+        Handles re-invite of an email whose previous invitation was cancelled or
+        expired, without raising a UniqueConstraint error on (workspace_id, email).
+
+        On conflict with the unique constraint ``uq_workspace_invitations_pending``:
+        - Reactivates the row: sets status=PENDING, is_deleted=False, deleted_at=None
+        - Resets supabase_invite_sent_at=None so a new magic link will be sent
+        - Updates role, invited_by, and expires_at to the new values
+
+        Args:
+            workspace_id: Target workspace UUID.
+            email: Invited email address (already normalised).
+            role: Intended workspace role.
+            invited_by: UUID of the admin sending the invite.
+            expires_at: New expiry timestamp.
+
+        Returns:
+            The created or reactivated WorkspaceInvitation.
+        """
+        now = datetime.now(tz=UTC)
+        stmt = (
+            pg_insert(WorkspaceInvitation)
+            .values(
+                workspace_id=workspace_id,
+                email=email,
+                role=role,
+                invited_by=invited_by,
+                status=InvitationStatus.PENDING,
+                expires_at=expires_at,
+                is_deleted=False,
+                deleted_at=None,
+                supabase_invite_sent_at=None,
+                updated_at=now,
+            )
+            .on_conflict_do_update(
+                index_elements=[WorkspaceInvitation.__table__.c.workspace_id, WorkspaceInvitation.__table__.c.email],
+                set_={
+                    "role": role,
+                    "invited_by": invited_by,
+                    "status": InvitationStatus.PENDING,
+                    "expires_at": expires_at,
+                    "is_deleted": False,
+                    "deleted_at": None,
+                    "supabase_invite_sent_at": None,
+                    "accepted_at": None,
+                    "updated_at": now,
+                },
+            )
+            .returning(WorkspaceInvitation.id)
+        )
+        result = await self.session.execute(stmt)
+        invitation_id = result.scalar_one()
+
+        # Fetch the full ORM object (with workspace/inviter relationships) after upsert
+        invitation_result = await self.session.execute(
+            select(WorkspaceInvitation).where(WorkspaceInvitation.id == invitation_id)
+        )
+        return invitation_result.scalar_one()
 
     async def cancel(self, invitation_id: UUID) -> WorkspaceInvitation | None:
         """Cancel a pending invitation.
