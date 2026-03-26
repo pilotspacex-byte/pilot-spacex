@@ -14,34 +14,17 @@ Endpoints:
 from __future__ import annotations
 
 import logging
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
 
-from pilot_space.application.services.admin_dashboard import AdminDashboardService
+from pilot_space.api.v1.dependencies import AdminDashboardServiceDep
 from pilot_space.dependencies.admin import get_super_admin
+from pilot_space.schemas.admin_dashboard import WorkspaceDetail, WorkspaceOverview
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["super-admin"])
-
-
-def _get_admin_dashboard_service() -> AdminDashboardService:
-    """Create AdminDashboardService with Redis from container (if available)."""
-    redis_client = None
-    try:
-        from pilot_space.container import get_container
-
-        container = get_container()
-        redis_client = container.redis_client()
-    except Exception:
-        pass
-    return AdminDashboardService(redis=redis_client)
-
-
-AdminDashboardServiceDep = Annotated[
-    AdminDashboardService, Depends(_get_admin_dashboard_service)
-]
 
 
 @router.get("/workspaces")
@@ -50,7 +33,7 @@ async def list_workspaces(
     service: AdminDashboardServiceDep,
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
-) -> list[dict[str, Any]]:
+) -> list[WorkspaceOverview]:
     """List all workspaces with aggregated health metrics.
 
     Returns workspace list with member counts, owner email, storage usage,
@@ -67,7 +50,7 @@ async def get_workspace_detail(
     workspace_slug: str,
     _: Annotated[None, Depends(get_super_admin)],
     service: AdminDashboardServiceDep,
-) -> dict[str, Any]:
+) -> WorkspaceDetail:
     """Get workspace detail with member activity and AI action history.
 
     Returns:

@@ -22,10 +22,10 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Path, status
+from fastapi import APIRouter, Path, status
 from pydantic import BaseModel
 
-from pilot_space.application.services.ai_governance import GovernanceRollbackService
+from pilot_space.api.v1.dependencies import GovernanceRollbackServiceDep
 from pilot_space.dependencies.auth import CurrentUser, SessionDep
 
 router = APIRouter(tags=["ai-governance"])
@@ -58,22 +58,6 @@ class AIStatusResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Service dependency
-# ---------------------------------------------------------------------------
-
-
-def _get_governance_service(session: SessionDep) -> GovernanceRollbackService:
-    """Create GovernanceRollbackService with request-scoped session."""
-    return GovernanceRollbackService(session=session)
-
-
-GovernanceServiceDep = Annotated[
-    GovernanceRollbackService,
-    Depends(_get_governance_service),
-]
-
-
-# ---------------------------------------------------------------------------
 # Policy CRUD endpoints
 # ---------------------------------------------------------------------------
 
@@ -83,11 +67,11 @@ async def get_ai_policy(
     workspace_slug: Annotated[str, Path(description="Workspace slug or UUID")],
     current_user: CurrentUser,
     session: SessionDep,
-    service: GovernanceServiceDep,
+    service: GovernanceRollbackServiceDep,
 ) -> list[PolicyRowResponse]:
     """Return all policy rows for the workspace."""
     rows = await service.list_policies(workspace_slug, current_user.user_id)
-    return [PolicyRowResponse(**r) for r in rows]
+    return [PolicyRowResponse(role=r.role, action_type=r.action_type, requires_approval=r.requires_approval) for r in rows]
 
 
 @router.put("/workspaces/{workspace_slug}/settings/ai-policy/{role}/{action_type}")
@@ -98,13 +82,13 @@ async def set_ai_policy(
     body: PolicyRowIn,
     current_user: CurrentUser,
     session: SessionDep,
-    service: GovernanceServiceDep,
+    service: GovernanceRollbackServiceDep,
 ) -> PolicyRowResponse:
     """Upsert a policy row for the given role and action_type."""
     result = await service.upsert_policy(
         workspace_slug, current_user.user_id, role, action_type, body.requires_approval
     )
-    return PolicyRowResponse(**result)
+    return PolicyRowResponse(role=result.role, action_type=result.action_type, requires_approval=result.requires_approval)
 
 
 @router.delete(
@@ -117,7 +101,7 @@ async def delete_ai_policy(
     action_type: Annotated[str, Path(description="Action type string")],
     current_user: CurrentUser,
     session: SessionDep,
-    service: GovernanceServiceDep,
+    service: GovernanceRollbackServiceDep,
 ) -> None:
     """Delete a policy row, reverting to hardcoded defaults."""
     await service.delete_policy(
@@ -135,11 +119,11 @@ async def get_ai_status(
     workspace_slug: Annotated[str, Path(description="Workspace slug or UUID")],
     current_user: CurrentUser,
     session: SessionDep,
-    service: GovernanceServiceDep,
+    service: GovernanceRollbackServiceDep,
 ) -> AIStatusResponse:
     """Return BYOK configuration status for the workspace."""
     result = await service.get_ai_status(workspace_slug, current_user.user_id)
-    return AIStatusResponse(**result)
+    return AIStatusResponse(byok_configured=result.byok_configured, providers=result.providers)
 
 
 # ---------------------------------------------------------------------------
@@ -153,12 +137,13 @@ async def rollback_ai_artifact(
     entry_id: Annotated[UUID, Path(description="Audit log entry UUID to rollback")],
     current_user: CurrentUser,
     session: SessionDep,
-    service: GovernanceServiceDep,
+    service: GovernanceRollbackServiceDep,
 ) -> dict[str, str]:
     """Roll back an AI-created or AI-modified artifact to its pre-AI state."""
-    return await service.execute_rollback(
+    result = await service.execute_rollback(
         workspace_slug, entry_id, current_user.user_id
     )
+    return {"status": result.status, "entry_id": str(result.entry_id)}
 
 
 __all__ = ["router"]

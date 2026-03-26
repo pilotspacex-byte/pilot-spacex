@@ -6,12 +6,11 @@ API keys are encrypted before storage and never returned in responses.
 
 from __future__ import annotations
 
-from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, status
 
-from pilot_space.api.v1.dependencies import WorkspaceRepositoryDep
+from pilot_space.api.v1.dependencies import AIConfigurationServiceDep
 from pilot_space.api.v1.schemas.ai_configuration import (
     AIConfigurationCreate,
     AIConfigurationListResponse,
@@ -22,26 +21,10 @@ from pilot_space.api.v1.schemas.ai_configuration import (
     ProviderModelItem,
 )
 from pilot_space.api.v1.schemas.base import DeleteResponse
-from pilot_space.application.services.ai_configuration import AIConfigurationService
 from pilot_space.dependencies import CurrentUser, DbSession
 from pilot_space.infrastructure.database.models.ai_configuration import AIConfiguration
 
 router = APIRouter(prefix="/ai/configurations", tags=["ai-configuration"])
-
-
-def _get_ai_configuration_service(
-    session: DbSession, workspace_repo: WorkspaceRepositoryDep
-) -> AIConfigurationService:
-    """Create AIConfigurationService with request-scoped session."""
-    return AIConfigurationService(
-        session=session,
-        workspace_repository=workspace_repo,
-    )
-
-
-AIConfigurationServiceDep = Annotated[
-    AIConfigurationService, Depends(_get_ai_configuration_service)
-]
 
 
 def _config_to_response(config: AIConfiguration) -> AIConfigurationResponse:

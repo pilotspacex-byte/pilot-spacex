@@ -7,11 +7,12 @@ Handles utilization calculation and team aggregation.
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from pilot_space.domain.exceptions import NotFoundError
 from pilot_space.infrastructure.logging import get_logger
+from pilot_space.schemas.capacity_plan import CapacityPlanResponse, MemberCapacity
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,7 +33,7 @@ class CapacityPlanService:
         self,
         workspace_id: UUID,
         cycle_id: str,
-    ) -> dict[str, Any]:
+    ) -> CapacityPlanResponse:
         """Calculate capacity plan for a cycle.
 
         Args:
@@ -65,7 +66,7 @@ class CapacityPlanService:
             if issue.assignee_id and est:
                 committed[str(issue.assignee_id)] += float(est)
 
-        capacity_members: list[dict[str, Any]] = []
+        capacity_members: list[MemberCapacity] = []
         has_data = False
 
         for m in members:
@@ -83,29 +84,31 @@ class CapacityPlanService:
                 or getattr(user, "email", str(m.user_id))
             )
 
-            capacity_members.append({
-                "user_id": str(m.user_id),
-                "display_name": display_name,
-                "avatar_url": getattr(user, "avatar_url", None),
-                "available_hours": available,
-                "committed_hours": round(commit, 1),
-                "utilization_pct": round(utilization, 1),
-                "is_over_allocated": utilization > 100,
-            })
+            capacity_members.append(
+                MemberCapacity(
+                    user_id=m.user_id,
+                    display_name=display_name,
+                    avatar_url=getattr(user, "avatar_url", None),
+                    available_hours=available,
+                    committed_hours=round(commit, 1),
+                    utilization_pct=round(utilization, 1),
+                    is_over_allocated=utilization > 100,
+                )
+            )
 
-        team_available = sum(m["available_hours"] for m in capacity_members)
-        team_committed = sum(m["committed_hours"] for m in capacity_members)
+        team_available = sum(m.available_hours for m in capacity_members)
+        team_committed = sum(m.committed_hours for m in capacity_members)
         team_util = (team_committed / team_available * 100) if team_available > 0 else 0.0
 
-        return {
-            "cycle_id": cycle_id,
-            "cycle_name": cycle.name,
-            "members": capacity_members,
-            "team_available": round(team_available, 1),
-            "team_committed": round(team_committed, 1),
-            "team_utilization_pct": round(team_util, 1),
-            "has_data": has_data,
-        }
+        return CapacityPlanResponse(
+            cycle_id=cycle_id,
+            cycle_name=cycle.name,
+            members=capacity_members,
+            team_available=round(team_available, 1),
+            team_committed=round(team_committed, 1),
+            team_utilization_pct=round(team_util, 1),
+            has_data=has_data,
+        )
 
 
 __all__ = ["CapacityPlanService"]

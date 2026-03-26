@@ -62,4 +62,4 @@ async def get_capacity_plan(
 ) -> CapacityPlanResponse:
     """Return available vs committed hours per member (FR-053)."""
     result = await service.get_capacity(workspace_id, cycle_id)
-    return CapacityPlanResponse(**result)
+    return CapacityPlanResponse.model_validate(result.model_dump())

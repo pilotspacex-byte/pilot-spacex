@@ -22,6 +22,7 @@ from pilot_space.infrastructure.database.repositories.workspace_repository impor
     WorkspaceRepository,
 )
 from pilot_space.infrastructure.logging import get_logger
+from pilot_space.schemas.ai_governance import AIStatus, GovernanceAction, RollbackResult
 
 logger = get_logger(__name__)
 
@@ -209,7 +210,7 @@ class GovernanceRollbackService:
         workspace_slug: str,
         entry_id: UUID,
         user_id: UUID,
-    ) -> dict[str, str]:
+    ) -> RollbackResult:
         """Roll back an AI-created or AI-modified artifact to its pre-AI state.
 
         Raises:
@@ -249,13 +250,13 @@ class GovernanceRollbackService:
             payload={"before": current_state, "after": before_state},
         )
 
-        return {"status": "rolled_back", "entry_id": str(entry_id)}
+        return RollbackResult(status="rolled_back", entry_id=entry_id)
 
     async def get_ai_status(
         self,
         workspace_slug: str,
         user_id: UUID,
-    ) -> dict[str, Any]:
+    ) -> AIStatus:
         """Return BYOK configuration status for the workspace.
 
         Reports which providers have valid API keys configured.
@@ -280,16 +281,16 @@ class GovernanceRollbackService:
             if key_info is not None and key_info.is_valid:
                 configured_providers.append(provider)
 
-        return {
-            "byok_configured": len(configured_providers) > 0,
-            "providers": configured_providers,
-        }
+        return AIStatus(
+            byok_configured=len(configured_providers) > 0,
+            providers=configured_providers,
+        )
 
     async def list_policies(
         self,
         workspace_slug: str,
         user_id: UUID,
-    ) -> list[dict[str, Any]]:
+    ) -> list[GovernanceAction]:
         """Return all policy rows for the workspace."""
         from pilot_space.infrastructure.database.repositories.workspace_ai_policy_repository import (
             WorkspaceAIPolicyRepository,
@@ -301,11 +302,11 @@ class GovernanceRollbackService:
         repo = WorkspaceAIPolicyRepository(self._session)
         rows = await repo.list_for_workspace(workspace_id)
         return [
-            {
-                "role": r.role,
-                "action_type": r.action_type,
-                "requires_approval": r.requires_approval,
-            }
+            GovernanceAction(
+                role=r.role,
+                action_type=r.action_type,
+                requires_approval=r.requires_approval,
+            )
             for r in rows
         ]
 
@@ -316,7 +317,7 @@ class GovernanceRollbackService:
         role: str,
         action_type: str,
         requires_approval: bool,
-    ) -> dict[str, Any]:
+    ) -> GovernanceAction:
         """Upsert a policy row for the given role and action_type.
 
         Raises:
@@ -337,11 +338,11 @@ class GovernanceRollbackService:
         policy = await repo.upsert(
             workspace_id, role.upper(), action_type, requires_approval
         )
-        return {
-            "role": policy.role,
-            "action_type": policy.action_type,
-            "requires_approval": policy.requires_approval,
-        }
+        return GovernanceAction(
+            role=policy.role,
+            action_type=policy.action_type,
+            requires_approval=policy.requires_approval,
+        )
 
     async def delete_policy(
         self,

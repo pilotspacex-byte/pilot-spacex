@@ -87,7 +87,7 @@ async def get_sprint_board(
 ) -> SprintBoardResponse:
     """Return issues for a cycle grouped into 6 state lanes (FR-049)."""
     result = await service.get_board(workspace_id, cycle_id)
-    return SprintBoardResponse(**result)
+    return SprintBoardResponse.model_validate(result.model_dump())
 
 
 # -- AI State Transition Proposal Endpoint (T-233) ----------------------------
@@ -108,11 +108,11 @@ async def propose_state_transition(
     _: Annotated[UUID, Depends(require_workspace_member)],
 ) -> ProposeTransitionResponse:
     """Create an approval request for an AI-proposed state transition (FR-050)."""
-    approval_id = await service.propose_transition(
+    result = await service.propose_transition(
         workspace_id=workspace_id,
         user_id=current_user_id,
         issue_id=body.issue_id,
         proposed_state=body.proposed_state,
         reason=body.reason,
     )
-    return ProposeTransitionResponse(approval_id=approval_id)
+    return ProposeTransitionResponse(approval_id=result.approval_id)

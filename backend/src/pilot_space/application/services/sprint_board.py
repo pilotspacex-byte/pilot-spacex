@@ -7,11 +7,17 @@ Handles lane grouping and AI-proposed state transitions.
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from pilot_space.domain.exceptions import NotFoundError
 from pilot_space.infrastructure.logging import get_logger
+from pilot_space.schemas.sprint_board import (
+    SprintBoardCard,
+    SprintBoardLane,
+    SprintBoardResponse,
+    TransitionProposal,
+)
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,7 +40,7 @@ class SprintBoardService:
         self,
         workspace_id: UUID,
         cycle_id: str,
-    ) -> dict[str, Any]:
+    ) -> SprintBoardResponse:
         """Build sprint board data for a cycle grouped into state lanes.
 
         Args:
@@ -60,53 +66,53 @@ class SprintBoardService:
 
         issues = await repo.get_cycle_issues_with_state_and_assignee(cycle_uuid, workspace_id)
 
-        lanes_map: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        lanes_map: dict[str, list[SprintBoardCard]] = defaultdict(list)
         for issue in issues:
             state = issue.state
             lane_key = state.name.lower().replace(" ", "_") if state else "backlog"
-            card = {
-                "id": str(issue.id),
-                "identifier": issue.identifier,
-                "name": issue.name,
-                "priority": (
+            card = SprintBoardCard(
+                id=str(issue.id),
+                identifier=issue.identifier,
+                name=issue.name,
+                priority=(
                     issue.priority.value
                     if hasattr(issue.priority, "value")
                     else str(issue.priority)
                 ),
-                "state_name": state.name if state else "Backlog",
-                "state_id": str(state.id) if state else "",
-                "assignee_id": str(issue.assignee_id) if issue.assignee_id else None,
-                "assignee_name": (
+                state_name=state.name if state else "Backlog",
+                state_id=str(state.id) if state else "",
+                assignee_id=str(issue.assignee_id) if issue.assignee_id else None,
+                assignee_name=(
                     getattr(issue.assignee, "full_name", None)
                     or getattr(issue.assignee, "email", None)
                     if issue.assignee
                     else None
                 ),
-                "labels": [],
-                "estimate_hours": float(getattr(issue, "estimate_points", None) or 0) or None,
-            }
+                labels=[],
+                estimate_hours=float(getattr(issue, "estimate_points", None) or 0) or None,
+            )
             lanes_map[lane_key].append(card)
 
         lanes = [
-            {
-                "state_id": grp,
-                "state_name": grp.replace("_", " ").title(),
-                "state_group": grp,
-                "count": len(lanes_map.get(grp, [])),
-                "issues": lanes_map.get(grp, []),
-            }
+            SprintBoardLane(
+                state_id=grp,
+                state_name=grp.replace("_", " ").title(),
+                state_group=grp,
+                count=len(lanes_map.get(grp, [])),
+                issues=lanes_map.get(grp, []),
+            )
             for grp in STATE_GROUP_ORDER
         ]
 
         is_read_only = str(getattr(cycle, "status", "")).lower() in ("completed", "cancelled")
 
-        return {
-            "cycle_id": cycle_id,
-            "cycle_name": cycle.name,
-            "lanes": lanes,
-            "total_issues": len(issues),
-            "is_read_only": is_read_only,
-        }
+        return SprintBoardResponse(
+            cycle_id=cycle_id,
+            cycle_name=cycle.name,
+            lanes=lanes,
+            total_issues=len(issues),
+            is_read_only=is_read_only,
+        )
 
     async def propose_transition(
         self,
@@ -115,7 +121,7 @@ class SprintBoardService:
         issue_id: str,
         proposed_state: str,
         reason: str | None,
-    ) -> str:
+    ) -> TransitionProposal:
         """Create an approval request for an AI-proposed state transition.
 
         Args:
@@ -143,7 +149,7 @@ class SprintBoardService:
             requested_by_agent="sprint-board-ai",
             context={"workspace_id": str(workspace_id), "issue_id": issue_id},
         )
-        return str(approval_id)
+        return TransitionProposal(approval_id=str(approval_id))
 
 
 __all__ = ["SprintBoardService"]

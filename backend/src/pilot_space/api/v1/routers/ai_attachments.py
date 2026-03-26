@@ -128,7 +128,8 @@ async def get_attachment_url(
     """Get a 1-hour signed download URL for a chat attachment."""
     storage = request.app.state.container.storage_client()
     svc = AttachmentManagementService(session=db, storage_client=storage)
-    return await svc.get_signed_url(attachment_id, user_id)
+    result = await svc.get_signed_url(attachment_id, user_id)
+    return {"url": result.url, "expiresIn": result.expires_in}
 
 
 @router.delete(
@@ -182,7 +183,7 @@ async def ingest_document(
     excluded_indices = [adj.chunk_index for adj in body.chunk_adjustments if adj.excluded]
 
     svc = AttachmentManagementService(session=db)
-    return await svc.ingest_document(
+    result = await svc.ingest_document(
         attachment_id=attachment_id,
         workspace_id=body.workspace_id,
         project_id=body.project_id,
@@ -190,3 +191,4 @@ async def ingest_document(
         attachment_repo=attachment_repo,
         queue_client=queue_client,
     )
+    return {"status": result.status, "attachment_id": str(result.attachment_id)}

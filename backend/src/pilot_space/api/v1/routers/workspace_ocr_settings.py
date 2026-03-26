@@ -20,12 +20,9 @@ from uuid import UUID
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
+from pilot_space.api.v1.dependencies import OcrConfigurationServiceDep
 from pilot_space.api.v1.routers._workspace_admin import get_admin_workspace
-from pilot_space.application.services.ocr_configuration import (
-    OcrConfigurationService,
-    OcrUpdatePayload,
-)
-from pilot_space.dependencies.ai import KeyStorageDep
+from pilot_space.application.services.ocr_configuration import OcrUpdatePayload
 from pilot_space.dependencies.auth import CurrentUser, DbSession
 from pilot_space.infrastructure.logging import get_logger
 
@@ -85,12 +82,11 @@ async def get_ocr_settings(
     workspace_id: UUID,
     current_user: CurrentUser,
     session: DbSession,
-    key_storage: KeyStorageDep,
+    svc: OcrConfigurationServiceDep,
 ) -> OcrSettingsResponse:
     """Get current OCR provider configuration for a workspace."""
     await get_admin_workspace(workspace_id, current_user, session)
 
-    svc = OcrConfigurationService(key_storage=key_storage)
     result = await svc.get_ocr_config(workspace_id)
     return OcrSettingsResponse(
         workspace_id=result.workspace_id,
@@ -112,12 +108,11 @@ async def update_ocr_settings(
     body: OcrSettingsUpdateRequest,
     current_user: CurrentUser,
     session: DbSession,
-    key_storage: KeyStorageDep,
+    svc: OcrConfigurationServiceDep,
 ) -> OcrSettingsResponse:
     """Store or update OCR provider credentials for a workspace."""
     await get_admin_workspace(workspace_id, current_user, session)
 
-    svc = OcrConfigurationService(key_storage=key_storage)
     payload = OcrUpdatePayload(
         provider_type=body.provider_type,
         endpoint_url=body.endpoint_url,
@@ -148,7 +143,6 @@ async def test_ocr_connection(
     body: OcrSettingsUpdateRequest,
     current_user: CurrentUser,
     session: DbSession,
-    key_storage: KeyStorageDep,
     request: Request,
 ) -> OcrTestResponse:
     """Test OCR provider connection using a built-in 1x1 PNG."""

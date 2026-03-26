@@ -8,13 +8,13 @@ Source: Phase 19, SKRG-01..05
 
 from __future__ import annotations
 
-from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
 
 from pilot_space.api.middleware.request_context import WorkspaceId
+from pilot_space.api.v1.dependencies import PluginLifecycleServiceDep
 from pilot_space.api.v1.schemas.workspace_plugin import (
     SkillListItem,
     WorkspaceGithubCredentialRequest,
@@ -26,7 +26,7 @@ from pilot_space.api.v1.schemas.workspace_plugin import (
     WorkspacePluginToggleRequest,
     WorkspacePluginUpdateCheckResponse,
 )
-from pilot_space.dependencies import CurrentUserId, DbSession, RedisDep
+from pilot_space.dependencies import CurrentUserId, DbSession
 from pilot_space.domain.exceptions import ForbiddenError
 from pilot_space.infrastructure.database.models.workspace_member import (
     WorkspaceMember,
@@ -55,16 +55,6 @@ async def _require_admin(user_id: UUID, workspace_id: UUID, session: DbSession) 
     role = row.value if hasattr(row, "value") else str(row)
     if role not in (WorkspaceRole.ADMIN.value, WorkspaceRole.OWNER.value):
         raise ForbiddenError("Admin or owner role required")
-
-
-def _get_plugin_lifecycle_service(session: DbSession, redis: RedisDep):
-    """Create PluginLifecycleService with request-scoped deps."""
-    from pilot_space.application.services.plugin_lifecycle import PluginLifecycleService
-
-    return PluginLifecycleService(session=session, redis=redis)
-
-
-PluginLifecycleDep = Annotated[object, Depends(_get_plugin_lifecycle_service)]
 
 
 # ---------------------------------------------------------------------------
@@ -104,16 +94,13 @@ async def browse_repo(
     workspace_id: WorkspaceId,
     session: DbSession,
     current_user_id: CurrentUserId,
-    redis: RedisDep,
+    svc: PluginLifecycleServiceDep,
     repo_url: str = Query(description="GitHub repository URL to browse"),
 ) -> list[SkillListItem]:
     """Fetch available skills from a GitHub repository URL."""
     await set_rls_context(session, current_user_id, workspace_id)
     await _require_admin(current_user_id, workspace_id, session)
 
-    from pilot_space.application.services.plugin_lifecycle import PluginLifecycleService
-
-    svc = PluginLifecycleService(session=session, redis=redis)
     results = await svc.browse_repo(workspace_id, repo_url)
     return [
         SkillListItem(
@@ -136,18 +123,17 @@ async def install_plugin(
     request: WorkspacePluginInstallRequest,
     session: DbSession,
     current_user_id: CurrentUserId,
+    svc: PluginLifecycleServiceDep,
 ) -> WorkspacePluginResponse:
     """Install one skill from a GitHub repository into this workspace."""
     await set_rls_context(session, current_user_id, workspace_id)
     await _require_admin(current_user_id, workspace_id, session)
 
-    from pilot_space.application.services.plugin_lifecycle import PluginLifecycleService
     from pilot_space.application.services.workspace_plugin.install_plugin_service import (
         InstallPluginService,
     )
     from pilot_space.integrations.github.plugin_service import GitHubPluginService, parse_github_url
-    # Use a dummy redis for token-only usage (install doesn't need cache)
-    svc = PluginLifecycleService(session=session, redis=None)  # type: ignore[arg-type]
+
     token = await svc.get_workspace_token(workspace_id)
 
     owner, repo = parse_github_url(request.repo_url)
@@ -186,15 +172,12 @@ async def install_all_from_repo(
     request: WorkspacePluginInstallAllRequest,
     session: DbSession,
     current_user_id: CurrentUserId,
-    redis: RedisDep,
+    svc: PluginLifecycleServiceDep,
 ) -> list[WorkspacePluginResponse]:
     """Browse a GitHub repo and install all discovered skills at once."""
     await set_rls_context(session, current_user_id, workspace_id)
     await _require_admin(current_user_id, workspace_id, session)
 
-    from pilot_space.application.services.plugin_lifecycle import PluginLifecycleService
-
-    svc = PluginLifecycleService(session=session, redis=redis)
     plugins = await svc.install_all_from_repo(workspace_id, request.repo_url, current_user_id)
     return [WorkspacePluginResponse.model_validate(p) for p in plugins]
 
@@ -210,15 +193,12 @@ async def toggle_plugin(
     request: WorkspacePluginToggleRequest,
     session: DbSession,
     current_user_id: CurrentUserId,
-    redis: RedisDep,
+    svc: PluginLifecycleServiceDep,
 ) -> WorkspacePluginResponse:
     """Activate or deactivate a single plugin skill."""
     await set_rls_context(session, current_user_id, workspace_id)
     await _require_admin(current_user_id, workspace_id, session)
 
-    from pilot_space.application.services.plugin_lifecycle import PluginLifecycleService
-
-    svc = PluginLifecycleService(session=session, redis=redis)
     updated = await svc.toggle_plugin(workspace_id, plugin_id, request.is_active)
     return WorkspacePluginResponse.model_validate(updated)
 
@@ -233,15 +213,12 @@ async def toggle_repo_plugins(
     request: WorkspacePluginToggleRepoRequest,
     session: DbSession,
     current_user_id: CurrentUserId,
-    redis: RedisDep,
+    svc: PluginLifecycleServiceDep,
 ) -> list[WorkspacePluginResponse]:
     """Activate or deactivate all plugin skills from a specific repository."""
     await set_rls_context(session, current_user_id, workspace_id)
     await _require_admin(current_user_id, workspace_id, session)
 
-    from pilot_space.application.services.plugin_lifecycle import PluginLifecycleService
-
-    svc = PluginLifecycleService(session=session, redis=redis)
     plugins = await svc.toggle_repo_plugins(workspace_id, request.repo_url, request.is_active)
     return [WorkspacePluginResponse.model_validate(p) for p in plugins]
 
@@ -255,16 +232,13 @@ async def uninstall_repo_plugins(
     workspace_id: WorkspaceId,
     session: DbSession,
     current_user_id: CurrentUserId,
-    redis: RedisDep,
+    svc: PluginLifecycleServiceDep,
     repo_url: str = Query(description="GitHub repository URL to uninstall"),
 ) -> None:
     """Soft-delete all installed plugins from a specific repository."""
     await set_rls_context(session, current_user_id, workspace_id)
     await _require_admin(current_user_id, workspace_id, session)
 
-    from pilot_space.application.services.plugin_lifecycle import PluginLifecycleService
-
-    svc = PluginLifecycleService(session=session, redis=redis)
     await svc.uninstall_repo_plugins(workspace_id, repo_url)
 
 
@@ -311,15 +285,12 @@ async def check_updates(
     workspace_id: WorkspaceId,
     session: DbSession,
     current_user_id: CurrentUserId,
-    redis: RedisDep,
+    svc: PluginLifecycleServiceDep,
 ) -> WorkspacePluginUpdateCheckResponse:
     """Check if installed plugins have newer versions available."""
     await set_rls_context(session, current_user_id, workspace_id)
     await _require_admin(current_user_id, workspace_id, session)
 
-    from pilot_space.application.services.plugin_lifecycle import PluginLifecycleService
-
-    svc = PluginLifecycleService(session=session, redis=redis)
     results = await svc.check_updates(workspace_id)
     plugin_responses: list[WorkspacePluginResponse] = []
     for plugin, has_update in results:
@@ -339,15 +310,12 @@ async def save_github_credential(
     request: WorkspaceGithubCredentialRequest,
     session: DbSession,
     current_user_id: CurrentUserId,
-    redis: RedisDep,
+    svc: PluginLifecycleServiceDep,
 ) -> WorkspaceGithubCredentialResponse:
     """Encrypt and store a GitHub PAT for this workspace."""
     await set_rls_context(session, current_user_id, workspace_id)
     await _require_admin(current_user_id, workspace_id, session)
 
-    from pilot_space.application.services.plugin_lifecycle import PluginLifecycleService
-
-    svc = PluginLifecycleService(session=session, redis=redis)
     await svc.save_github_credential(workspace_id, request.pat, current_user_id)
     return WorkspaceGithubCredentialResponse(has_pat=True)
 
@@ -361,15 +329,12 @@ async def get_github_credential(
     workspace_id: WorkspaceId,
     session: DbSession,
     current_user_id: CurrentUserId,
-    redis: RedisDep,
+    svc: PluginLifecycleServiceDep,
 ) -> WorkspaceGithubCredentialResponse:
     """Check if a GitHub PAT is configured for this workspace."""
     await set_rls_context(session, current_user_id, workspace_id)
     await _require_admin(current_user_id, workspace_id, session)
 
-    from pilot_space.application.services.plugin_lifecycle import PluginLifecycleService
-
-    svc = PluginLifecycleService(session=session, redis=redis)
     has_pat = await svc.has_github_credential(workspace_id)
     return WorkspaceGithubCredentialResponse(has_pat=has_pat)
 

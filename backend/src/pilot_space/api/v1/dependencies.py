@@ -18,12 +18,16 @@ from pilot_space.api.v1.repository_deps import (
     WorkspaceRepositoryDep,
 )
 from pilot_space.application.services.action_button import ActionButtonService
+from pilot_space.application.services.admin_dashboard import AdminDashboardService
+from pilot_space.application.services.ai_configuration import AIConfigurationService
 from pilot_space.application.services.ai_context import (
     ExportAIContextService,
     GenerateAIContextService,
     GenerateImplementationPlanService,
     RefineAIContextService,
 )
+from pilot_space.application.services.ai_extraction import CreateExtractedIssuesService
+from pilot_space.application.services.ai_governance import GovernanceRollbackService
 from pilot_space.application.services.annotation import (
     CreateAnnotationService,
 )
@@ -85,11 +89,13 @@ from pilot_space.application.services.note.ai_update_service import (
 from pilot_space.application.services.note.move_page_service import MovePageService
 from pilot_space.application.services.note.reorder_page_service import ReorderPageService
 from pilot_space.application.services.note_template import NoteTemplateService
+from pilot_space.application.services.ocr_configuration import OcrConfigurationService
 from pilot_space.application.services.onboarding import (
     CreateGuidedNoteService,
     GetOnboardingService,
     UpdateOnboardingService,
 )
+from pilot_space.application.services.plugin_lifecycle import PluginLifecycleService
 from pilot_space.application.services.pm_block_insight_service import PMBlockInsightService
 from pilot_space.application.services.project_detail import ProjectDetailService
 from pilot_space.application.services.rate_limit import RateLimitService
@@ -114,6 +120,7 @@ from pilot_space.application.services.workspace_member import (
     WorkspaceMemberService,
 )
 from pilot_space.container import Container
+from pilot_space.dependencies.ai import get_key_storage
 
 # ===== Action Button Service Dependencies =====
 
@@ -882,6 +889,92 @@ PMBlockInsightServiceDep = Annotated[
     PMBlockInsightService, Depends(_get_pm_block_insight_service)
 ]
 
+# ===== Admin Dashboard Service Dependencies =====
+
+
+@inject
+def _get_admin_dashboard_service(
+    svc: AdminDashboardService = Depends(Provide[Container.admin_dashboard_service]),
+) -> AdminDashboardService:
+    return svc
+
+
+AdminDashboardServiceDep = Annotated[AdminDashboardService, Depends(_get_admin_dashboard_service)]
+
+# ===== AI Configuration Service Dependencies =====
+
+
+@inject
+def _get_ai_configuration_service(
+    svc: AIConfigurationService = Depends(Provide[Container.ai_configuration_service]),
+) -> AIConfigurationService:
+    return svc
+
+
+AIConfigurationServiceDep = Annotated[
+    AIConfigurationService, Depends(_get_ai_configuration_service)
+]
+
+# ===== Create Extracted Issues Service Dependencies =====
+
+
+@inject
+def _get_create_extracted_issues_service(
+    svc: CreateExtractedIssuesService = Depends(
+        Provide[Container.create_extracted_issues_service]
+    ),
+) -> CreateExtractedIssuesService:
+    return svc
+
+
+CreateExtractedIssuesServiceDep = Annotated[
+    CreateExtractedIssuesService, Depends(_get_create_extracted_issues_service)
+]
+
+# ===== Governance Rollback Service Dependencies =====
+
+
+@inject
+def _get_governance_rollback_service(
+    svc: GovernanceRollbackService = Depends(Provide[Container.governance_rollback_service]),
+) -> GovernanceRollbackService:
+    return svc
+
+
+GovernanceRollbackServiceDep = Annotated[
+    GovernanceRollbackService, Depends(_get_governance_rollback_service)
+]
+
+# ===== Plugin Lifecycle Service Dependencies =====
+
+
+@inject
+def _get_plugin_lifecycle_service(
+    svc: PluginLifecycleService = Depends(Provide[Container.plugin_lifecycle_service]),
+) -> PluginLifecycleService:
+    return svc
+
+
+PluginLifecycleServiceDep = Annotated[
+    PluginLifecycleService, Depends(_get_plugin_lifecycle_service)
+]
+
+# ===== OCR Configuration Service Dependencies =====
+# OcrConfigurationService takes key_storage which is request-scoped (built from
+# encryption_key + session). We compose it here using get_key_storage directly.
+
+
+def _get_ocr_configuration_service(
+    key_storage: Annotated[object, Depends(get_key_storage)],
+) -> OcrConfigurationService:
+    return OcrConfigurationService(key_storage=key_storage)  # type: ignore[arg-type]
+
+
+OcrConfigurationServiceDep = Annotated[
+    OcrConfigurationService, Depends(_get_ocr_configuration_service)
+]
+
+
 __all__ = [  # noqa: RUF022
     "ActionButtonServiceDep",
     "ActivityRepositoryDep",
@@ -963,6 +1056,12 @@ __all__ = [  # noqa: RUF022
     "SprintBoardServiceDep",
     "CapacityPlanServiceDep",
     "PMBlockInsightServiceDep",
+    "AdminDashboardServiceDep",
+    "AIConfigurationServiceDep",
+    "CreateExtractedIssuesServiceDep",
+    "GovernanceRollbackServiceDep",
+    "OcrConfigurationServiceDep",
+    "PluginLifecycleServiceDep",
 ]
 
 

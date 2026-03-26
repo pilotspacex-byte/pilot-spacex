@@ -15,9 +15,9 @@ from pydantic import BaseModel, Field
 
 from pilot_space.api.middleware.request_context import CorrelationId, WorkspaceId
 from pilot_space.api.utils.sse import SSEResponse, SSEStreamBuilder
+from pilot_space.api.v1.dependencies import CreateExtractedIssuesServiceDep
 from pilot_space.application.services.ai_extraction import (
     CreateExtractedIssuesPayload,
-    CreateExtractedIssuesService,
     ExtractedIssueInput,
 )
 from pilot_space.dependencies import (
@@ -227,10 +227,10 @@ async def approve_extracted_issues(
     body: CreateExtractedIssuesRequestSchema,
     current_user_id: CurrentUserId,
     session: DbSession,
+    service: CreateExtractedIssuesServiceDep,
     _member: Annotated[UUID, Depends(require_workspace_member)],
 ) -> CreateExtractedIssuesResponse:
     """Create extracted issues from a note (auto-approve)."""
-    service = CreateExtractedIssuesService(session=session)
     payload = CreateExtractedIssuesPayload(
         workspace_id=workspace_id,
         note_id=note_id,
@@ -269,10 +269,10 @@ async def approve_extracted_issues_no_note(
     body: CreateExtractedIssuesRequestSchema,
     current_user_id: CurrentUserId,
     session: DbSession,
+    service: CreateExtractedIssuesServiceDep,
     _member: Annotated[UUID, Depends(require_workspace_member)],
 ) -> CreateExtractedIssuesResponse:
     """Create extracted issues without note context (auto-approve)."""
-    service = CreateExtractedIssuesService(session=session)
     payload = CreateExtractedIssuesPayload(
         workspace_id=workspace_id,
         note_id=body.note_id,

@@ -17,6 +17,13 @@ from pilot_space.config import get_settings
 from pilot_space.infrastructure.database.repositories.admin_dashboard_repository import (
     AdminDashboardRepository,
 )
+from pilot_space.schemas.admin_dashboard import (
+    QuotaConfig,
+    RecentAIAction,
+    TopMember,
+    WorkspaceDetail,
+    WorkspaceOverview,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +89,7 @@ class AdminDashboardService:
 
     async def list_workspaces(
         self, *, limit: int = 100, offset: int = 0
-    ) -> list[dict[str, Any]]:
+    ) -> list[WorkspaceOverview]:
         """List all workspaces with aggregated health metrics.
 
         Returns workspace list with member counts, owner email, storage usage,
@@ -94,32 +101,29 @@ class AdminDashboardService:
             repo = AdminDashboardRepository(session)
             rows = await repo.list_workspaces(limit=limit, offset=offset)
 
-        workspaces = []
+        workspaces: list[WorkspaceOverview] = []
         for row in rows:
             ws_id = str(row["id"])
             rl_count = await self._get_rl_violation_count(ws_id)
 
-            created_at = row["created_at"]
-            last_active = row["last_active"]
-
             workspaces.append(
-                {
-                    "id": ws_id,
-                    "name": row["name"],
-                    "slug": row["slug"],
-                    "created_at": created_at.isoformat() if created_at else None,
-                    "member_count": int(row["member_count"]),
-                    "owner_email": row["owner_email"],
-                    "last_active": last_active.isoformat() if last_active else None,
-                    "storage_used_bytes": int(row["storage_used_bytes"] or 0),
-                    "ai_action_count": int(row["ai_action_count"]),
-                    "rate_limit_violation_count": rl_count,
-                }
+                WorkspaceOverview(
+                    id=row["id"],
+                    name=row["name"],
+                    slug=row["slug"],
+                    created_at=row["created_at"],
+                    member_count=int(row["member_count"]),
+                    owner_email=row["owner_email"],
+                    last_active=row["last_active"],
+                    storage_used_bytes=int(row["storage_used_bytes"] or 0),
+                    ai_action_count=int(row["ai_action_count"]),
+                    rate_limit_violation_count=rl_count,
+                )
             )
 
         return workspaces
 
-    async def get_workspace_detail(self, workspace_slug: str) -> dict[str, Any]:
+    async def get_workspace_detail(self, workspace_slug: str) -> WorkspaceDetail:
         """Get workspace detail with member activity and AI action history.
 
         Returns:
@@ -148,50 +152,47 @@ class AdminDashboardService:
         ws_id = str(ws_row["id"])
         rl_count = await self._get_rl_violation_count(ws_id)
 
-        created_at = ws_row["created_at"]
-        last_active = ws_row["last_active"]
-
         top_members = [
-            {
-                "user_id": str(m["user_id"]),
-                "email": m["email"],
-                "full_name": m["full_name"],
-                "role": m["role"],
-                "action_count": int(m["action_count"]),
-            }
+            TopMember(
+                user_id=m["user_id"],
+                email=m["email"],
+                full_name=m["full_name"],
+                role=m["role"],
+                action_count=int(m["action_count"]),
+            )
             for m in members_rows
         ]
 
         recent_ai_actions = [
-            {
-                "id": str(a["id"]),
-                "action": a["action"],
-                "resource_type": a["resource_type"],
-                "resource_id": str(a["resource_id"]) if a["resource_id"] else None,
-                "actor_id": str(a["actor_id"]) if a["actor_id"] else None,
-                "ai_model": a["ai_model"],
-                "ai_token_cost": a["ai_token_cost"],
-                "created_at": a["created_at"].isoformat() if a["created_at"] else None,
-            }
+            RecentAIAction(
+                id=a["id"],
+                action=a["action"],
+                resource_type=a["resource_type"],
+                resource_id=a["resource_id"],
+                actor_id=a["actor_id"],
+                ai_model=a["ai_model"],
+                ai_token_cost=a["ai_token_cost"],
+                created_at=a["created_at"],
+            )
             for a in ai_rows
         ]
 
-        return {
-            "id": ws_id,
-            "name": ws_row["name"],
-            "slug": ws_row["slug"],
-            "created_at": created_at.isoformat() if created_at else None,
-            "member_count": int(ws_row["member_count"]),
-            "owner_email": ws_row["owner_email"],
-            "last_active": last_active.isoformat() if last_active else None,
-            "storage_used_bytes": int(ws_row["storage_used_bytes"] or 0),
-            "ai_action_count": int(ws_row["ai_action_count"]),
-            "rate_limit_violation_count": rl_count,
-            "quota": {
-                "rate_limit_standard_rpm": ws_row["rate_limit_standard_rpm"],
-                "rate_limit_ai_rpm": ws_row["rate_limit_ai_rpm"],
-                "storage_quota_mb": ws_row["storage_quota_mb"],
-            },
-            "top_members": top_members,
-            "recent_ai_actions": recent_ai_actions,
-        }
+        return WorkspaceDetail(
+            id=ws_row["id"],
+            name=ws_row["name"],
+            slug=ws_row["slug"],
+            created_at=ws_row["created_at"],
+            member_count=int(ws_row["member_count"]),
+            owner_email=ws_row["owner_email"],
+            last_active=ws_row["last_active"],
+            storage_used_bytes=int(ws_row["storage_used_bytes"] or 0),
+            ai_action_count=int(ws_row["ai_action_count"]),
+            rate_limit_violation_count=rl_count,
+            quota=QuotaConfig(
+                rate_limit_standard_rpm=ws_row["rate_limit_standard_rpm"],
+                rate_limit_ai_rpm=ws_row["rate_limit_ai_rpm"],
+                storage_quota_mb=ws_row["storage_quota_mb"],
+            ),
+            top_members=top_members,
+            recent_ai_actions=recent_ai_actions,
+        )
