@@ -19,6 +19,7 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel
 
+from pilot_space.api.v1.routers._workspace_admin import get_admin_workspace
 from pilot_space.dependencies.ai import KeyStorageDep
 from pilot_space.dependencies.auth import CurrentUser, DbSession
 from pilot_space.infrastructure.logging import get_logger
@@ -72,35 +73,6 @@ class OcrTestResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-async def _get_admin_workspace(
-    workspace_id: UUID,
-    current_user: CurrentUser,
-    session: DbSession,
-) -> None:
-    """Verify workspace exists and user has admin access."""
-    from pilot_space.infrastructure.database.repositories.workspace_repository import (
-        WorkspaceRepository,
-    )
-
-    workspace_repo = WorkspaceRepository(session=session)
-    workspace = await workspace_repo.get_with_members(workspace_id)
-    if not workspace:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Workspace not found",
-        )
-
-    member = next(
-        (m for m in (workspace.members or []) if m.user_id == current_user.user_id),
-        None,
-    )
-    if not member or not member.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin role required",
-        )
-
-
 def _none_response(workspace_id: UUID) -> OcrSettingsResponse:
     return OcrSettingsResponse(
         workspace_id=workspace_id,
@@ -129,7 +101,7 @@ async def get_ocr_settings(
     key_storage: KeyStorageDep,
 ) -> OcrSettingsResponse:
     """Get current OCR provider configuration for a workspace."""
-    await _get_admin_workspace(workspace_id, current_user, session)
+    await get_admin_workspace(workspace_id, current_user, session)
 
     for ocr_provider in ("hunyuan_ocr", "tencent_ocr"):
         info = await key_storage.get_key_info(workspace_id, ocr_provider, "ocr")
@@ -159,7 +131,7 @@ async def update_ocr_settings(
     key_storage: KeyStorageDep,
 ) -> OcrSettingsResponse:
     """Store or update OCR provider credentials for a workspace."""
-    await _get_admin_workspace(workspace_id, current_user, session)
+    await get_admin_workspace(workspace_id, current_user, session)
 
     if body.provider_type not in _SUPPORTED_OCR_PROVIDERS:
         raise HTTPException(
@@ -256,7 +228,7 @@ async def test_ocr_connection(
     request: Request,
 ) -> OcrTestResponse:
     """Test OCR provider connection using a built-in 1x1 PNG."""
-    await _get_admin_workspace(workspace_id, current_user, session)
+    await get_admin_workspace(workspace_id, current_user, session)
 
     if body.provider_type not in _SUPPORTED_OCR_PROVIDERS - {"none"}:
         raise HTTPException(
