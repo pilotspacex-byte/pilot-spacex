@@ -25,9 +25,19 @@ from pilot_space.api.v1.routers.workspace_quota import (
     _check_storage_quota,  # pyright: ignore[reportPrivateUsage]
     _update_storage_usage,  # pyright: ignore[reportPrivateUsage]
 )
-from pilot_space.api.v1.schemas.attachments import AttachmentUploadResponse
+from pilot_space.api.v1.schemas.attachments import (
+    AttachmentUploadResponse,
+    DocumentIngestRequest,
+    ExtractionChunk,
+    ExtractionMetadata,
+    ExtractionResultResponse,
+)
+from pilot_space.dependencies.ai import QueueClientDep
 from pilot_space.dependencies.auth import CurrentUserId, DbSession
-from pilot_space.dependencies.services import AttachmentUploadServiceDep
+from pilot_space.dependencies.services import (
+    AttachmentUploadServiceDep,
+    ChatAttachmentRepositoryDep,
+)
 from pilot_space.dependencies.workspace import HeaderWorkspaceMemberId
 from pilot_space.domain.exceptions import ForbiddenError, NotFoundError
 from pilot_space.infrastructure.database.models.chat_attachment import ChatAttachment
@@ -227,3 +237,146 @@ async def delete_attachment(
         attachment_id=str(attachment_id),
         user_id=str(user_id),
     )
+
+
+@router.get(
+    "/attachments/{attachment_id}/extraction",
+    response_model=ExtractionResultResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def get_extraction_result(
+    attachment_id: UUID,
+    user_id: CurrentUserId,
+    db: DbSession,
+    attachment_repo: ChatAttachmentRepositoryDep,
+) -> ExtractionResultResponse:
+    """Return extraction metadata and pre-chunked content for an attachment.
+
+    Reads from OCR results and Office extraction cache. Returns 200 with
+    extraction_source="none" when extraction has not yet run.
+    """
+    from pilot_space.application.services.note.markdown_chunker import (
+        chunk_markdown_by_headings,
+    )
+    from pilot_space.infrastructure.database.models.ocr_result import OcrResultModel
+
+    attachment = await attachment_repo.get_by_id(attachment_id)
+    if attachment is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "NOT_FOUND", "message": "Attachment not found or expired"},
+        )
+
+    extracted_text: str | None = None
+    extraction_source = "none"
+    confidence: float | None = None
+    language: str | None = None
+    provider_name: str | None = None
+    tables: list[str] = []
+
+    ocr_row = await db.execute(
+        select(OcrResultModel)
+        .where(OcrResultModel.attachment_id == attachment_id)
+        .order_by(OcrResultModel.created_at.desc())
+        .limit(1)
+    )
+    ocr_result = ocr_row.scalar()
+    if ocr_result and ocr_result.extracted_text:
+        extracted_text = ocr_result.extracted_text
+        extraction_source = "ocr"
+        confidence = ocr_result.confidence
+        language = ocr_result.language
+        provider_name = ocr_result.provider_used
+        if ocr_result.tables_json:
+            raw_tables = ocr_result.tables_json.get("tables")
+            if isinstance(raw_tables, list):
+                tables = [str(t) for t in raw_tables]
+    elif attachment.extracted_text:
+        extracted_text = attachment.extracted_text
+        extraction_source = "office"
+
+    extraction_chunks: list[ExtractionChunk] = []
+    word_count: int | None = None
+    if extracted_text:
+        word_count = len(extracted_text.split())
+        raw_chunks = chunk_markdown_by_headings(
+            extracted_text, min_chunk_chars=50, max_chunk_chars=2000, overlap_chars=100
+        )
+        extraction_chunks = [
+            ExtractionChunk(
+                chunk_index=c.chunk_index,
+                heading=c.heading or "",
+                content=c.content,
+                char_count=len(c.content),
+                token_count=c.token_count,
+                heading_hierarchy=list(c.heading_hierarchy) if c.heading_hierarchy else [],
+            )
+            for c in raw_chunks
+        ]
+
+    return ExtractionResultResponse(
+        attachment_id=attachment_id,
+        extracted_text=extracted_text,
+        metadata=ExtractionMetadata(
+            extraction_source=extraction_source,
+            confidence=confidence,
+            language=language,
+            word_count=word_count,
+            provider_name=provider_name,
+        ),
+        chunks=extraction_chunks,
+        tables=tables,
+    )
+
+
+@router.post(
+    "/attachments/{attachment_id}/ingest",
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def ingest_document(
+    attachment_id: UUID,
+    user_id: CurrentUserId,
+    body: DocumentIngestRequest,
+    db: DbSession,
+    attachment_repo: ChatAttachmentRepositoryDep,
+    queue_client: QueueClientDep,
+) -> dict[str, str]:
+    """Enqueue the document for KG ingestion with optional chunk adjustments."""
+    from pilot_space.ai.workers.memory_worker import TASK_DOCUMENT_INGESTION
+    from pilot_space.infrastructure.queue.models import QueueName
+
+    attachment = await attachment_repo.get_by_id(attachment_id)
+    if attachment is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "NOT_FOUND", "message": "Attachment not found or expired"},
+        )
+
+    excluded_indices = [adj.chunk_index for adj in body.chunk_adjustments if adj.excluded]
+    payload = {
+        "task_type": TASK_DOCUMENT_INGESTION,
+        "workspace_id": str(body.workspace_id),
+        "project_id": str(body.project_id),
+        "attachment_id": str(attachment_id),
+        "excluded_chunk_indices": excluded_indices,
+    }
+
+    try:
+        if queue_client:
+            await queue_client.enqueue(QueueName.AI_NORMAL, payload)
+            logger.info(
+                "document_ingest_enqueued",
+                attachment_id=str(attachment_id),
+                workspace_id=str(body.workspace_id),
+                excluded_chunks=len(excluded_indices),
+            )
+        else:
+            logger.warning("document_ingest_queue_unavailable", attachment_id=str(attachment_id))
+    except Exception:
+        logger.warning(
+            "document_ingest_enqueue_failed",
+            attachment_id=str(attachment_id),
+            exc_info=True,
+        )
+
+    return {"status": "queued", "attachment_id": str(attachment_id)}

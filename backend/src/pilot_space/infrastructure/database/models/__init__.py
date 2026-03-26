@@ -89,6 +89,7 @@ from pilot_space.infrastructure.database.models.notification import (
     NotificationPriority,
     NotificationType,
 )
+from pilot_space.infrastructure.database.models.ocr_result import OcrResultModel
 from pilot_space.infrastructure.database.models.onboarding import WorkspaceOnboarding
 from pilot_space.infrastructure.database.models.pilot_api_key import PilotAPIKey
 from pilot_space.infrastructure.database.models.pm_block_insight import PMBlockInsight
@@ -221,6 +222,7 @@ __all__ = [
     "Notification",
     "NotificationPriority",
     "NotificationType",
+    "OcrResultModel",
     "PMBlockInsight",
     "PilotAPIKey",
     "Project",

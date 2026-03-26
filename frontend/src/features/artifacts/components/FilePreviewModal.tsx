@@ -29,9 +29,13 @@ import dynamic from 'next/dynamic';
 import { useStore } from '@/stores';
 import { resolveRenderer, getLanguageForFile } from '../utils/mime-type-router';
 import { useFileContent } from '../hooks/useFileContent';
+import { useExtractionResult } from '../hooks/useExtractionResult';
+import { supportsExtraction } from '@/types/attachments';
 import { DownloadFallback } from './renderers/DownloadFallback';
 import { CodeSkeleton, TableSkeleton, ProseSkeleton } from './preview-skeletons';
 import { ImageLightbox } from './ImageLightbox';
+import { MetadataPanel } from './MetadataPanel';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 // Lazy-load heavy renderers — papaparse (~50KB), DOMPurify (~30KB), react-markdown
 // are only loaded when the user actually opens a file preview of that type.
@@ -87,6 +91,15 @@ const PptxAnnotationPanel = dynamic(
   () => import('./PptxAnnotationPanel').then((m) => ({ default: m.PptxAnnotationPanel })),
   { ssr: false }
 );
+// Extraction tab components — lazy loaded (only when user opens extraction tabs)
+const ExtractedTextTab = dynamic(
+  () => import('./ExtractedTextTab').then((m) => ({ default: m.ExtractedTextTab })),
+  { loading: () => <ProseSkeleton /> }
+);
+const ChunksTab = dynamic(
+  () => import('./ChunksTab').then((m) => ({ default: m.ChunksTab })),
+  { loading: () => <ProseSkeleton /> }
+);
 
 export interface FilePreviewModalProps {
   open: boolean;
@@ -95,6 +108,7 @@ export interface FilePreviewModalProps {
   filename: string;
   mimeType: string;
   signedUrl: string;
+  sizeBytes?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -107,6 +121,7 @@ export const FilePreviewModal = observer(function FilePreviewModal({
   filename,
   mimeType,
   signedUrl,
+  sizeBytes = 0,
 }: FilePreviewModalProps) {
   // Workspace and user context — needed for annotation API calls
   const params = useParams<{ workspaceSlug?: string; projectId?: string }>();
@@ -120,6 +135,11 @@ export const FilePreviewModal = observer(function FilePreviewModal({
   const openTimestampRef = React.useRef(0);
   const [docxTocOpen, setDocxTocOpen] = React.useState(false);
 
+  // Extraction tabs — only fetched for extractable file types (PDF, Office, images)
+  const hasExtraction = supportsExtraction(mimeType);
+  const extraction = useExtractionResult({ artifactId, open: open && hasExtraction });
+  const [activeTab, setActiveTab] = React.useState<string>('preview');
+
   // PPTX slide navigation state — lives here (controlled component pattern)
   const [currentSlide, setCurrentSlide] = React.useState(0);
   const [slideCount, setSlideCount] = React.useState(0);
@@ -130,7 +150,7 @@ export const FilePreviewModal = observer(function FilePreviewModal({
   const slideContainerRef = React.useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = React.useState(false);
 
-  // Reset maximize, ToC, and PPTX slide state whenever the modal re-opens
+  // Reset maximize, ToC, PPTX slide state, and extraction tab whenever the modal re-opens
   React.useEffect(() => {
     if (open) {
       setIsMaximized(false);
@@ -138,6 +158,7 @@ export const FilePreviewModal = observer(function FilePreviewModal({
       setCurrentSlide(0);
       setSlideCount(0);
       setShowThumbnails(false);
+      setActiveTab('preview');
       openTimestampRef.current = Date.now();
     }
   }, [open]);
@@ -560,20 +581,69 @@ export const FilePreviewModal = observer(function FilePreviewModal({
 
         {/* Body — Suspense boundary prevents dynamic() imports from bubbling
             suspension through the Dialog portal to the Next.js route segment */}
-        <div className="flex-1 overflow-auto min-h-0">
-          <React.Suspense
-            fallback={
-              <div
-                className="flex items-center justify-center p-8"
-                role="status"
-                aria-label="Loading file content"
-              >
-                <div className="h-6 w-6 animate-spin rounded-full border-2 border-border border-t-primary" />
-              </div>
-            }
-          >
-            {renderContent()}
-          </React.Suspense>
+        <div className="flex-1 overflow-auto min-h-0 flex flex-col">
+          {/* Metadata panel — shown for extractable types once extraction data arrives */}
+          {hasExtraction && extraction.data && extraction.data.metadata.extractionSource !== 'none' && (
+            <MetadataPanel
+              metadata={extraction.data.metadata}
+              mimeType={mimeType}
+              sizeBytes={sizeBytes}
+              filename={filename}
+            />
+          )}
+
+          {hasExtraction ? (
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
+              <TabsList className="shrink-0 mx-4 mt-2 mb-0 w-auto justify-start">
+                <TabsTrigger value="preview">Preview</TabsTrigger>
+                <TabsTrigger value="extracted-text">Extracted Text</TabsTrigger>
+                <TabsTrigger value="chunks">Chunks</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="preview" className="flex-1 overflow-auto min-h-0 mt-0">
+                <React.Suspense
+                  fallback={
+                    <div className="flex items-center justify-center p-8" role="status" aria-label="Loading file content">
+                      <div className="h-6 w-6 animate-spin rounded-full border-2 border-border border-t-primary" />
+                    </div>
+                  }
+                >
+                  {renderContent()}
+                </React.Suspense>
+              </TabsContent>
+
+              <TabsContent value="extracted-text" className="flex-1 overflow-auto min-h-0 mt-0">
+                <React.Suspense fallback={<ProseSkeleton />}>
+                  <ExtractedTextTab
+                    extraction={extraction.data}
+                    isLoading={extraction.isLoading}
+                  />
+                </React.Suspense>
+              </TabsContent>
+
+              <TabsContent value="chunks" className="flex-1 overflow-auto min-h-0 mt-0">
+                <React.Suspense fallback={<ProseSkeleton />}>
+                  <ChunksTab
+                    extraction={extraction.data}
+                    isLoading={extraction.isLoading}
+                    artifactId={artifactId}
+                    workspaceId={workspaceId}
+                    projectId={projectId}
+                  />
+                </React.Suspense>
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <React.Suspense
+              fallback={
+                <div className="flex items-center justify-center p-8" role="status" aria-label="Loading file content">
+                  <div className="h-6 w-6 animate-spin rounded-full border-2 border-border border-t-primary" />
+                </div>
+              }
+            >
+              {renderContent()}
+            </React.Suspense>
+          )}
         </div>
       </DialogContent>
     </Dialog>

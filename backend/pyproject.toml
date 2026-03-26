@@ -63,6 +63,10 @@ dependencies = [
     "markdown-it-py>=3.0.0",
     # User-agent parsing (session service)
     "ua-parser>=0.18.0",
+    "mammoth>=1.12.0",
+    "openpyxl>=3.1.5",
+    "python-pptx>=1.0.2",
+    "pypdf>=6.9.1",
 ]
 
 [project.optional-dependencies]

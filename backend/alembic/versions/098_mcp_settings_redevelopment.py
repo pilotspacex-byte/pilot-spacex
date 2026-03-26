@@ -53,18 +53,11 @@ depends_on: None = None
 def upgrade() -> None:
     """Add new columns, enums, and migrate last_status from VARCHAR to enum."""
 
-    # 1. Create the four new enum types (final shape — no interim values).
-    op.execute(text("CREATE TYPE mcp_server_type AS ENUM ('remote', 'command')"))
-    op.execute(text("CREATE TYPE mcp_command_runner AS ENUM ('npx', 'uvx')"))
-    op.execute(
-        text("CREATE TYPE mcp_transport AS ENUM ('sse', 'stdio', 'streamable_http')")
-    )
-    op.execute(
-        text(
-            "CREATE TYPE mcp_status AS ENUM "
-            "('enabled', 'disabled', 'unhealthy', 'unreachable', 'config_error')"
-        )
-    )
+    # 1. Create the four new enum types (IF NOT EXISTS for idempotency).
+    op.execute(text("DO $$ BEGIN CREATE TYPE mcp_server_type AS ENUM ('remote', 'command'); EXCEPTION WHEN duplicate_object THEN NULL; END $$"))
+    op.execute(text("DO $$ BEGIN CREATE TYPE mcp_command_runner AS ENUM ('npx', 'uvx'); EXCEPTION WHEN duplicate_object THEN NULL; END $$"))
+    op.execute(text("DO $$ BEGIN CREATE TYPE mcp_transport AS ENUM ('sse', 'stdio', 'streamable_http'); EXCEPTION WHEN duplicate_object THEN NULL; END $$"))
+    op.execute(text("DO $$ BEGIN CREATE TYPE mcp_status AS ENUM ('enabled', 'disabled', 'unhealthy', 'unreachable', 'config_error'); EXCEPTION WHEN duplicate_object THEN NULL; END $$"))
 
     # 2. Add new columns (nullable first so migration works on existing rows).
     op.add_column(

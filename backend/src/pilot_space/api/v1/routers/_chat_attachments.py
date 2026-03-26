@@ -17,30 +17,21 @@ from pilot_space.domain.exceptions import AppError, ForbiddenError
 from pilot_space.infrastructure.database.repositories.chat_attachment_repository import (
     ChatAttachmentRepository,
 )
-from pilot_space.infrastructure.storage.client import SupabaseStorageClient
 
 
 async def resolve_attachments(
     attachment_ids: list[UUID],
     user_id: UUID,
     session: AsyncSession,
-    storage_client: SupabaseStorageClient,
+    attachment_content_service: AttachmentContentService,
 ) -> tuple[list[Any], list[dict[str, Any]]]:
     """Fetch attachment records owned by *user_id* and build Claude content blocks.
 
-    Distinguishes between two failure modes:
-    - 403 ATTACHMENT_NOT_OWNED: one or more IDs do not exist or belong to another user.
-    - 400 ATTACHMENT_EXPIRED: all IDs are owned but one or more have passed their TTL.
-
-    Args:
-        attachment_ids: List of attachment UUIDs to resolve.
-        user_id: Authenticated user ID.
-        session: Async DB session.
-        storage_client: Injected storage client from the DI container.
+    All dependencies are injected by the caller (ai_chat.py) from the DI container.
 
     Raises:
-        HTTPException 403 if any attachment is not owned by the user.
-        HTTPException 400 if any owned attachment has expired.
+        ForbiddenError if any attachment is not owned by the user.
+        AppError if any owned attachment has expired.
 
     Returns:
         Tuple of (attachment ORM records, list of Claude content-block dicts).
@@ -66,5 +57,5 @@ async def resolve_attachments(
             error_code="ATTACHMENT_EXPIRED",
         )
 
-    blocks = await AttachmentContentService(storage_client).build_content_blocks(valid_records)
+    blocks = await attachment_content_service.build_content_blocks(valid_records)
     return valid_records, blocks

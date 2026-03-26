@@ -292,11 +292,12 @@ async def chat(
     from pilot_space.api.v1.routers._chat_attachments import resolve_attachments
 
     ctx_attachment_ids = ctx.attachment_ids if ctx else []
+    container = fastapi_request.app.state.container
     attachments, attachment_content_blocks = await resolve_attachments(
         ctx_attachment_ids if ctx_workspace_id is not None else [],
         user_id,
         session,
-        storage_client=fastapi_request.app.state.container.storage_client(),
+        attachment_content_service=container.attachment_content_service(),
     )
 
     # Extract full AI context (loads Note/Issue objects if IDs provided)
@@ -621,6 +622,8 @@ async def _execute_agent_stream(
         user_id=UUID(input_data["user_id"]) if input_data.get("user_id") else None,
         workspace_id=UUID(input_data["workspace_id"]) if input_data.get("workspace_id") else None,
         resolved_model=input_data.get("resolved_model"),
+        attachment_content_blocks=input_data.get("attachment_content_blocks") or None,
+        attachment_metadata=input_data.get("attachment_metadata") or None,
     )
 
     ws_id = input_data.get("workspace_id")

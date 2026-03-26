@@ -19,6 +19,34 @@ import { attachmentsApi } from '@/services/api/attachments';
 import { ACCEPTED_MIME_TYPES, FILE_SIZE_LIMITS } from '@/types/attachments';
 import type { AttachmentContext, AttachmentUploadResponse } from '@/types/attachments';
 
+/**
+ * Extension → MIME fallback for code files whose browser-reported MIME type
+ * doesn't match the allowlist (e.g. .py reported as 'application/x-python-script').
+ */
+const EXTENSION_MIME_FALLBACK: Record<string, string> = {
+  py: 'text/x-python',
+  ts: 'text/typescript',
+  tsx: 'text/typescript',
+  js: 'text/javascript',
+  jsx: 'text/javascript',
+  rs: 'text/x-rust',
+  go: 'text/x-go',
+  java: 'text/x-java',
+  c: 'text/x-csrc',
+  cpp: 'text/x-c++src',
+  h: 'text/x-csrc',
+  hpp: 'text/x-c++src',
+  json: 'application/json',
+  yaml: 'application/x-yaml',
+  yml: 'application/x-yaml',
+  md: 'text/markdown',
+  csv: 'text/csv',
+  txt: 'text/plain',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+};
+
 // ── Types ──────────────────────────────────────────────────────────────────
 
 interface UseAttachmentsOptions {
@@ -110,17 +138,26 @@ export function useAttachments({
 
   const addFile = useCallback(
     async (file: File): Promise<void> => {
-      // Validate mime type
-      if (!(ACCEPTED_MIME_TYPES as readonly string[]).includes(file.type)) {
-        toast.error('Unsupported file type. Please upload a PDF, image, or code file.');
+      // Validate mime type — also accept files whose extension maps to a known type
+      // (browsers sometimes report wrong MIME for code files like .py, .ts, .rs)
+      const isAcceptedMime = (ACCEPTED_MIME_TYPES as readonly string[]).includes(file.type);
+      const isAcceptedByExt =
+        !isAcceptedMime && file.name.includes('.') && EXTENSION_MIME_FALLBACK[file.name.split('.').pop()!.toLowerCase()];
+      if (!isAcceptedMime && !isAcceptedByExt) {
+        toast.error('Unsupported file type. Please upload a PDF, image, Office document, or code file.');
         return;
       }
 
+      // Resolve effective MIME type (browser-reported or extension fallback)
+      const effectiveMime = isAcceptedMime
+        ? file.type
+        : (isAcceptedByExt as string);
+
       // Validate file size
-      const limit = FILE_SIZE_LIMITS[file.type] ?? FILE_SIZE_LIMITS['default']!;
+      const limit = FILE_SIZE_LIMITS[effectiveMime] ?? FILE_SIZE_LIMITS['default']!;
       const limitMB = Math.round(limit / (1024 * 1024));
       if (file.size > limit) {
-        toast.error(`File exceeds the ${limitMB}MB ${file.type} limit.`);
+        toast.error(`File exceeds the ${limitMB}MB limit.`);
         return;
       }
 
@@ -140,7 +177,7 @@ export function useAttachments({
       const newAttachment: AttachmentContext = {
         id: localId,
         filename: file.name,
-        mimeType: file.type,
+        mimeType: effectiveMime,
         sizeBytes: file.size,
         source: 'local',
         status: 'uploading',

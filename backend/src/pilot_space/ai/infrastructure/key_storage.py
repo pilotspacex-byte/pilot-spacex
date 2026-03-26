@@ -22,7 +22,7 @@ from cryptography.fernet import Fernet
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 
-from pilot_space.ai.providers.constants import VALID_PROVIDERS
+from pilot_space.ai.providers.constants import VALID_PROVIDER_SERVICES, VALID_PROVIDERS
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -65,7 +65,7 @@ class SecureKeyStorage:
     """
 
     VALID_PROVIDERS = VALID_PROVIDERS
-    VALID_SERVICE_TYPES = frozenset({"embedding", "llm", "stt"})
+    VALID_SERVICE_TYPES = frozenset({"embedding", "llm", "ocr", "stt"})
 
     def __init__(
         self,
@@ -140,6 +140,12 @@ class SecureKeyStorage:
             raise ValueError(f"Invalid provider: {provider}")
         if service_type not in self.VALID_SERVICE_TYPES:
             raise ValueError(f"Invalid service_type: {service_type}")
+        allowed_service_types = VALID_PROVIDER_SERVICES.get(provider, set())
+        if service_type not in allowed_service_types:
+            raise ValueError(
+                f"Provider {provider!r} does not support service_type {service_type!r}. "
+                f"Allowed: {sorted(allowed_service_types)}"
+            )
 
         encrypted = self._encrypt(api_key) if api_key else None
 

@@ -56,6 +56,10 @@ _SIZE_LIMITS: dict[str, int] = {
     "text/x-java": 5 * 1024 * 1024,
     "text/x-csrc": 5 * 1024 * 1024,
     "text/x-c++src": 5 * 1024 * 1024,
+    # Office document formats — 25 MB limit (matching PDF)
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": 25 * 1024 * 1024,
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": 25 * 1024 * 1024,
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": 25 * 1024 * 1024,
 }
 
 
