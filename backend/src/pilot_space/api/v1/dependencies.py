@@ -84,12 +84,15 @@ from pilot_space.application.services.onboarding import (
     UpdateOnboardingService,
 )
 from pilot_space.ai.infrastructure.approval import ApprovalService
+from pilot_space.application.services.action_button import ActionButtonService
 from pilot_space.application.services.feature_toggle import FeatureToggleService
 from pilot_space.application.services.attachment_management import AttachmentManagementService
 from pilot_space.application.services.mcp_oauth import McpOAuthService
 from pilot_space.application.services.mcp_server import McpServerService
 from pilot_space.application.services.rate_limit import RateLimitService
 from pilot_space.application.services.workspace_ai_settings import WorkspaceAISettingsService
+from pilot_space.application.services.sprint_board import SprintBoardService
+from pilot_space.application.services.capacity_plan import CapacityPlanService
 from pilot_space.application.services.rbac_service import RbacService
 from pilot_space.application.services.scim_service import ScimService
 from pilot_space.application.services.role_skill import (
@@ -108,6 +111,18 @@ from pilot_space.application.services.workspace_member import (
     WorkspaceMemberService,
 )
 from pilot_space.container import Container
+
+# ===== Action Button Service Dependencies =====
+
+
+@inject
+def _get_action_button_service(
+    svc: ActionButtonService = Depends(Provide[Container.action_button_service]),
+) -> ActionButtonService:
+    return svc
+
+
+ActionButtonServiceDep = Annotated[ActionButtonService, Depends(_get_action_button_service)]
 
 # ===== Block Ownership Service Dependencies =====
 
@@ -827,6 +842,7 @@ def _get_approval_service(
 ApprovalServiceDep = Annotated[ApprovalService, Depends(_get_approval_service)]
 
 __all__ = [  # noqa: RUF022
+    "ActionButtonServiceDep",
     "ActivityRepositoryDep",
     "ApprovalServiceDep",
     "CycleRepositoryDep",

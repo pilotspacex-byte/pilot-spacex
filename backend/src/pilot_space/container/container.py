@@ -92,6 +92,7 @@ from pilot_space.application.services.onboarding import (
     UpdateOnboardingService,
 )
 from pilot_space.application.services.pm_block_insight_service import PMBlockInsightService
+from pilot_space.application.services.action_button import ActionButtonService
 from pilot_space.application.services.feature_toggle import FeatureToggleService
 from pilot_space.application.services.block_ownership import BlockOwnershipService
 from pilot_space.application.services.dependency_graph import DependencyGraphService
@@ -102,6 +103,8 @@ from pilot_space.application.services.related_issues import RelatedIssuesSuggest
 from pilot_space.application.services.mcp_server import McpServerService
 from pilot_space.application.services.rate_limit import RateLimitService
 from pilot_space.application.services.workspace_ai_settings import WorkspaceAISettingsService
+from pilot_space.application.services.sprint_board import SprintBoardService
+from pilot_space.application.services.capacity_plan import CapacityPlanService
 from pilot_space.application.services.rbac_service import RbacService
 from pilot_space.application.services.scim_service import ScimService
 from pilot_space.application.services.sso_service import SsoService
@@ -231,6 +234,12 @@ class Container(SkillContainer, PluginContainer):
         session=providers.Callable(get_current_session),
     )
 
+    # Action Button Service
+    action_button_service = providers.Factory(
+        ActionButtonService,
+        session=providers.Callable(get_current_session),
+    )
+
     # Block Ownership Service
     block_ownership_service = providers.Factory(
         BlockOwnershipService,
@@ -258,6 +267,18 @@ class Container(SkillContainer, PluginContainer):
     # Workspace AI Settings Service
     workspace_ai_settings_service = providers.Factory(
         WorkspaceAISettingsService,
+        session=providers.Callable(get_current_session),
+    )
+
+    # Sprint Board Service
+    sprint_board_service = providers.Factory(
+        SprintBoardService,
+        session=providers.Callable(get_current_session),
+    )
+
+    # Capacity Plan Service
+    capacity_plan_service = providers.Factory(
+        CapacityPlanService,
         session=providers.Callable(get_current_session),
     )
 
