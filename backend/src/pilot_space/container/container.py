@@ -101,6 +101,8 @@ from pilot_space.application.services.mcp_oauth import McpOAuthService
 from pilot_space.application.services.note_template import NoteTemplateService
 from pilot_space.application.services.related_issues import RelatedIssuesSuggestionService
 from pilot_space.application.services.mcp_server import McpServerService
+from pilot_space.application.services.mcp_tool_execution import MCPToolExecutionService
+from pilot_space.application.services.project_detail import ProjectDetailService
 from pilot_space.application.services.rate_limit import RateLimitService
 from pilot_space.application.services.workspace_ai_settings import WorkspaceAISettingsService
 from pilot_space.application.services.sprint_board import SprintBoardService
@@ -292,6 +294,20 @@ class Container(SkillContainer, PluginContainer):
     mcp_server_service = providers.Factory(
         McpServerService,
         session=providers.Callable(get_current_session),
+    )
+
+    # MCP Tool Execution Service — tool discovery and execution
+    mcp_tool_execution_service = providers.Factory(
+        MCPToolExecutionService,
+        session=providers.Callable(get_current_session),
+    )
+
+    # Project Detail Service — aggregation, validation, KG enqueue
+    project_detail_service = providers.Factory(
+        ProjectDetailService,
+        session=providers.Callable(get_current_session),
+        project_repository=InfraContainer.project_repository,
+        workspace_repository=InfraContainer.workspace_repository,
     )
 
     # MCP OAuth Service — OAuth 2.0 authorization flows

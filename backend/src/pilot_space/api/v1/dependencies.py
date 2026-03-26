@@ -89,10 +89,13 @@ from pilot_space.application.services.feature_toggle import FeatureToggleService
 from pilot_space.application.services.attachment_management import AttachmentManagementService
 from pilot_space.application.services.mcp_oauth import McpOAuthService
 from pilot_space.application.services.mcp_server import McpServerService
+from pilot_space.application.services.mcp_tool_execution import MCPToolExecutionService
+from pilot_space.application.services.project_detail import ProjectDetailService
 from pilot_space.application.services.rate_limit import RateLimitService
 from pilot_space.application.services.workspace_ai_settings import WorkspaceAISettingsService
 from pilot_space.application.services.sprint_board import SprintBoardService
 from pilot_space.application.services.capacity_plan import CapacityPlanService
+from pilot_space.application.services.pm_block_insight_service import PMBlockInsightService
 from pilot_space.application.services.rbac_service import RbacService
 from pilot_space.application.services.scim_service import ScimService
 from pilot_space.application.services.role_skill import (
@@ -865,6 +868,20 @@ def _get_capacity_plan_service(
 
 CapacityPlanServiceDep = Annotated[CapacityPlanService, Depends(_get_capacity_plan_service)]
 
+# ===== PM Block Insight Service Dependencies =====
+
+
+@inject
+def _get_pm_block_insight_service(
+    svc: PMBlockInsightService = Depends(Provide[Container.pm_block_insight_service]),
+) -> PMBlockInsightService:
+    return svc
+
+
+PMBlockInsightServiceDep = Annotated[
+    PMBlockInsightService, Depends(_get_pm_block_insight_service)
+]
+
 __all__ = [  # noqa: RUF022
     "ActionButtonServiceDep",
     "ActivityRepositoryDep",
@@ -943,6 +960,7 @@ __all__ = [  # noqa: RUF022
     "WorkspaceAISettingsServiceDep",
     "SprintBoardServiceDep",
     "CapacityPlanServiceDep",
+    "PMBlockInsightServiceDep",
 ]
 
 
