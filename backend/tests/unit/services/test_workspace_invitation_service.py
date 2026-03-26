@@ -11,17 +11,16 @@ S009: Tests for the accept_invitation method covering:
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from pilot_space.application.services.workspace_invitation import (
     AcceptInvitationPayload,
+    WorkspaceInvitationConflictError,
+    WorkspaceInvitationNotFoundError,
     WorkspaceInvitationService,
 )
-from pilot_space.domain.exceptions import ConflictError, NotFoundError
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -160,7 +159,7 @@ class TestAcceptInvitation:
         """Raises NotFoundError when invitation doesn't exist."""
         svc = self._make_service(invitation=None)
 
-        with pytest.raises(NotFoundError):
+        with pytest.raises(WorkspaceInvitationNotFoundError):
             await svc.accept_invitation(
                 AcceptInvitationPayload(invitation_id=_make_uuid(), user_id=_make_uuid())
             )
@@ -174,7 +173,7 @@ class TestAcceptInvitation:
 
         svc = self._make_service(invitation=invitation)
 
-        with pytest.raises(ConflictError, match="accepted"):
+        with pytest.raises(WorkspaceInvitationConflictError, match="accepted"):
             await svc.accept_invitation(
                 AcceptInvitationPayload(invitation_id=inv_id, user_id=_make_uuid())
             )
@@ -188,7 +187,7 @@ class TestAcceptInvitation:
 
         svc = self._make_service(invitation=invitation)
 
-        with pytest.raises(ConflictError, match="cancelled"):
+        with pytest.raises(WorkspaceInvitationConflictError, match="cancelled"):
             await svc.accept_invitation(
                 AcceptInvitationPayload(invitation_id=inv_id, user_id=_make_uuid())
             )

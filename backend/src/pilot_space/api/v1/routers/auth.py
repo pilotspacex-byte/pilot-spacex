@@ -11,8 +11,10 @@ from __future__ import annotations
 
 import asyncio
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from sqlalchemy import select
 
 from pilot_space.api.v1.dependencies import AuthServiceDep
 from pilot_space.api.v1.dependencies_pilot import ValidateAPIKeyServiceDep
@@ -26,6 +28,7 @@ from pilot_space.api.v1.schemas.auth import (
     LoginRequest,
     UserProfileResponse,
     UserProfileUpdateRequest,
+    WorkspaceMembershipInfo,
 )
 from pilot_space.application.services.auth import (
     UNSET,
@@ -42,6 +45,7 @@ from pilot_space.application.services.workspace_invitation import (
 from pilot_space.dependencies import CurrentUser
 from pilot_space.dependencies.auth import SessionDep
 from pilot_space.domain.exceptions import ConflictError, NotFoundError
+from pilot_space.infrastructure.database.models.workspace_member import WorkspaceMember
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -96,6 +100,16 @@ async def get_current_user_profile(
         GetProfilePayload(user_id=current_user.user_id),
     )
 
+    # Fetch workspace memberships for the current user inline.
+    # Querying workspace_members directly avoids coupling the auth service to
+    # workspace domain logic, consistent with how ai_settings is fetched separately.
+    memberships_result = await session.execute(
+        select(WorkspaceMember).where(
+            WorkspaceMember.user_id == UUID(str(current_user.user_id))
+        )
+    )
+    memberships = memberships_result.scalars().all()
+
     user = result.user
     return UserProfileResponse(
         id=user.id,
@@ -106,6 +120,13 @@ async def get_current_user_profile(
         default_sdlc_role=user.default_sdlc_role,
         ai_settings=AiSettingsSchema.model_validate(user.ai_settings) if user.ai_settings else None,
         created_at=user.created_at,
+        workspace_memberships=[
+            WorkspaceMembershipInfo(
+                workspace_id=m.workspace_id,
+                role=m.role.value.lower(),
+            )
+            for m in memberships
+        ],
     )
 
 

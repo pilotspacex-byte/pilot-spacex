@@ -141,6 +141,7 @@ export const MembersPage = observer(function MembersPage() {
   } = useWorkspaceMembers(workspaceId, {
     projectId: projectFilter,
     search: debouncedSearch,
+    role: roleFilter === 'all' ? undefined : roleFilter,
     page: membersPage,
     pageSize: ITEMS_PER_PAGE,
   });
@@ -185,31 +186,22 @@ export const MembersPage = observer(function MembersPage() {
     setMembersPage(1);
   }, [roleFilter, debouncedSearch, projectFilter]);
 
-  const members = membersData?.items ?? [];
+  const members = React.useMemo(() => membersData?.items ?? [], [membersData?.items]);
   const membersTotalPages = Math.max(1, Math.ceil((membersData?.total ?? 0) / ITEMS_PER_PAGE));
 
-  const filteredMembers = React.useMemo(() => {
-    if (roleFilter === 'all') return members;
-    return members.filter((m) => m.role === roleFilter);
-  }, [members, roleFilter]);
-
   const adminCount = React.useMemo(
-    () => filteredMembers.filter((m) => m.role === 'admin' || m.role === 'owner').length,
-    [filteredMembers]
+    () => members.filter((m) => m.role === 'admin' || m.role === 'owner').length,
+    [members]
   );
 
   const invitations = invitationsData?.items ?? [];
-  const pendingInvitations = React.useMemo(
-    () => invitations.filter((inv) => inv.status === 'pending'),
-    [invitations]
-  );
   const invitationsTotalPages = Math.max(
     1,
     Math.ceil((invitationsData?.total ?? 0) / ITEMS_PER_PAGE)
   );
 
   const handleRoleChange = (userId: string, role: WorkspaceRole) => {
-    const member = filteredMembers.find((m) => m.userId === userId);
+    const member = members.find((m) => m.userId === userId);
     if (!member) return;
 
     const displayName = member.fullName || member.email;
@@ -245,12 +237,12 @@ export const MembersPage = observer(function MembersPage() {
   };
 
   const handleRemoveMember = (userId: string) => {
-    const member = filteredMembers.find((m) => m.userId === userId);
+    const member = members.find((m) => m.userId === userId);
     if (!member) return;
 
     const isLastAdminCheck =
       (member.role === 'admin' || member.role === 'owner') &&
-      (filteredMembers.filter((m) => m.role === 'admin' || m.role === 'owner').length ?? 0) <= 1;
+      (members.filter((m) => m.role === 'admin' || m.role === 'owner').length ?? 0) <= 1;
     if (isLastAdminCheck) {
       toast.error('Cannot remove the only admin', {
         description: 'This workspace must have at least one admin.',
@@ -307,7 +299,7 @@ export const MembersPage = observer(function MembersPage() {
   };
 
   const handleTransferOwnership = (userId: string) => {
-    const member = filteredMembers.find((m) => m.userId === userId);
+    const member = members.find((m) => m.userId === userId);
     if (!member) return;
 
     const displayName = member.fullName || member.email;
@@ -338,7 +330,7 @@ export const MembersPage = observer(function MembersPage() {
   };
 
   const handleEditAssignments = (userId: string) => {
-    const member = filteredMembers.find((m) => m.userId === userId);
+    const member = members.find((m) => m.userId === userId);
     if (!member) return;
     setEditAssignmentsTarget({
       userId: member.userId,
@@ -439,7 +431,7 @@ export const MembersPage = observer(function MembersPage() {
       </div>
 
       {/* Members Table */}
-          {filteredMembers.length === 0 ? (
+          {members.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-12 text-center">
           <Search className="h-8 w-8 text-muted-foreground/40" aria-hidden="true" />
           <p className="text-sm text-muted-foreground">
@@ -475,7 +467,7 @@ export const MembersPage = observer(function MembersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredMembers.map((member) => (
+              {members.map((member) => (
                 <MemberTableRow
                   key={member.userId}
                   member={member}
@@ -511,7 +503,7 @@ export const MembersPage = observer(function MembersPage() {
           <Skeleton className="h-12 w-full" />
           <Skeleton className="h-12 w-full" />
         </div>
-      ) : pendingInvitations.length === 0 ? (
+      ) : invitations.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-12 text-center">
           <Mail className="h-8 w-8 text-muted-foreground/40" aria-hidden="true" />
           <p className="text-sm text-muted-foreground">No pending invitations.</p>
@@ -530,7 +522,7 @@ export const MembersPage = observer(function MembersPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pendingInvitations.map((invitation) => (
+                {invitations.map((invitation) => (
                   <TableRow key={invitation.id}>
                     <td className="p-3 align-middle text-sm font-medium">
                       <div className="flex items-center gap-2">

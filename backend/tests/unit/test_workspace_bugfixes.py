@@ -192,9 +192,9 @@ class TestM5OwnerSelfRemovalPrevention:
 
         service = WorkspaceMemberService(workspace_repo=mock_workspace_repo)
 
-        from pilot_space.application.services.workspace_member import UnauthorizedError
+        from pilot_space.application.services.workspace_member import WorkspaceMemberForbiddenError
 
-        with pytest.raises(UnauthorizedError, match=r"[Oo]wner"):
+        with pytest.raises(WorkspaceMemberForbiddenError, match=r"[Oo]wner"):
             await service.remove_member(
                 RemoveMemberPayload(
                     workspace_id=workspace.id,
@@ -346,9 +346,11 @@ class TestH5CrossWorkspaceInvitationCancel:
             invitation_repo=mock_invitation_repo,
         )
 
-        from pilot_space.domain.exceptions import NotFoundError
+        from pilot_space.application.services.workspace_invitation import (
+            WorkspaceInvitationNotFoundError,
+        )
 
-        with pytest.raises(NotFoundError):
+        with pytest.raises(WorkspaceInvitationNotFoundError):
             await service.cancel_invitation(
                 CancelInvitationPayload(
                     workspace_id=workspace_a.id,

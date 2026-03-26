@@ -75,6 +75,7 @@ export function useWorkspaceInvitations(
     },
     enabled: !!workspaceId && enabled,
     staleTime: 60_000,
+    placeholderData: (previousData) => previousData,
   });
 }
 

@@ -26,9 +26,9 @@ import pytest
 from pilot_space.application.services.workspace_member import (
     GetMemberActivityPayload,
     GetMemberProfilePayload,
-    MemberNotFoundError,
     MemberProfileService,
-    UnauthorizedError,
+    WorkspaceMemberForbiddenError,
+    WorkspaceMemberNotFoundError,
     WorkspaceNotFoundError,
 )
 
@@ -119,11 +119,11 @@ class TestGetProfileErrors:
         workspace_repo: MagicMock,
         mock_session: MagicMock,
     ) -> None:
-        """Raises UnauthorizedError when requesting user is not in the workspace."""
+        """Raises WorkspaceMemberForbiddenError when requesting user is not in the workspace."""
         workspace_repo.get_with_members.return_value = _make_workspace([])
         svc = _make_service(mock_session, workspace_repo)
 
-        with pytest.raises(UnauthorizedError, match="Not a member"):
+        with pytest.raises(WorkspaceMemberForbiddenError, match="Not a member"):
             await svc.get_profile(
                 GetMemberProfilePayload(
                     workspace_id=_make_uuid(),
@@ -138,13 +138,13 @@ class TestGetProfileErrors:
         workspace_repo: MagicMock,
         mock_session: MagicMock,
     ) -> None:
-        """Raises MemberNotFoundError when user_id does not match any member."""
+        """Raises WorkspaceMemberNotFoundError when user_id does not match any member."""
         requester_id = _make_uuid()
         requester = _make_member(requester_id)
         workspace_repo.get_with_members.return_value = _make_workspace([requester])
         svc = _make_service(mock_session, workspace_repo)
 
-        with pytest.raises(MemberNotFoundError, match="Member not found"):
+        with pytest.raises(WorkspaceMemberNotFoundError, match="Member not found"):
             await svc.get_profile(
                 GetMemberProfilePayload(
                     workspace_id=_make_uuid(),
@@ -548,11 +548,11 @@ class TestGetActivity:
         workspace_repo: MagicMock,
         mock_session: MagicMock,
     ) -> None:
-        """Raises UnauthorizedError when requesting user is not in the workspace."""
+        """Raises WorkspaceMemberForbiddenError when requesting user is not in the workspace."""
         workspace_repo.get_with_members.return_value = _make_workspace([])
         svc = _make_service(mock_session, workspace_repo)
 
-        with pytest.raises(UnauthorizedError, match="Not a member"):
+        with pytest.raises(WorkspaceMemberForbiddenError, match="Not a member"):
             await svc.get_activity(
                 GetMemberActivityPayload(
                     workspace_id=_make_uuid(),

@@ -57,7 +57,10 @@ export function MemberTableRow({
   const isAdmin = currentUserRole === 'admin' || currentUserRole === 'owner';
   const isOwner = currentUserRole === 'owner';
   const isMemberOwner = member.role === 'owner';
-  const canRemove = isAdmin && !isMemberOwner && !isCurrentUser;
+  const isMemberAdmin = member.role === 'admin';
+  // Admins cannot remove members with equal or higher role (admin/owner); only owners can remove admins
+  const canRemove =
+    isAdmin && !isMemberOwner && !isCurrentUser && (isOwner || !isMemberAdmin);
   const removeDisabled = isLastAdmin;
   const canTransferOwnership = isOwner && !isCurrentUser && !isMemberOwner;
   const canEditAssignments = isAdmin && !isCurrentUser && !!onEditAssignments;

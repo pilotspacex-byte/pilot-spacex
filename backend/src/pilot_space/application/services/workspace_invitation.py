@@ -15,10 +15,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from pilot_space.domain.exceptions import ConflictError, ForbiddenError, NotFoundError
+from pilot_space.infrastructure.database.models.workspace_invitation import InvitationStatus
+from pilot_space.infrastructure.database.rls import set_rls_context
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -38,6 +39,57 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
+# ===== Custom Exceptions =====
+
+
+class WorkspaceInvitationError(Exception):
+    """Base for all workspace-invitation domain errors."""
+
+    error_code: str = "workspace_invitation_error"
+    http_status: int = 400
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        error_code: str | None = None,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.message = message
+        if error_code:
+            self.error_code = error_code
+        self.details = details or {}
+
+
+class WorkspaceNotFoundError(WorkspaceInvitationError):
+    """Raised when the workspace does not exist."""
+
+    error_code = "workspace_not_found"
+    http_status = 404
+
+
+class WorkspaceInvitationNotFoundError(WorkspaceInvitationError):
+    """Raised when the invitation is not found."""
+
+    error_code = "workspace_invitation_not_found"
+    http_status = 404
+
+
+class WorkspaceInvitationForbiddenError(WorkspaceInvitationError):
+    """Raised when the actor lacks admin role."""
+
+    error_code = "workspace_invitation_forbidden"
+    http_status = 403
+
+
+class WorkspaceInvitationConflictError(WorkspaceInvitationError):
+    """Raised when invitation is not in a state that allows the action."""
+
+    error_code = "workspace_invitation_conflict"
+    http_status = 409
+
+
 # ===== Payloads & Results =====
 
 
@@ -47,6 +99,8 @@ class ListInvitationsPayload:
 
     workspace_id: UUID
     requesting_user_id: UUID
+    page: int = 1
+    page_size: int = 20
 
 
 @dataclass
@@ -54,6 +108,10 @@ class ListInvitationsResult:
     """Result of list_invitations operation."""
 
     invitations: list[WorkspaceInvitation]
+    total: int = 0
+    has_next: bool = False
+    has_prev: bool = False
+    page_size: int = 20
 
 
 @dataclass
@@ -126,7 +184,7 @@ class WorkspaceInvitationService:
         workspace = await self.workspace_repo.get_with_members(payload.workspace_id)
         if not workspace:
             msg = "Workspace not found"
-            raise NotFoundError(msg)
+            raise WorkspaceNotFoundError(msg)
 
         # Check admin/owner role
         current_member = next(
@@ -135,11 +193,25 @@ class WorkspaceInvitationService:
         )
         if not current_member or not current_member.is_admin:
             msg = "Admin role required"
-            raise ForbiddenError(msg)
+            raise WorkspaceInvitationForbiddenError(msg)
 
-        invitations = await self.invitation_repo.get_by_workspace(payload.workspace_id)
+        invitations = await self.invitation_repo.get_by_workspace(
+            payload.workspace_id,
+            status_filter=InvitationStatus.PENDING,
+        )
 
-        return ListInvitationsResult(invitations=list(invitations))
+        all_invitations = list(invitations)
+        total = len(all_invitations)
+        offset = (payload.page - 1) * payload.page_size
+        page_items = all_invitations[offset : offset + payload.page_size]
+
+        return ListInvitationsResult(
+            invitations=page_items,
+            total=total,
+            has_next=offset + payload.page_size < total,
+            has_prev=payload.page > 1,
+            page_size=payload.page_size,
+        )
 
     async def cancel_invitation(
         self,
@@ -162,7 +234,7 @@ class WorkspaceInvitationService:
         workspace = await self.workspace_repo.get_with_members(payload.workspace_id)
         if not workspace:
             msg = "Workspace not found"
-            raise NotFoundError(msg)
+            raise WorkspaceNotFoundError(msg)
 
         # Check admin/owner role
         current_member = next(
@@ -171,18 +243,18 @@ class WorkspaceInvitationService:
         )
         if not current_member or not current_member.is_admin:
             msg = "Admin role required"
-            raise ForbiddenError(msg)
+            raise WorkspaceInvitationForbiddenError(msg)
 
         # Cancel invitation
         cancelled_invitation = await self.invitation_repo.cancel(payload.invitation_id)
         if cancelled_invitation is None:
             msg = "Invitation not found or already processed"
-            raise NotFoundError(msg)
+            raise WorkspaceInvitationNotFoundError(msg)
 
         # H-5 fix: verify invitation belongs to this workspace (cross-workspace security)
         if cancelled_invitation.workspace_id != payload.workspace_id:
             msg = "Invitation not found or already processed"
-            raise NotFoundError(msg)
+            raise WorkspaceInvitationNotFoundError(msg)
 
         logger.info(
             "Invitation cancelled",
@@ -219,7 +291,7 @@ class WorkspaceInvitationService:
         invitation = await self.invitation_repo.get_by_id(payload.invitation_id)
         if invitation is None:
             msg = "Invitation not found"
-            raise NotFoundError(msg)
+            raise WorkspaceInvitationNotFoundError(msg)
 
         from pilot_space.infrastructure.database.models.workspace_invitation import (
             InvitationStatus,
@@ -227,14 +299,12 @@ class WorkspaceInvitationService:
 
         if invitation.status != InvitationStatus.PENDING:
             msg = f"Invitation is {invitation.status.value}, cannot be accepted"
-            raise ConflictError(msg)
+            raise WorkspaceInvitationConflictError(msg)
 
         workspace_id = invitation.workspace_id
 
         # Set RLS context using the inviting admin so workspace_members INSERT passes policy
         if invitation.invited_by:
-            from pilot_space.infrastructure.database.rls import set_rls_context
-
             session = self.workspace_repo.session
             await set_rls_context(session, invitation.invited_by)
 
@@ -269,7 +339,7 @@ class WorkspaceInvitationService:
         workspace = await self.workspace_repo.get_by_id(workspace_id)
         if workspace is None:
             msg = "Workspace not found"
-            raise NotFoundError(msg)
+            raise WorkspaceNotFoundError(msg)
 
         # Determine if user needs to complete their profile (provide full_name)
         requires_profile_completion = False

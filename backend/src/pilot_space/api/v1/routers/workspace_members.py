@@ -7,11 +7,9 @@ Routes are mounted under /workspaces/{workspace_id}/members.
 from __future__ import annotations
 
 import re
-from typing import Any
 from uuid import UUID
 
-from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Query, status
 
 from pilot_space.api.v1.dependencies import (
     MemberProfileServiceDep,
@@ -33,6 +31,7 @@ from pilot_space.api.v1.schemas.workspace import (
     WorkspaceMemberUpdate,
 )
 from pilot_space.application.services.workspace_member import (
+    BulkUpdateMemberAssignmentsPayload,
     GetMemberActivityPayload,
     GetMemberProfilePayload,
     ListMembersPayload,
@@ -40,14 +39,10 @@ from pilot_space.application.services.workspace_member import (
     UpdateMemberAvailabilityPayload,
     UpdateMemberRolePayload,
 )
-from pilot_space.container.container import Container
 from pilot_space.dependencies.auth import CurrentUser, CurrentUserId, SessionDep
 from pilot_space.infrastructure.database.models.activity import ActivityType
 from pilot_space.infrastructure.database.repositories.project_member import (
     ProjectMemberRepository,
-)
-from pilot_space.infrastructure.database.repositories.workspace_member_repository import (
-    WorkspaceMemberRepository,
 )
 from pilot_space.infrastructure.database.rls import set_rls_context
 from pilot_space.infrastructure.logging import get_logger
@@ -71,7 +66,6 @@ def _strip_html(value: str | None) -> str | None:
     response_model=PaginatedResponse[WorkspaceMemberResponse],
     tags=["workspaces"],
 )
-@inject
 async def list_workspace_members(
     workspace_id: UUID,
     session: SessionDep,
@@ -83,11 +77,11 @@ async def list_workspace_members(
     search: str | None = Query(
         default=None, description="Case-insensitive filter on full_name and email"
     ),
+    role: str | None = Query(
+        default=None, description="Filter by workspace role (owner/admin/member/guest)"
+    ),
     page: int = Query(default=1, ge=1, description="Page number (1-based)"),
     page_size: int = Query(default=20, ge=1, le=100, description="Items per page"),
-    wm_repo: WorkspaceMemberRepository = Depends(
-        Provide[Container.workspace_member_rbac_repository]
-    ),
 ) -> PaginatedResponse[WorkspaceMemberResponse]:
     """List workspace members, optionally filtered by project membership.
 
@@ -98,60 +92,27 @@ async def list_workspace_members(
         service: Workspace member service.
         project_id: Optional filter — only return members assigned to this project.
         search: Optional case-insensitive filter on full_name and email.
+        role: Optional filter by workspace role (owner/admin/member/guest).
         page: Page number (1-based).
         page_size: Items per page.
-        wm_repo: WorkspaceMember repository (DI).
 
     Returns:
         Paginated list of workspace members with their project chips.
     """
     await set_rls_context(session, current_user_id, workspace_id)
+    pm_repo = ProjectMemberRepository(session=session)
     result = await service.list_members(
         ListMembersPayload(
             workspace_id=workspace_id,
             requesting_user_id=current_user_id,
-        )
-    )
-
-    pm_repo = ProjectMemberRepository(session=session)
-
-    _ROLE_ORDER = {"owner": 1, "admin": 2, "member": 3, "guest": 4}
-
-    members = sorted(
-        result.members,
-        key=lambda m: (
-            _ROLE_ORDER.get(m.role.value.lower(), 5),
-            m.created_at or "",
+            project_id=project_id,
+            search=search,
+            role=role,
+            page=page,
+            page_size=page_size,
         ),
+        pm_repo=pm_repo,
     )
-    if project_id is not None:
-        # Filter to members assigned to this project
-        project_user_ids = {
-            m.user_id
-            for m in (
-                await pm_repo.list_members(project_id, is_active=True, page_size=500)
-            ).items
-        }
-        members = [m for m in members if m.user_id in project_user_ids]
-
-    if search:
-        q = search.lower()
-        members = [
-            m
-            for m in members
-            if q in (m.user.full_name or "").lower() or q in (m.user.email or "").lower()
-            if m.user
-        ]
-
-    total = len(members)
-    offset = (page - 1) * page_size
-    page_members = members[offset : offset + page_size]
-
-    # Build project chips per user (only for the current page)
-    project_chips_by_user: dict[UUID, list[dict[str, Any]]] = {}
-    for member in page_members:
-        chips = await _get_project_chips_for_user(pm_repo, workspace_id, member.user_id)
-        project_chips_by_user[member.user_id] = chips
 
     items = [
         WorkspaceMemberResponse(
@@ -162,49 +123,18 @@ async def list_workspace_members(
             role=member.role.value,
             joined_at=member.created_at,
             weekly_available_hours=float(member.weekly_available_hours),
-            projects=project_chips_by_user.get(member.user_id, []),
+            projects=result.project_chips.get(member.user_id, []),
         )
-        for member in page_members
+        for member in result.members
     ]
 
     return PaginatedResponse(
         items=items,
-        total=total,
-        has_next=offset + page_size < total,
+        total=result.total,
+        has_next=(page - 1) * page_size + page_size < result.total,
         has_prev=page > 1,
         page_size=page_size,
     )
-
-
-async def _get_project_chips_for_user(
-    pm_repo: ProjectMemberRepository,
-    workspace_id: UUID,
-    user_id: UUID,
-) -> list[dict[str, Any]]:
-    """Return project chips [{id, name, identifier}] for a workspace member."""
-    from sqlalchemy import and_, select
-
-    from pilot_space.infrastructure.database.models.project import Project
-    from pilot_space.infrastructure.database.models.project_member import ProjectMember
-
-    result = await pm_repo.session.execute(
-        select(Project.id, Project.name, Project.identifier)
-        .join(ProjectMember, ProjectMember.project_id == Project.id)
-        .where(
-            and_(
-                Project.workspace_id == workspace_id,
-                ProjectMember.user_id == user_id,
-                ProjectMember.is_active == True,  # noqa: E712
-                ProjectMember.is_deleted == False,  # noqa: E712
-                Project.is_deleted == False,  # noqa: E712
-                Project.is_archived == False,  # noqa: E712
-            )
-        )
-    )
-    return [
-        {"id": str(row.id), "name": row.name, "identifier": row.identifier}
-        for row in result.all()
-    ]
 
 
 @router.patch(
@@ -514,16 +444,13 @@ async def get_workspace_member_activity(
     tags=["workspaces"],
     response_model=BulkAssignmentResponse,
 )
-@inject
 async def bulk_update_member_assignments(
     workspace_id: UUID,
     uid: UUID,
     body: BulkAssignmentRequest,
     session: SessionDep,
     current_user_id: CurrentUserId,
-    wm_repo: WorkspaceMemberRepository = Depends(
-        Provide[Container.workspace_member_rbac_repository]
-    ),
+    service: WorkspaceMemberServiceDep,
 ) -> BulkAssignmentResponse:
     """Bulk update workspace role and/or project assignments for a member (FR-04).
 
@@ -531,92 +458,23 @@ async def bulk_update_member_assignments(
     Updating workspace_role to OWNER is restricted to current OWNERs.
     A soft demotion warning is returned when role is downgraded.
     """
-    from pilot_space.application.services.project_member import (
-        BulkUpdatePayload,
-        BulkUpdateResult,
-        ProjectMemberService,
-        UnauthorizedError as PMUnauthorizedError,
-    )
-
     await set_rls_context(session, current_user_id, workspace_id)
 
-    caller = await wm_repo.get_by_user_workspace(current_user_id, workspace_id)
-    if not caller or caller.role.value not in ("ADMIN", "OWNER"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only workspace admins or owners can modify assignments",
-        )
-
-    target = await wm_repo.get_by_user_workspace(uid, workspace_id)
-    if not target:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Member not found in workspace",
-        )
-
-    # Build project_assignments list[dict] for the service
     project_assignments = [
-        {
-            "project_id": str(a.project_id),
-            "action": a.action,
-        }
+        {"project_id": str(a.project_id), "action": a.action}
         for a in (body.project_assignments or [])
     ]
 
-    # B-02: Validate all submitted project_ids belong to this workspace
-    if project_assignments:
-        from sqlalchemy import select as sa_select
-
-        from pilot_space.infrastructure.database.models.project import Project as ProjectModel
-
-        submitted_ids = [UUID(a["project_id"]) for a in project_assignments]
-        rows = await session.execute(
-            sa_select(ProjectModel.id).where(
-                ProjectModel.id.in_(submitted_ids),
-                ProjectModel.workspace_id == workspace_id,
-                ProjectModel.is_deleted == False,  # noqa: E712
-            )
-        )
-        found_ids = {row.id for row in rows.all()}
-        invalid = [str(pid) for pid in submitted_ids if pid not in found_ids]
-        if invalid:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Project(s) not found in workspace: {', '.join(invalid)}",
-            )
-
-    pm_repo = ProjectMemberRepository(session=session)
-    pm_svc = ProjectMemberService(project_member_repository=pm_repo)
-
-    try:
-        result: BulkUpdateResult = await pm_svc.bulk_update_assignments(
-            BulkUpdatePayload(
-                workspace_id=workspace_id,
-                target_user_id=uid,
-                requesting_user_id=current_user_id,
-                requesting_user_role=caller.role.value,
-                current_workspace_role=target.role.value,
-                workspace_role=body.workspace_role,
-                project_assignments=project_assignments,
-            )
-        )
-    except PMUnauthorizedError as e:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e)) from e
-
-    # Apply workspace role change if requested
-    if body.workspace_role and body.workspace_role != target.role.value:
-        from pilot_space.infrastructure.database.models.workspace_member import (
-            WorkspaceRole,
-        )
-
-        try:
-            target.role = WorkspaceRole(body.workspace_role)
-            await session.flush()
-        except ValueError as e:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Invalid role: {body.workspace_role}",
-            ) from e
+    result = await service.bulk_update_assignments(
+        BulkUpdateMemberAssignmentsPayload(
+            workspace_id=workspace_id,
+            target_user_id=uid,
+            requesting_user_id=current_user_id,
+            workspace_role=body.workspace_role,
+            project_assignments=project_assignments,
+        ),
+        session=session,
+    )
 
     return BulkAssignmentResponse(
         user_id=uid,

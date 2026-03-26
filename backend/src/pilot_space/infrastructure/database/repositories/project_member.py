@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import and_, select
@@ -176,6 +177,36 @@ class ProjectMemberRepository(BaseRepository[ProjectMember]):
         existing.is_active = False
         await self.session.flush()
         return existing
+
+    async def get_project_chips_for_user(
+        self,
+        workspace_id: UUID,
+        user_id: UUID,
+    ) -> list[dict[str, Any]]:
+        """Return project chips [{id, name, identifier}] for a workspace member.
+
+        Only returns active memberships on non-archived, non-deleted projects.
+        """
+        from pilot_space.infrastructure.database.models.project import Project
+
+        result = await self.session.execute(
+            select(Project.id, Project.name, Project.identifier)
+            .join(ProjectMember, ProjectMember.project_id == Project.id)
+            .where(
+                and_(
+                    Project.workspace_id == workspace_id,
+                    ProjectMember.user_id == user_id,
+                    ProjectMember.is_active == True,  # noqa: E712
+                    ProjectMember.is_deleted == False,  # noqa: E712
+                    Project.is_deleted == False,  # noqa: E712
+                    Project.is_archived == False,  # noqa: E712
+                )
+            )
+        )
+        return [
+            {"id": str(row.id), "name": row.name, "identifier": row.identifier}
+            for row in result.all()
+        ]
 
     async def _paginate(
         self,

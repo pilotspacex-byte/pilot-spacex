@@ -78,6 +78,18 @@ class TokenResponse(BaseSchema):
     refresh_token: str | None = Field(default=None, description="Refresh token")
 
 
+class WorkspaceMembershipInfo(BaseSchema):
+    """Compact workspace membership record for the current user.
+
+    Attributes:
+        workspace_id: The workspace this membership belongs to.
+        role: The user's role in that workspace (lowercase).
+    """
+
+    workspace_id: UUID = Field(description="Workspace identifier")
+    role: str = Field(description="User role in this workspace (owner/admin/member/guest)")
+
+
 class UserProfileResponse(BaseSchema):
     """Current user profile response.
 
@@ -88,6 +100,7 @@ class UserProfileResponse(BaseSchema):
         avatar_url: Profile image URL.
         bio: Short bio displayed to teammates.
         created_at: Account creation timestamp.
+        workspace_memberships: All workspaces the user belongs to with their role.
     """
 
     id: UUID = Field(description="User unique identifier")
@@ -100,6 +113,10 @@ class UserProfileResponse(BaseSchema):
         default=None, description="Per-user AI provider settings (model overrides, base_url)"
     )
     created_at: datetime = Field(description="Account creation timestamp")
+    workspace_memberships: list[WorkspaceMembershipInfo] = Field(
+        default_factory=list,
+        description="All workspaces the user belongs to with their role",
+    )
 
 
 class UserProfileUpdateRequest(BaseSchema):
@@ -128,4 +145,5 @@ __all__ = [
     "TokenResponse",
     "UserProfileResponse",
     "UserProfileUpdateRequest",
+    "WorkspaceMembershipInfo",
 ]

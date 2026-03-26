@@ -42,6 +42,7 @@ export const workspaceMembersKeys = {
 interface UseWorkspaceMembersOptions {
   projectId?: string | null;
   search?: string;
+  role?: string;
   page?: number;
   pageSize?: number;
 }
@@ -49,15 +50,17 @@ interface UseWorkspaceMembersOptions {
 export function useWorkspaceMembers(workspaceId: string, options?: UseWorkspaceMembersOptions) {
   const projectId = options?.projectId ?? null;
   const search = options?.search ?? '';
+  const role = options?.role ?? '';
   const page = options?.page ?? 1;
   const pageSize = options?.pageSize ?? 20;
 
   return useQuery<PaginatedWorkspaceMembers>({
-    queryKey: [...workspaceMembersKeys.all(workspaceId), { projectId, search, page, pageSize }],
+    queryKey: [...workspaceMembersKeys.all(workspaceId), { projectId, search, role, page, pageSize }],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (projectId) params.set('project_id', projectId);
       if (search) params.set('search', search);
+      if (role && role !== 'all') params.set('role', role);
       params.set('page', String(page));
       params.set('page_size', String(pageSize));
       const qs = `?${params.toString()}`;
@@ -81,5 +84,6 @@ export function useWorkspaceMembers(workspaceId: string, options?: UseWorkspaceM
     },
     enabled: !!workspaceId,
     staleTime: 60_000,
+    placeholderData: (previousData) => previousData,
   });
 }

@@ -9,8 +9,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID
 
-from dependency_injector.wiring import Provide, inject
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Query, status
 from sqlalchemy import and_, select
 
 from pilot_space.api.v1.dependencies import (
@@ -28,14 +27,11 @@ from pilot_space.application.services.workspace_invitation import (
     ListInvitationsPayload,
 )
 from pilot_space.config import get_settings
-from pilot_space.container.container import Container
 from pilot_space.dependencies.auth import CurrentUser, CurrentUserId, SessionDep
+from pilot_space.domain.exceptions import AppError, ValidationError
 from pilot_space.infrastructure.database.models.project import Project
 from pilot_space.infrastructure.database.repositories.project_member import (
     ProjectMemberRepository,
-)
-from pilot_space.infrastructure.database.repositories.workspace_member_repository import (
-    WorkspaceMemberRepository,
 )
 from pilot_space.infrastructure.database.rls import set_rls_context
 from pilot_space.infrastructure.logging import get_logger
@@ -53,16 +49,12 @@ router = APIRouter(prefix="/workspaces", tags=["workspaces", "invitations"])
     status_code=status.HTTP_201_CREATED,
     tags=["workspaces", "invitations"],
 )
-@inject
 async def add_workspace_member(
     workspace_id: UUID,
     request: InvitationCreateRequest,
     session: SessionDep,
     current_user: CurrentUser,
     workspace_service: WorkspaceServiceDep,
-    wm_repo: WorkspaceMemberRepository = Depends(
-        Provide[Container.workspace_member_rbac_repository]
-    ),
 ) -> WorkspaceMemberResponse | InvitationResponse:
     """Invite or add a member to workspace.
 
@@ -95,29 +87,17 @@ async def add_workspace_member(
         found = {row.id: row.is_archived for row in rows.all()}
         missing = [pid for pid in project_ids if pid not in found]
         if missing:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Projects not found in workspace: {[str(p) for p in missing]}",
-            )
+            raise ValidationError(f"Projects not found in workspace: {[str(p) for p in missing]}")
         archived = [pid for pid, is_arch in found.items() if is_arch]
         if archived:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Cannot assign to archived projects: {[str(p) for p in archived]}",
-            )
+            raise ValidationError(f"Cannot assign to archived projects: {[str(p) for p in archived]}")
 
-    try:
-        result = await workspace_service.invite_member(
-            workspace_id=workspace_id,
-            email=request.email,
-            role=request.role,
-            invited_by=current_user.user_id,
-        )
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=str(e),
-        ) from e
+    result = await workspace_service.invite_member(
+        workspace_id=workspace_id,
+        email=request.email,
+        role=request.role,
+        invited_by=current_user.user_id,
+    )
 
     if result.is_immediate and result.member:
         member = result.member
@@ -151,10 +131,7 @@ async def add_workspace_member(
 
     invitation = result.invitation
     if invitation is None:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Unexpected error creating invitation",
-        )
+        raise AppError("Unexpected error creating invitation")
 
     # Store project_assignments on the invitation object for later materialization
     if assignments:
@@ -225,10 +202,12 @@ async def list_workspace_invitations(
         ListInvitationsPayload(
             workspace_id=workspace_id,
             requesting_user_id=current_user.user_id,
+            page=page,
+            page_size=page_size,
         )
     )
 
-    all_items = [
+    items = [
         InvitationResponse(
             id=inv.id,
             email=inv.email,
@@ -242,16 +221,12 @@ async def list_workspace_invitations(
         for inv in result.invitations
     ]
 
-    total = len(all_items)
-    offset = (page - 1) * page_size
-    items = all_items[offset : offset + page_size]
-
     return PaginatedResponse(
         items=items,
-        total=total,
-        has_next=offset + page_size < total,
-        has_prev=page > 1,
-        page_size=page_size,
+        total=result.total,
+        has_next=result.has_next,
+        has_prev=result.has_prev,
+        page_size=result.page_size,
     )
 
 
@@ -286,16 +261,12 @@ async def cancel_workspace_invitation(
     status_code=status.HTTP_204_NO_CONTENT,
     tags=["workspaces", "invitations"],
 )
-@inject
 async def rescind_workspace_invitation(
     workspace_id: UUID,
     invitation_id: UUID,
     session: SessionDep,
     current_user_id: CurrentUserId,
     service: WorkspaceInvitationServiceDep,
-    wm_repo: WorkspaceMemberRepository = Depends(
-        Provide[Container.workspace_member_rbac_repository]
-    ),
 ) -> None:
     """Rescind (cancel) a pending invitation from the Members page.
 
@@ -303,33 +274,13 @@ async def rescind_workspace_invitation(
     Source: T026, US3 FR-03.
     """
     await set_rls_context(session, current_user_id, workspace_id)
-
-    caller = await wm_repo.get_by_user_workspace(current_user_id, workspace_id)
-    if not caller or caller.role.value not in ("ADMIN", "OWNER"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only workspace admins or owners can rescind invitations",
+    await service.cancel_invitation(
+        CancelInvitationPayload(
+            workspace_id=workspace_id,
+            invitation_id=invitation_id,
+            actor_id=current_user_id,
         )
-
-    try:
-        await service.cancel_invitation(
-            CancelInvitationPayload(
-                workspace_id=workspace_id,
-                invitation_id=invitation_id,
-                actor_id=current_user_id,
-            )
-        )
-    except ValueError as e:
-        error_msg = str(e)
-        if "not found" in error_msg.lower() or "already processed" in error_msg.lower():
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=error_msg,
-            ) from e
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=error_msg,
-        ) from e
+    )
 
 
 __all__ = ["router"]

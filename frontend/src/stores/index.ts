@@ -18,7 +18,7 @@ export {
 } from './RootStore';
 
 // Auth Store
-export { AuthStore, authStore, type AuthUser } from './AuthStore';
+export { AuthStore, authStore, type AuthUser, type WorkspaceMembership } from './AuthStore';
 
 // UI Store
 export { UIStore, uiStore, type Theme, type ModalState, type Toast } from './UIStore';

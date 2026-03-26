@@ -117,7 +117,7 @@ export const InviteMemberDialog = observer(function InviteMemberDialog({
 
     if (workspaceStore.error) {
       const errorMsg = workspaceStore.error;
-      if (errorMsg.toLowerCase().includes('already') || errorMsg.includes('409')) {
+      if (errorMsg === 'conflict:already_member_or_invited') {
         setEmailError('This email has already been invited or is an existing member.');
       } else {
         toast.error('Invitation failed', { description: errorMsg });
@@ -132,6 +132,7 @@ export const InviteMemberDialog = observer(function InviteMemberDialog({
     queryClient.invalidateQueries({ queryKey: workspaceMembersKeys.all(workspaceId) });
     queryClient.invalidateQueries({ queryKey: workspaceInvitationsKeys.all(workspaceId) });
     resetForm();
+    setOpen(false);
   };
 
   const handleOpenChange = (nextOpen: boolean) => {

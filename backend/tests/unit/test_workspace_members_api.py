@@ -369,8 +369,8 @@ class TestOwnerSelfDemotion:
         mock_workspace_repo.update_member_role = AsyncMock()
 
         from pilot_space.application.services.workspace_member import (
-            UnauthorizedError,
             UpdateMemberRolePayload,
+            WorkspaceMemberForbiddenError,
             WorkspaceMemberService,
         )
 
@@ -382,7 +382,7 @@ class TestOwnerSelfDemotion:
             actor_id=owner.id,
         )
 
-        with pytest.raises(UnauthorizedError, match="Cannot change own role"):
+        with pytest.raises(WorkspaceMemberForbiddenError, match="Cannot change own role"):
             await service.update_member_role(payload)
 
         mock_workspace_repo.update_member_role.assert_not_awaited()
