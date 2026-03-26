@@ -82,6 +82,7 @@ class WorkspaceMemberRepository(BaseRepository[WorkspaceMember]):
                 WorkspaceMember.user_id == user_id,
                 WorkspaceMember.workspace_id == workspace_id,
                 WorkspaceMember.is_deleted == False,  # noqa: E712
+                WorkspaceMember.is_active == True,  # noqa: E712
             )
         )
         result = await self.session.execute(stmt)

@@ -49,6 +49,8 @@ async def _require_admin(user_id: UUID, workspace_id: UUID, session: DbSession) 
     stmt = select(WorkspaceMember.role).where(
         WorkspaceMember.workspace_id == workspace_id,
         WorkspaceMember.user_id == user_id,
+        WorkspaceMember.is_active.is_(True),
+        WorkspaceMember.is_deleted.is_(False),
     )
     result = await session.execute(stmt)
     row = result.scalar()

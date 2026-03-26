@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from pilot_space.domain.exceptions import NotFoundError
+from pilot_space.domain.exceptions import NotFoundError, ServiceUnavailableError
 from pilot_space.infrastructure.database.repositories.skill_action_button_repository import (
     SkillActionButtonRepository,
 )
@@ -238,8 +238,6 @@ class PluginLifecycleService:
         installed_by: UUID,
     ) -> list[object]:
         """Browse and install all skills from a GitHub repo. Returns plugin models."""
-        from fastapi import HTTPException, status
-
         from pilot_space.application.services.workspace_plugin.install_plugin_service import (
             InstallPluginService,
         )
@@ -302,9 +300,7 @@ class PluginLifecycleService:
             await gh.aclose()
 
         if not results:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY, detail="Failed to install any skills."
-            )
+            raise ServiceUnavailableError("Failed to install any skills.")
 
         logger.info(
             "[Plugins] Installed %d skills from %s/%s in workspace %s",

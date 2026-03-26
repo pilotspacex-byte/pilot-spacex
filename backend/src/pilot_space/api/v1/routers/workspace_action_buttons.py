@@ -20,8 +20,7 @@ from pilot_space.api.v1.schemas.skill_action_button import (
     SkillActionButtonResponse,
     SkillActionButtonUpdate,
 )
-from pilot_space.dependencies import DbSession
-from pilot_space.dependencies.auth import WorkspaceAdminId, WorkspaceMemberId
+from pilot_space.dependencies.auth import SessionDep, WorkspaceAdminId, WorkspaceMemberId
 
 router = APIRouter(
     prefix="/{workspace_id}/action-buttons",
@@ -41,7 +40,7 @@ router = APIRouter(
 )
 async def list_active_buttons(
     workspace_id: WorkspaceMemberId,
-    session: DbSession,
+    session: SessionDep,
     service: ActionButtonServiceDep,
 ) -> list[SkillActionButtonResponse]:
     """Return active action buttons for all workspace members."""
@@ -56,7 +55,7 @@ async def list_active_buttons(
 )
 async def list_all_buttons(
     workspace_id: WorkspaceAdminId,
-    session: DbSession,
+    session: SessionDep,
     service: ActionButtonServiceDep,
 ) -> list[SkillActionButtonResponse]:
     """Return all action buttons including inactive (admin only)."""
@@ -73,7 +72,7 @@ async def list_all_buttons(
 async def create_button(
     workspace_id: WorkspaceAdminId,
     request: SkillActionButtonCreate,
-    session: DbSession,
+    session: SessionDep,
     service: ActionButtonServiceDep,
 ) -> SkillActionButtonResponse:
     """Create a new action button (admin only)."""
@@ -97,7 +96,7 @@ async def update_button(
     workspace_id: WorkspaceAdminId,
     button_id: UUID,
     request: SkillActionButtonUpdate,
-    session: DbSession,
+    session: SessionDep,
     service: ActionButtonServiceDep,
 ) -> SkillActionButtonResponse:
     """Update an existing action button (admin only)."""
@@ -114,7 +113,7 @@ async def update_button(
 async def reorder_buttons(
     workspace_id: WorkspaceAdminId,
     request: SkillActionButtonReorder,
-    session: DbSession,
+    session: SessionDep,
     service: ActionButtonServiceDep,
 ) -> None:
     """Reorder action buttons by providing ordered list of IDs (admin only)."""
@@ -129,7 +128,7 @@ async def reorder_buttons(
 async def delete_button(
     workspace_id: WorkspaceAdminId,
     button_id: UUID,
-    session: DbSession,
+    session: SessionDep,
     service: ActionButtonServiceDep,
 ) -> None:
     """Soft-delete an action button (admin only)."""
