@@ -54,7 +54,6 @@ from pilot_space.application.services.version.snapshot_service import (
     SnapshotPayload,
     VersionSnapshotService,
 )
-from pilot_space.config import get_settings
 from pilot_space.dependencies.auth import CurrentUserId, SessionDep, require_workspace_member
 from pilot_space.domain.note_version import VersionTrigger
 from pilot_space.infrastructure.database.models.note_version import (
@@ -385,16 +384,8 @@ async def get_digest(
     workspace_repo = WorkspaceRepository(session)
     ws_uuid = await _resolve_workspace_id(workspace_id, workspace_repo)
 
-    settings = get_settings()
-    anthropic_key: str | None = None
-    if hasattr(settings, "anthropic_api_key") and settings.anthropic_api_key:
-        secret = settings.anthropic_api_key
-        anthropic_key = (
-            secret.get_secret_value() if hasattr(secret, "get_secret_value") else str(secret)
-        )
-
     version_repo = NoteVersionRepository(session)
-    svc = VersionDigestService(session, version_repo, anthropic_api_key=anthropic_key)
+    svc = VersionDigestService(session, version_repo)
 
     result = await svc.execute(version_id, note_id, ws_uuid, user_id=user_id)
 

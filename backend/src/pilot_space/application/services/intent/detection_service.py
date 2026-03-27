@@ -20,6 +20,8 @@ from pilot_space.domain.work_intent import DedupStatus, IntentStatus, WorkIntent
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
     from pilot_space.ai.proxy.llm_gateway import LLMGateway
     from pilot_space.infrastructure.cache.redis import RedisClient
     from pilot_space.infrastructure.database.repositories.intent_repository import (
@@ -284,7 +286,7 @@ class IntentDetectionService:
 
     def __init__(
         self,
-        session: object,
+        session: AsyncSession,
         intent_repository: WorkIntentRepository,
         redis_client: RedisClient,
         llm_gateway: LLMGateway | None = None,

@@ -25,6 +25,8 @@ from pilot_space.domain.exceptions import AppError, ValidationError
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
     from pilot_space.ai.proxy.llm_gateway import LLMGateway
 
 logger = get_logger(__name__)
@@ -113,7 +115,7 @@ class GenerateRoleSkillService:
     (no LLMGateway, no API key, provider down, etc.).
     """
 
-    def __init__(self, session: object, llm_gateway: LLMGateway | None = None) -> None:
+    def __init__(self, session: AsyncSession, llm_gateway: LLMGateway | None = None) -> None:
         self._session = session
         self._llm_gateway = llm_gateway
 
