@@ -97,6 +97,15 @@ def mock_key_storage() -> AsyncMock:
     return storage
 
 
+@pytest.fixture(autouse=True)
+def _disable_proxy(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests verify direct SDK paths — disable proxy routing."""
+    monkeypatch.setenv("AI_PROXY_ENABLED", "false")
+    from pilot_space.config import get_settings
+
+    get_settings.cache_clear()
+
+
 @pytest.fixture
 def gateway(
     mock_executor: AsyncMock,

@@ -120,8 +120,8 @@ class Settings(BaseSettings):
 
     # Built-in AI Proxy — routes Claude Agent SDK through LLMGateway infrastructure
     ai_proxy_enabled: bool = Field(
-        default=False,
-        description="Route Claude Agent SDK calls through built-in AI proxy for cost tracking and observability",
+        default=True,
+        description="Route all LLM calls through built-in AI proxy for cost tracking, tenant validation, and observability",
     )
     ai_proxy_base_url: str = Field(
         default="http://localhost:8000/api/v1/ai/proxy",
