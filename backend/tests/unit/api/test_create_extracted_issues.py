@@ -13,10 +13,10 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi import HTTPException
 
-from pilot_space.api.v1.routers.workspace_notes_ai import (
+from pilot_space.api.v1.routers.workspace_notes_ai import create_extracted_issues
+from pilot_space.api.v1.schemas.workspace_notes_ai import (
     CreateExtractedIssuesRequest,
     ExtractedIssueInput,
-    create_extracted_issues,
 )
 from pilot_space.domain.exceptions import NotFoundError
 
