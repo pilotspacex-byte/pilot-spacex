@@ -57,9 +57,7 @@ class TestH4AIConfigUsesGetWithMembers:
     @pytest.mark.asyncio
     async def test_verify_membership_calls_get_with_members(self) -> None:
         """_verify_workspace_membership calls get_with_members (not get_by_id)."""
-        from pilot_space.api.v1.routers.ai_configuration import (
-            _verify_workspace_membership,
-        )
+        from pilot_space.application.services.ai_configuration import AIConfigurationService
 
         workspace, owner, owner_member = _make_workspace_with_owner()
 
@@ -67,10 +65,14 @@ class TestH4AIConfigUsesGetWithMembers:
         mock_workspace_repo.get_with_members.return_value = workspace
         mock_workspace_repo.get_by_id.return_value = workspace
 
-        role = await _verify_workspace_membership(
+        service = AIConfigurationService(
+            session=AsyncMock(),
+            workspace_repository=mock_workspace_repo,
+        )
+
+        role = await service._verify_workspace_membership(
             workspace_id=workspace.id,
             user_id=owner.id,
-            workspace_repo=mock_workspace_repo,
         )
 
         assert role == WorkspaceRole.OWNER
@@ -80,9 +82,7 @@ class TestH4AIConfigUsesGetWithMembers:
     @pytest.mark.asyncio
     async def test_verify_membership_admin_required_rejects_member(self) -> None:
         """_verify_workspace_membership with require_admin=True rejects plain member."""
-        from pilot_space.api.v1.routers.ai_configuration import (
-            _verify_workspace_membership,
-        )
+        from pilot_space.application.services.ai_configuration import AIConfigurationService
 
         member_user = UserFactory(email="member@example.com")
         workspace = WorkspaceFactory(owner_id=member_user.id, owner=member_user)
@@ -96,11 +96,15 @@ class TestH4AIConfigUsesGetWithMembers:
         mock_workspace_repo = AsyncMock()
         mock_workspace_repo.get_with_members.return_value = workspace
 
+        service = AIConfigurationService(
+            session=AsyncMock(),
+            workspace_repository=mock_workspace_repo,
+        )
+
         with pytest.raises(ForbiddenError) as exc_info:
-            await _verify_workspace_membership(
+            await service._verify_workspace_membership(
                 workspace_id=workspace.id,
                 user_id=member_user.id,
-                workspace_repo=mock_workspace_repo,
                 require_admin=True,
             )
 
