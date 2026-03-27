@@ -446,6 +446,14 @@ class TestGenerateCompletionApiCall:
 
 
 class TestBYOKIntegration:
+    @pytest.fixture(autouse=True)
+    def _disable_proxy(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """BYOK tests verify direct path — disable proxy."""
+        monkeypatch.setenv("AI_PROXY_ENABLED", "false")
+        from pilot_space.config import get_settings
+
+        get_settings.cache_clear()
+
     @pytest.mark.asyncio
     async def test_workspace_key_fetched_from_key_storage(
         self,
@@ -564,6 +572,14 @@ class TestResilientExecutorIntegration:
 
 
 class TestCostTrackerIntegration:
+    @pytest.fixture(autouse=True)
+    def _disable_proxy(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Cost tracking tests verify direct path — disable proxy."""
+        monkeypatch.setenv("AI_PROXY_ENABLED", "false")
+        from pilot_space.config import get_settings
+
+        get_settings.cache_clear()
+
     @pytest.mark.asyncio
     async def test_cost_tracker_called_after_completion(
         self,

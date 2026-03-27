@@ -17,9 +17,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
-from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
-
 import structlog
+from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
 
 from pilot_space.ai.agents.agent_base import AgentContext, StreamingSDKBaseAgent
 from pilot_space.ai.context import clear_context, set_workspace_context
