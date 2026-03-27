@@ -87,7 +87,6 @@ class BulkAssignmentRequest(BaseSchema):
         description="Add or remove project memberships.",
     )
 
-
     @field_validator("workspace_role", mode="before")
     @classmethod
     def normalise_role(cls, v: str | None) -> str | None:

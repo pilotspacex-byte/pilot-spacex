@@ -344,7 +344,10 @@ class WorkspaceRepository(BaseRepository[Workspace]):
                 updated_at=now,
             )
             .on_conflict_do_update(
-                index_elements=[WorkspaceMember.__table__.c.user_id, WorkspaceMember.__table__.c.workspace_id],
+                index_elements=[
+                    WorkspaceMember.__table__.c.user_id,
+                    WorkspaceMember.__table__.c.workspace_id,
+                ],
                 set_={
                     "role": role,
                     "is_deleted": False,

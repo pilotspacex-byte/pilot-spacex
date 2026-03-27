@@ -84,9 +84,7 @@ def create_note_query_server(
             workspace_id = UUID(tool_context.workspace_id)
             query = args["query"]
             # Explicit project_id → active_project_id context fallback (T043)
-            project_id_str = args.get("project_id") or tool_context.extra.get(
-                "active_project_id"
-            )
+            project_id_str = args.get("project_id") or tool_context.extra.get("active_project_id")
             project_id = UUID(project_id_str) if project_id_str else None
             limit = min(args.get("limit", 20), 100)
             include_content = args.get("include_content", False)

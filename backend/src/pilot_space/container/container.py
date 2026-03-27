@@ -758,9 +758,7 @@ class Container(SkillContainer, PluginContainer):
     auth_service = providers.Factory(
         AuthService,
         user_repo=InfraContainer.user_repository,
-        supabase_url=providers.Callable(
-            lambda s: s.supabase_url, InfraContainer.config
-        ),
+        supabase_url=providers.Callable(lambda s: s.supabase_url, InfraContainer.config),
         default_redirect_origin=providers.Callable(
             get_default_redirect_origin,
             InfraContainer.config,

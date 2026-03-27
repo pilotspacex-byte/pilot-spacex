@@ -147,9 +147,7 @@ async def _background_graph_extraction(
         async with get_db_session() as bg_session:
             if user_id is not None:
                 await set_rls_context(bg_session, user_id, workspace_id)
-            graph_write_svc = build_graph_write_service_for_session(
-                bg_session, graph_queue_client
-            )
+            graph_write_svc = build_graph_write_service_for_session(bg_session, graph_queue_client)
             await graph_write_svc.execute(
                 GraphWritePayload(
                     workspace_id=workspace_id,
@@ -378,9 +376,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                     master_secret=get_settings().encryption_key.get_secret_value(),
                 )
             except RuntimeError:
-                logger.debug(
-                    "[SDK/ProviderConfig] No request session, using singleton key_storage"
-                )
+                logger.debug("[SDK/ProviderConfig] No request session, using singleton key_storage")
                 ks = self._key_storage
 
             if ks:
@@ -473,9 +469,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                         provider=ki.provider,
                     )
 
-        logger.warning(
-            "[SDK/ResolveProvider] No LLM key found for workspace=%s", workspace_id
-        )
+        logger.warning("[SDK/ResolveProvider] No LLM key found for workspace=%s", workspace_id)
         return None
 
     async def interrupt_session(self, session_id: str) -> bool:
@@ -488,12 +482,8 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             await asyncio.wait_for(client.interrupt(), timeout=3.0)
             logger.info("[SDK/Interrupt] Interrupted session %s", session_id)
             return True
-        except (
-            Exception
-        ) as e:  # Intentional catch-all: corrupt client must not crash caller
-            logger.warning(
-                "[SDK/Interrupt] Failed to interrupt session %s: %s", session_id, e
-            )
+        except Exception as e:  # Intentional catch-all: corrupt client must not crash caller
+            logger.warning("[SDK/Interrupt] Failed to interrupt session %s: %s", session_id, e)
             return False
 
     async def submit_tool_result(
@@ -680,13 +670,11 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         # Load user skills for prompt-level awareness (separate from disk materialization)
         _user_skills_for_prompt: list[dict[str, str]] = []
         try:
-            _active_skills = await UserSkillRepository(
-                db_session
-            ).get_active_by_user_workspace(context.user_id, context.workspace_id)
+            _active_skills = await UserSkillRepository(db_session).get_active_by_user_workspace(
+                context.user_id, context.workspace_id
+            )
             for _s in _active_skills:
-                name = _s.skill_name or (
-                    _s.template.name if _s.template else str(_s.id)[:8]
-                )
+                name = _s.skill_name or (_s.template.name if _s.template else str(_s.id)[:8])
                 desc = (
                     f"Personalized {_s.template.name} skill"
                     if _s.template
@@ -720,9 +708,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         _toggle_defaults: dict[str, bool] = WorkspaceFeatureToggles().model_dump()
         _workspace_obj = await _workspace_repo.get_by_id(context.workspace_id)
         _raw_toggles = (
-            (_workspace_obj.settings or {}).get("feature_toggles")
-            if _workspace_obj
-            else None
+            (_workspace_obj.settings or {}).get("feature_toggles") if _workspace_obj else None
         )
         # Validate: stored value must be a mapping; non-boolean values are coerced/dropped.
         _stored_toggles: dict[str, bool] = (
@@ -743,9 +729,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         )
 
         # MCP-04: pre-fetch async before sync build_mcp_servers, then merge
-        remote_servers = await load_workspace_mcp_servers(
-            context.workspace_id, db_session
-        )
+        remote_servers = await load_workspace_mcp_servers(context.workspace_id, db_session)
         mcp_servers, ref_map = build_mcp_servers(
             tool_event_queue, tool_context, input_data, feature_toggles=_feature_toggles
         )
@@ -756,9 +740,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         effort = classify_effort(input_data.message)
         streaming_input = estimate_tokens(input_data) > 30_000
 
-        _openai_key_for_recall = await get_workspace_embedding_key(
-            db_session, context.workspace_id
-        )
+        _openai_key_for_recall = await get_workspace_embedding_key(db_session, context.workspace_id)
         graph_context = await recall_graph_context(
             workspace_id=context.workspace_id,
             user_id=context.user_id,
@@ -821,9 +803,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         sdk_env.pop("CLAUDECODE", None)
         sdk_env["CLAUDECODE"] = ""
 
-        can_use_tool_cb = create_can_use_tool_callback(
-            tool_event_queue, context.user_id
-        )
+        can_use_tool_cb = create_can_use_tool_callback(tool_event_queue, context.user_id)
 
         _r = getattr(self, "_resolved_model", None)  # AIPR-04 model override
         # Model priority: AIPR-04 override > workspace provider config > SDK default
@@ -890,9 +870,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             self._resolved_model = input_data.resolved_model  # AIPR-04
             provider_config = await self._get_provider_config(context.workspace_id)
             subagent_definitions = self._build_subagent_definitions()
-            session_id_str = (
-                str(input_data.session_id) if input_data.session_id else None
-            )
+            session_id_str = str(input_data.session_id) if input_data.session_id else None
 
             resume_id: str | None = None
             if input_data.resume_session_id and session_id_str:
@@ -924,9 +902,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         resume_id: str | None = None,
     ) -> AsyncIterator[str]:
         if not (self._space_manager and context.workspace_id and context.user_id):
-            raise ValueError(
-                "SpaceManager, workspace_id, and user_id are required for streaming"
-            )
+            raise ValueError("SpaceManager, workspace_id, and user_id are required for streaming")
 
         space = self._space_manager.get_space(context.workspace_id, context.user_id)
 
@@ -941,9 +917,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                     space_context.hooks_file,
                     cwd=space_context.path,
                 )
-                logger.debug(
-                    "[SDK/Space] Loaded hooks from %s", space_context.hooks_file
-                )
+                logger.debug("[SDK/Space] Loaded hooks from %s", space_context.hooks_file)
 
             from pilot_space.ai.sdk.hooks import PermissionAwareHookExecutor
 
@@ -1171,9 +1145,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                                 # Keep a strong reference so asyncio's weak-ref
                                 # GC cannot discard the task mid-execution.
                                 self._background_tasks.add(_bg_task)
-                                _bg_task.add_done_callback(
-                                    self._background_tasks.discard
-                                )
+                                _bg_task.add_done_callback(self._background_tasks.discard)
 
                     await client.disconnect()
                 clear_context()
@@ -1190,9 +1162,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                         else:
                             await db_session_cm.__aexit__(None, None, None)
                     except Exception as db_err:
-                        logger.warning(
-                            "[SDK/Space] DB session cleanup error: %s", db_err
-                        )
+                        logger.warning("[SDK/Space] DB session cleanup error: %s", db_err)
 
     async def execute(self, input_data: ChatInput, context: AgentContext) -> ChatOutput:
         """Non-streaming execution that collects all chunks into ChatOutput."""

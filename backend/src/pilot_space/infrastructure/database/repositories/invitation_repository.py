@@ -185,7 +185,10 @@ class InvitationRepository(BaseRepository[WorkspaceInvitation]):
                 updated_at=now,
             )
             .on_conflict_do_update(
-                index_elements=[WorkspaceInvitation.__table__.c.workspace_id, WorkspaceInvitation.__table__.c.email],
+                index_elements=[
+                    WorkspaceInvitation.__table__.c.workspace_id,
+                    WorkspaceInvitation.__table__.c.email,
+                ],
                 set_={
                     "role": role,
                     "invited_by": invited_by,

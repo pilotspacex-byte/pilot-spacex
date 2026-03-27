@@ -68,10 +68,7 @@ async def list_project_members(
         )
     )
 
-    items = [
-        ProjectMemberResponse.model_validate(m)
-        for m in result.members
-    ]
+    items = [ProjectMemberResponse.model_validate(m) for m in result.members]
 
     return ProjectMemberListResponse(
         items=items,

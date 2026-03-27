@@ -103,12 +103,8 @@ class WorkspaceDetailResponse(WorkspaceResponse):
         current_user_role: Current user's role in workspace.
     """
 
-    settings: dict[str, Any] | None = Field(
-        default=None, description="Workspace settings"
-    )
-    current_user_role: str | None = Field(
-        default=None, description="Current user's role"
-    )
+    settings: dict[str, Any] | None = Field(default=None, description="Workspace settings")
+    current_user_role: str | None = Field(default=None, description="Current user's role")
 
 
 # Member management schemas
@@ -177,9 +173,7 @@ class InvitationResponse(BaseSchema):
     id: UUID = Field(description="Invitation UUID")
     email: str = Field(description="Invited email address")
     role: str = Field(description="Intended role upon acceptance")
-    status: str = Field(
-        description="Invitation status (pending/accepted/expired/cancelled)"
-    )
+    status: str = Field(description="Invitation status (pending/accepted/expired/cancelled)")
     invited_by: UUID = Field(description="Inviter user ID")
     invited_by_name: str | None = Field(default=None, description="Inviter display name")
     suggested_sdlc_role: str | None = Field(
@@ -205,7 +199,9 @@ class InvitationPreviewResponse(BaseSchema):
     """
 
     invitation_id: UUID = Field(description="Invitation UUID")
-    status: str = Field(description="Invitation status (pending/accepted/expired/revoked/cancelled)")
+    status: str = Field(
+        description="Invitation status (pending/accepted/expired/revoked/cancelled)"
+    )
     workspace_name: str = Field(description="Display name of the workspace")
     workspace_slug: str = Field(description="Workspace URL slug")
     invited_email_masked: str = Field(description="Email with local-part masked")
@@ -364,9 +360,7 @@ class MemberContributionStats(BaseSchema):
 
     issues_created: int = Field(description="Issues reported by this member")
     issues_assigned: int = Field(description="Issues assigned to this member")
-    cycle_velocity: float = Field(
-        description="Avg issues closed per sprint (last 3 cycles)"
-    )
+    cycle_velocity: float = Field(description="Avg issues closed per sprint (last 3 cycles)")
     capacity_utilization_pct: float = Field(
         description="Committed hours / available hours × 100, clamped to [0, 100]"
     )
@@ -406,9 +400,7 @@ class MemberActivityItem(BaseSchema):
     comment: str | None = Field(default=None, description="Comment body")
     created_at: datetime = Field(description="Activity timestamp")
     issue_id: UUID | None = Field(default=None, description="Related issue UUID")
-    issue_identifier: str | None = Field(
-        default=None, description="Issue identifier e.g. PS-42"
-    )
+    issue_identifier: str | None = Field(default=None, description="Issue identifier e.g. PS-42")
     issue_title: str | None = Field(default=None, description="Issue title")
 
 
@@ -443,24 +435,16 @@ class ProviderStatus(BaseSchema):
     """
 
     provider: str = Field(description="Provider name")
-    service_type: str = Field(
-        description="Service category: 'embedding', 'llm', or 'stt'"
-    )
-    is_configured: bool = Field(
-        description="Whether provider is configured for this service"
-    )
+    service_type: str = Field(description="Service category: 'embedding', 'llm', or 'stt'")
+    is_configured: bool = Field(description="Whether provider is configured for this service")
     is_valid: bool | None = Field(
         default=None, description="Validation status (None if never validated)"
     )
     last_validated_at: datetime | None = Field(
         default=None, description="Last validation timestamp"
     )
-    base_url: str | None = Field(
-        default=None, description="Custom base URL for provider API"
-    )
-    model_name: str | None = Field(
-        default=None, description="Default model name override"
-    )
+    base_url: str | None = Field(default=None, description="Custom base URL for provider API")
+    model_name: str | None = Field(default=None, description="Default model name override")
 
 
 class WorkspaceFeatureToggles(BaseSchema):
@@ -483,17 +467,13 @@ class WorkspaceFeatureToggles(BaseSchema):
 
     notes: bool = Field(default=True, description="Notes module enabled")
     issues: bool = Field(default=True, description="Issue tracker module enabled")
-    projects: bool = Field(
-        default=True, description="Project management module enabled"
-    )
+    projects: bool = Field(default=True, description="Project management module enabled")
     members: bool = Field(default=True, description="Member directory module enabled")
     docs: bool = Field(default=True, description="Documentation module enabled")
     knowledge: bool = Field(default=True, description="Knowledge Graph module enabled")
     skills: bool = Field(default=True, description="AI Skills module enabled")
     costs: bool = Field(default=True, description="AI cost tracking module enabled")
-    approvals: bool = Field(
-        default=True, description="AI approval workflow module enabled"
-    )
+    approvals: bool = Field(default=True, description="AI approval workflow module enabled")
 
 
 class WorkspaceFeatureTogglesUpdate(BaseSchema):
@@ -509,12 +489,8 @@ class WorkspaceFeatureTogglesUpdate(BaseSchema):
     docs: bool | None = Field(default=None, description="Documentation module enabled")
     knowledge: bool | None = Field(default=None, description="Knowledge Graph module enabled")
     skills: bool | None = Field(default=None, description="AI Skills module enabled")
-    costs: bool | None = Field(
-        default=None, description="AI cost tracking module enabled"
-    )
-    approvals: bool | None = Field(
-        default=None, description="AI approval workflow module enabled"
-    )
+    costs: bool | None = Field(default=None, description="AI cost tracking module enabled")
+    approvals: bool | None = Field(default=None, description="AI approval workflow module enabled")
 
 
 class AIFeatureToggles(BaseSchema):
@@ -532,12 +508,8 @@ class AIFeatureToggles(BaseSchema):
     ghost_text_enabled: bool = Field(default=True, description="Enable ghost text")
     ai_context_enabled: bool = Field(default=True, description="Enable AI context")
     pr_review_enabled: bool = Field(default=True, description="Enable PR review")
-    issue_extraction_enabled: bool = Field(
-        default=True, description="Enable issue extraction"
-    )
-    margin_annotations_enabled: bool = Field(
-        default=True, description="Enable margin annotations"
-    )
+    issue_extraction_enabled: bool = Field(default=True, description="Enable issue extraction")
+    margin_annotations_enabled: bool = Field(default=True, description="Enable margin annotations")
     auto_approve_non_destructive: bool = Field(
         default=True, description="Auto-approve safe AI actions"
     )
@@ -563,9 +535,7 @@ class WorkspaceAISettingsResponse(BaseSchema):
     default_embedding_provider: str = Field(
         default="google", description="Active embedding provider for this workspace"
     )
-    cost_limit_usd: float | None = Field(
-        default=None, description="Monthly cost limit USD"
-    )
+    cost_limit_usd: float | None = Field(default=None, description="Monthly cost limit USD")
 
 
 class APIKeyUpdate(BaseSchema):
@@ -629,15 +599,9 @@ class WorkspaceAISettingsUpdate(BaseSchema):
         cost_limit_usd: Monthly cost limit update.
     """
 
-    api_keys: list[APIKeyUpdate] | None = Field(
-        default=None, description="API key updates"
-    )
-    features: AIFeatureToggles | None = Field(
-        default=None, description="Feature toggle updates"
-    )
-    cost_limit_usd: float | None = Field(
-        default=None, description="Monthly cost limit USD", ge=0
-    )
+    api_keys: list[APIKeyUpdate] | None = Field(default=None, description="API key updates")
+    features: AIFeatureToggles | None = Field(default=None, description="Feature toggle updates")
+    cost_limit_usd: float | None = Field(default=None, description="Monthly cost limit USD", ge=0)
     default_llm_provider: str | None = Field(
         default=None,
         description="Set active LLM provider",
@@ -661,9 +625,7 @@ class KeyValidationResult(BaseSchema):
 
     provider: str = Field(description="Provider name")
     is_valid: bool = Field(description="Validation result")
-    error_message: str | None = Field(
-        default=None, description="Error message if failed"
-    )
+    error_message: str | None = Field(default=None, description="Error message if failed")
 
 
 class WorkspaceAISettingsUpdateResponse(BaseSchema):
@@ -677,9 +639,7 @@ class WorkspaceAISettingsUpdateResponse(BaseSchema):
     """
 
     success: bool = Field(description="Overall success status")
-    validation_results: list[KeyValidationResult] = Field(
-        description="Validation results"
-    )
+    validation_results: list[KeyValidationResult] = Field(description="Validation results")
     updated_providers: list[str] = Field(description="Updated providers")
     updated_features: bool = Field(description="Whether features were updated")
 

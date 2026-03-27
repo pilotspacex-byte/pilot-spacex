@@ -244,7 +244,8 @@ class TestRequestMagicLinkEndpoint:
                 WorkspaceInvitationService,
                 "request_magic_link",
                 new=AsyncMock(side_effect=_RateLimitError("Too many requests")),
-            ),pytest.raises(AppError) as exc_info
+            ),
+            pytest.raises(AppError) as exc_info,
         ):
             await request_magic_link(
                 invitation_id=invitation_id,

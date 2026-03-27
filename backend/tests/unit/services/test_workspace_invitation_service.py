@@ -66,7 +66,9 @@ def _make_workspace(workspace_id: uuid.UUID, slug: str = "test-workspace") -> Ma
     return ws
 
 
-def _make_user(user_id: uuid.UUID, full_name: str | None = "Alice", email: str = "invited@example.com") -> MagicMock:
+def _make_user(
+    user_id: uuid.UUID, full_name: str | None = "Alice", email: str = "invited@example.com"
+) -> MagicMock:
     u = MagicMock()
     u.id = user_id
     u.full_name = full_name

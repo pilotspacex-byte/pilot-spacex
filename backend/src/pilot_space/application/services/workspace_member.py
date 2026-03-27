@@ -343,9 +343,13 @@ class WorkspaceMemberService:
         )
 
         wm_repo = WorkspaceMemberRepository(session=session)
-        caller = await wm_repo.get_by_user_workspace(payload.requesting_user_id, payload.workspace_id)
+        caller = await wm_repo.get_by_user_workspace(
+            payload.requesting_user_id, payload.workspace_id
+        )
         if not caller or caller.role.value not in ("ADMIN", "OWNER"):
-            raise WorkspaceMemberForbiddenError("Only workspace admins or owners can modify assignments")
+            raise WorkspaceMemberForbiddenError(
+                "Only workspace admins or owners can modify assignments"
+            )
 
         target = await wm_repo.get_by_user_workspace(payload.target_user_id, payload.workspace_id)
         if not target:
@@ -364,7 +368,9 @@ class WorkspaceMemberService:
             found_ids = {row.id for row in rows.all()}
             invalid = [str(pid) for pid in submitted_ids if pid not in found_ids]
             if invalid:
-                raise WorkspaceMemberValidationError(f"Project(s) not found in workspace: {', '.join(invalid)}")
+                raise WorkspaceMemberValidationError(
+                    f"Project(s) not found in workspace: {', '.join(invalid)}"
+                )
 
         pm_repo = ProjectMemberRepository(session=session)
         pm_svc = ProjectMemberService(project_member_repository=pm_repo)
@@ -389,11 +395,15 @@ class WorkspaceMemberService:
             try:
                 new_role = WsRole(payload.workspace_role)
             except ValueError as e:
-                raise WorkspaceMemberValidationError(f"Invalid role: {payload.workspace_role}") from e
+                raise WorkspaceMemberValidationError(
+                    f"Invalid role: {payload.workspace_role}"
+                ) from e
 
             # Guard: only OWNER can promote to OWNER
             if new_role == WsRole.OWNER and caller.role != WsRole.OWNER:
-                raise WorkspaceMemberForbiddenError("Only the workspace owner can transfer ownership")
+                raise WorkspaceMemberForbiddenError(
+                    "Only the workspace owner can transfer ownership"
+                )
 
             # Guard: prevent demoting the last admin
             new_role_is_non_admin = new_role not in (WsRole.OWNER, WsRole.ADMIN)
@@ -413,7 +423,9 @@ class WorkspaceMemberService:
                 )
                 admin_count = result.scalar_one()
                 if admin_count <= 1:
-                    raise WorkspaceMemberConflictError("Cannot demote the only admin from workspace")
+                    raise WorkspaceMemberConflictError(
+                        "Cannot demote the only admin from workspace"
+                    )
 
             target.role = new_role
             await session.flush()
@@ -489,7 +501,9 @@ class WorkspaceMemberService:
         # Ownership transfer guard (FR-017, T020a)
         if new_role_enum == WorkspaceRole.OWNER:
             if not actor_member.is_owner:
-                raise WorkspaceMemberForbiddenError("Only the workspace owner can transfer ownership")
+                raise WorkspaceMemberForbiddenError(
+                    "Only the workspace owner can transfer ownership"
+                )
 
             await self.workspace_repo.update_member_role(
                 payload.workspace_id,
@@ -595,7 +609,9 @@ class WorkspaceMemberService:
             and target_member is not None
             and target_member.is_admin
         ):
-            raise WorkspaceMemberForbiddenError("Admins cannot remove members with equal or higher role")
+            raise WorkspaceMemberForbiddenError(
+                "Admins cannot remove members with equal or higher role"
+            )
 
         # Prevent removing the last admin/owner regardless of who initiates the removal
         if target_member and target_member.is_admin:
@@ -670,7 +686,9 @@ class WorkspaceMemberService:
         is_admin = actor_member is not None and actor_member.is_admin
 
         if not (is_self or is_admin):
-            raise WorkspaceMemberForbiddenError("Only admins or the member themselves can update availability")
+            raise WorkspaceMemberForbiddenError(
+                "Only admins or the member themselves can update availability"
+            )
 
         result = await session.execute(
             select(WMModel)

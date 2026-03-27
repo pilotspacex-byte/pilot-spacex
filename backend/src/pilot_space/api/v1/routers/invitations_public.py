@@ -49,6 +49,7 @@ class InvitationNotActionableError(AppError):
     error_code = "invitation_not_actionable"
     http_status = 410
 
+
 # Statuses that make an invitation no longer actionable
 _TERMINAL_STATUSES = {
     InvitationStatus.ACCEPTED,
@@ -105,11 +106,7 @@ async def preview_invitation(
     )
 
     if invitation.status in _TERMINAL_STATUSES or is_time_expired:
-        effective_status = (
-            InvitationStatus.EXPIRED
-            if is_time_expired
-            else invitation.status
-        )
+        effective_status = InvitationStatus.EXPIRED if is_time_expired else invitation.status
         raise InvitationNotActionableError(
             f"Invitation is {effective_status.value} and can no longer be used",
             details={"invitation_status": effective_status.value},

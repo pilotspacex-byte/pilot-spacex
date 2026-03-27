@@ -186,9 +186,7 @@ async def update_last_active_project(
         )
         project = proj_result.scalar_one_or_none()
         if not project:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Project not found."
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
         if project.is_archived:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

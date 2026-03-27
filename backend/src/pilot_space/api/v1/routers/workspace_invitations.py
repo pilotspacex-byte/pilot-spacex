@@ -92,9 +92,7 @@ async def add_workspace_member(
 
     # Validate all project_ids belong to this workspace and are not archived (if provided)
     if assignments:
-        project_ids = [
-            UUID(str(a["project_id"])) for a in assignments if "project_id" in a
-        ]
+        project_ids = [UUID(str(a["project_id"])) for a in assignments if "project_id" in a]
         rows = await session.execute(
             select(Project.id, Project.is_archived).where(
                 and_(
@@ -110,7 +108,9 @@ async def add_workspace_member(
             raise ValidationError(f"Projects not found in workspace: {[str(p) for p in missing]}")
         archived = [pid for pid, is_arch in found.items() if is_arch]
         if archived:
-            raise ValidationError(f"Cannot assign to archived projects: {[str(p) for p in archived]}")
+            raise ValidationError(
+                f"Cannot assign to archived projects: {[str(p) for p in archived]}"
+            )
 
     result = await workspace_service.invite_member(
         workspace_id=workspace_id,

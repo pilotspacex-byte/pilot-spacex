@@ -182,9 +182,7 @@ async def chat(
     # Check for [ANSWER:{questionId}] prefix — stateless two-turn model
     # The answer arrives as a new chat turn. We format a contextual message
     # with the Q&A pairs and fall through to normal agent stream processing.
-    answer_match = re.match(
-        r"^\[ANSWER:([a-fA-F0-9-]+)\]\s*(.*)", chat_request.message, re.DOTALL
-    )
+    answer_match = re.match(r"^\[ANSWER:([a-fA-F0-9-]+)\]\s*(.*)", chat_request.message, re.DOTALL)
     if answer_match:
         question_id_str = answer_match.group(1)
         answer_text = answer_match.group(2).strip()
@@ -246,9 +244,7 @@ async def chat(
                                     cost_usd=old.cost_usd,
                                     question_data={
                                         "questionId": str(question_id),
-                                        "questions": [
-                                            q.model_dump() for q in resolved.questions
-                                        ],
+                                        "questions": [q.model_dump() for q in resolved.questions],
                                         "answers": answers_dict,
                                     },
                                 )
@@ -336,18 +332,14 @@ async def chat(
                         ProjectMemberRepository,
                     )
 
-                    svc = ProjectMemberService(
-                        ProjectMemberRepository(fresh_db)
-                    )
+                    svc = ProjectMemberService(ProjectMemberRepository(fresh_db))
                     await svc.update_last_active_project(
                         user_id=user_id,
                         workspace_id=ctx_workspace_id,
                         project_id=active_project_id,
                     )
             except Exception:
-                logger.debug(
-                    "update_last_active_project task failed (non-fatal)", exc_info=True
-                )
+                logger.debug("update_last_active_project task failed (non-fatal)", exc_info=True)
 
         _task = asyncio.create_task(_update_last_active())
         del _task  # RUF006: store reference to avoid GC before completion
@@ -459,9 +451,7 @@ async def chat(
 
     # Resolve user-selected model override (AIPR-04)
     resolved_model = (
-        await resolve_model_override(
-            chat_request.model_override, ctx_workspace_id, session
-        )
+        await resolve_model_override(chat_request.model_override, ctx_workspace_id, session)
         if chat_request.model_override and ctx_workspace_id is not None
         else None
     )
@@ -470,9 +460,7 @@ async def chat(
         "context": ai_context,
         "session_id": str(conv_session.session_id) if conv_session else None,
         "resume_session_id": (
-            str(conv_session.session_id)
-            if is_existing_session and conv_session
-            else None
+            str(conv_session.session_id) if is_existing_session and conv_session else None
         ),
         "user_id": str(user_id),
         "workspace_id": str(ctx_workspace_id) if ctx_workspace_id else None,
@@ -689,15 +677,11 @@ async def _execute_agent_stream(
 
     chat_input = ChatInput(
         message=input_data["message"],
-        session_id=(
-            UUID(input_data["session_id"]) if input_data.get("session_id") else None
-        ),
+        session_id=(UUID(input_data["session_id"]) if input_data.get("session_id") else None),
         resume_session_id=input_data.get("resume_session_id"),
         context=input_data.get("context", {}),
         user_id=UUID(input_data["user_id"]) if input_data.get("user_id") else None,
-        workspace_id=(
-            UUID(input_data["workspace_id"]) if input_data.get("workspace_id") else None
-        ),
+        workspace_id=(UUID(input_data["workspace_id"]) if input_data.get("workspace_id") else None),
         resolved_model=input_data.get("resolved_model"),
         attachment_content_blocks=input_data.get("attachment_content_blocks") or None,
         attachment_metadata=input_data.get("attachment_metadata") or None,
@@ -705,9 +689,7 @@ async def _execute_agent_stream(
 
     ws_id = input_data.get("workspace_id")
     agent_context = AgentContext(
-        workspace_id=(
-            UUID(ws_id) if ws_id else UUID("00000000-0000-0000-0000-000000000000")
-        ),
+        workspace_id=(UUID(ws_id) if ws_id else UUID("00000000-0000-0000-0000-000000000000")),
         user_id=UUID(input_data["user_id"]),
         metadata={
             "active_project_id": input_data.get("active_project_id"),

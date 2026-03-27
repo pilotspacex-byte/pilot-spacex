@@ -101,11 +101,12 @@ async def members_client(mock_member_service: AsyncMock) -> AsyncGenerator[Any, 
         yield mock_session
 
     # Patch PM repo used for project_chips and project_id filtering
-    with patch(
-        "pilot_space.api.v1.routers.workspace_members.ProjectMemberRepository"
-    ) as MockPMRepo, patch(
-        "pilot_space.api.v1.routers.workspace_members.set_rls_context",
-        new_callable=AsyncMock,
+    with (
+        patch("pilot_space.api.v1.routers.workspace_members.ProjectMemberRepository") as MockPMRepo,
+        patch(
+            "pilot_space.api.v1.routers.workspace_members.set_rls_context",
+            new_callable=AsyncMock,
+        ),
     ):
         pm_repo_instance = AsyncMock()
         pm_repo_result = MagicMock()
@@ -119,9 +120,7 @@ async def members_client(mock_member_service: AsyncMock) -> AsyncGenerator[Any, 
 
         app.dependency_overrides[get_session] = mock_session_gen
         app.dependency_overrides[get_current_user] = lambda: mock_token
-        app.dependency_overrides[_get_workspace_member_service] = (
-            lambda: mock_member_service
-        )
+        app.dependency_overrides[_get_workspace_member_service] = lambda: mock_member_service
 
         transport = ASGITransport(app=app)
         async with AsyncClient(
@@ -159,8 +158,8 @@ async def invitations_client(mock_invitation_service: AsyncMock) -> AsyncGenerat
     ):
         app.dependency_overrides[get_session] = mock_session_gen
         app.dependency_overrides[get_current_user] = lambda: mock_token
-        app.dependency_overrides[_get_workspace_invitation_service] = (
-            lambda: mock_invitation_service
+        app.dependency_overrides[_get_workspace_invitation_service] = lambda: (
+            mock_invitation_service
         )
 
         transport = ASGITransport(app=app)
@@ -193,9 +192,7 @@ class TestListWorkspaceMembersPagination:
         result.members = members
         mock_member_service.list_members = AsyncMock(return_value=result)
 
-        response = await members_client.get(
-            f"/api/v1/workspaces/{_WS_ID}/members"
-        )
+        response = await members_client.get(f"/api/v1/workspaces/{_WS_ID}/members")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -214,9 +211,7 @@ class TestListWorkspaceMembersPagination:
         result.members = members
         mock_member_service.list_members = AsyncMock(return_value=result)
 
-        response = await members_client.get(
-            f"/api/v1/workspaces/{_WS_ID}/members"
-        )
+        response = await members_client.get(f"/api/v1/workspaces/{_WS_ID}/members")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -292,9 +287,7 @@ class TestListWorkspaceMembersPagination:
         result.members = []
         mock_member_service.list_members = AsyncMock(return_value=result)
 
-        response = await members_client.get(
-            f"/api/v1/workspaces/{_WS_ID}/members"
-        )
+        response = await members_client.get(f"/api/v1/workspaces/{_WS_ID}/members")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -316,9 +309,7 @@ class TestListWorkspaceMembersPagination:
         result.members = members
         mock_member_service.list_members = AsyncMock(return_value=result)
 
-        response = await members_client.get(
-            f"/api/v1/workspaces/{_WS_ID}/members?search=alice"
-        )
+        response = await members_client.get(f"/api/v1/workspaces/{_WS_ID}/members?search=alice")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -341,9 +332,7 @@ class TestListWorkspaceMembersPagination:
         result.members = members
         mock_member_service.list_members = AsyncMock(return_value=result)
 
-        response = await members_client.get(
-            f"/api/v1/workspaces/{_WS_ID}/members?search=bob"
-        )
+        response = await members_client.get(f"/api/v1/workspaces/{_WS_ID}/members?search=bob")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -361,9 +350,7 @@ class TestListWorkspaceMembersPagination:
         result.members = members
         mock_member_service.list_members = AsyncMock(return_value=result)
 
-        response = await members_client.get(
-            f"/api/v1/workspaces/{_WS_ID}/members?search=alice"
-        )
+        response = await members_client.get(f"/api/v1/workspaces/{_WS_ID}/members?search=alice")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -398,9 +385,7 @@ class TestListWorkspaceMembersPagination:
         result.members = members
         mock_member_service.list_members = AsyncMock(return_value=result)
 
-        response = await members_client.get(
-            f"/api/v1/workspaces/{_WS_ID}/members?page_size=5"
-        )
+        response = await members_client.get(f"/api/v1/workspaces/{_WS_ID}/members?page_size=5")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -424,9 +409,7 @@ class TestListWorkspaceInvitationsPagination:
         result.invitations = invitations
         mock_invitation_service.list_invitations = AsyncMock(return_value=result)
 
-        response = await invitations_client.get(
-            f"/api/v1/workspaces/{_WS_ID}/invitations"
-        )
+        response = await invitations_client.get(f"/api/v1/workspaces/{_WS_ID}/invitations")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -445,9 +428,7 @@ class TestListWorkspaceInvitationsPagination:
         result.invitations = invitations
         mock_invitation_service.list_invitations = AsyncMock(return_value=result)
 
-        response = await invitations_client.get(
-            f"/api/v1/workspaces/{_WS_ID}/invitations"
-        )
+        response = await invitations_client.get(f"/api/v1/workspaces/{_WS_ID}/invitations")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -522,9 +503,7 @@ class TestListWorkspaceInvitationsPagination:
         result.invitations = []
         mock_invitation_service.list_invitations = AsyncMock(return_value=result)
 
-        response = await invitations_client.get(
-            f"/api/v1/workspaces/{_WS_ID}/invitations"
-        )
+        response = await invitations_client.get(f"/api/v1/workspaces/{_WS_ID}/invitations")
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -559,9 +538,7 @@ class TestListWorkspaceInvitationsPagination:
         result.invitations = [inv]
         mock_invitation_service.list_invitations = AsyncMock(return_value=result)
 
-        response = await invitations_client.get(
-            f"/api/v1/workspaces/{_WS_ID}/invitations"
-        )
+        response = await invitations_client.get(f"/api/v1/workspaces/{_WS_ID}/invitations")
 
         assert response.status_code == status.HTTP_200_OK
         item = response.json()["items"][0]

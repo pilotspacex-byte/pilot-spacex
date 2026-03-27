@@ -34,9 +34,7 @@ _jwt_provider: JWTProvider | None = None
 
 # Request-scoped session context (for dependency-injector integration)
 # Pattern from FastAPI docs: https://fastapi.tiangolo.com/ko/release-notes
-_request_session_ctx: ContextVar[AsyncSession | None] = ContextVar(
-    "request_session", default=None
-)
+_request_session_ctx: ContextVar[AsyncSession | None] = ContextVar("request_session", default=None)
 
 
 def get_auth() -> SupabaseAuth:

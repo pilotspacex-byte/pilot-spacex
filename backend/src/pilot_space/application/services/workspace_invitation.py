@@ -338,9 +338,7 @@ class WorkspaceInvitationService:
 
         if invitation.is_expired or invitation.status != InvitationStatus.PENDING:
             effective = "expired" if invitation.is_expired else invitation.status.value
-            raise ConflictError(
-                f"Invitation is {effective} and cannot receive a magic link"
-            )
+            raise ConflictError(f"Invitation is {effective} and cannot receive a magic link")
 
         # Rate limiting — fail-open (rate_limiter None means no limit configured)
         if self.rate_limiter is not None:

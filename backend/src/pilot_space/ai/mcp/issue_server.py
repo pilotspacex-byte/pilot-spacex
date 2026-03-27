@@ -166,9 +166,7 @@ def create_issue_tools_server(
 
         # Resolve entity ID (UUID or identifier like PILOT-123)
         try:
-            issue_uuid = await resolve_entity_id_strict(
-                "issue", args["issue_id"], tool_context
-            )
+            issue_uuid = await resolve_entity_id_strict("issue", args["issue_id"], tool_context)
         except EntityResolutionError as e:
             return _text_result(f"Error: {e}")
 
@@ -318,9 +316,7 @@ def create_issue_tools_server(
         filters = IssueFilters()
 
         # Resolve project_id: explicit arg → active_project_id context fallback
-        raw_project_id = args.get("project_id") or tool_context.extra.get(
-            "active_project_id"
-        )
+        raw_project_id = args.get("project_id") or tool_context.extra.get("active_project_id")
         if raw_project_id:
             try:
                 filters.project_id = await resolve_entity_id_strict(
@@ -434,9 +430,7 @@ def create_issue_tools_server(
         },
     )
     async def create_issue(args: dict[str, Any]) -> dict[str, Any]:
-        logger.info(
-            "mcp_tool_invoked", tool="create_issue", title=args.get("title", "")[:80]
-        )
+        logger.info("mcp_tool_invoked", tool="create_issue", title=args.get("title", "")[:80])
         if not tool_context:
             return _text_result("Error: Tool context not available")
 
@@ -534,9 +528,7 @@ def create_issue_tools_server(
         except (ValueError, AttributeError):
             label_ids = []
 
-        reporter_id = (
-            UUID(tool_context.user_id) if tool_context.user_id else UUID(int=0)
-        )
+        reporter_id = UUID(tool_context.user_id) if tool_context.user_id else UUID(int=0)
 
         svc_payload = CreateIssuePayload(
             workspace_id=UUID(tool_context.workspace_id),
@@ -544,9 +536,7 @@ def create_issue_tools_server(
             reporter_id=reporter_id,
             name=args["title"],
             description=args.get("description"),
-            priority=priority_map.get(
-                args.get("priority", "medium"), IssuePriority.MEDIUM
-            ),
+            priority=priority_map.get(args.get("priority", "medium"), IssuePriority.MEDIUM),
             state_id=_safe_uuid(args.get("state_id")),
             assignee_id=_safe_uuid(args.get("assignee_id")),
             parent_id=_safe_uuid(args.get("parent_id")),
@@ -585,9 +575,7 @@ def create_issue_tools_server(
             issue_data["id"],
         )
         return _text_result(
-            json.dumps(
-                {"status": "executed", "operation": "create_issue", "issue": issue_data}
-            )
+            json.dumps({"status": "executed", "operation": "create_issue", "issue": issue_data})
         )
 
     @tool(
@@ -644,17 +632,13 @@ def create_issue_tools_server(
         },
     )
     async def update_issue(args: dict[str, Any]) -> dict[str, Any]:
-        logger.info(
-            "mcp_tool_invoked", tool="update_issue", issue_id=args.get("issue_id", "")
-        )
+        logger.info("mcp_tool_invoked", tool="update_issue", issue_id=args.get("issue_id", ""))
         if not tool_context:
             return _text_result("Error: Tool context not available")
 
         # Resolve issue_id
         try:
-            issue_uuid = await resolve_entity_id_strict(
-                "issue", args["issue_id"], tool_context
-            )
+            issue_uuid = await resolve_entity_id_strict("issue", args["issue_id"], tool_context)
         except EntityResolutionError as e:
             return _text_result(f"Error: {e}")
 
@@ -719,9 +703,7 @@ def create_issue_tools_server(
             issue.name = args["title"]
         if "description" in args:
             issue.description = args["description"]
-            issue.description_html = (
-                None  # Clear stale HTML so frontend falls back to markdown
-            )
+            issue.description_html = None  # Clear stale HTML so frontend falls back to markdown
         if "priority" in args:
             priority_map = {
                 "urgent": IssuePriority.URGENT,
@@ -735,9 +717,7 @@ def create_issue_tools_server(
                 issue.priority = new_priority
         if "assignee_id" in args:
             with contextlib.suppress(ValueError, TypeError):
-                issue.assignee_id = (
-                    UUID(args["assignee_id"]) if args["assignee_id"] else None
-                )
+                issue.assignee_id = UUID(args["assignee_id"]) if args["assignee_id"] else None
         if "estimate_points" in args:
             issue.estimate_points = args["estimate_points"]
         if "start_date" in args:
@@ -756,9 +736,7 @@ def create_issue_tools_server(
             )
 
             result = await tool_context.db_session.execute(
-                select(issue_labels.c.label_id).where(
-                    issue_labels.c.issue_id == issue_uuid
-                )
+                select(issue_labels.c.label_id).where(issue_labels.c.issue_id == issue_uuid)
             )
             current_label_ids = {row[0] for row in result.fetchall()}
 
@@ -777,10 +755,7 @@ def create_issue_tools_server(
             if current_label_ids:
                 await tool_context.db_session.execute(
                     insert(issue_labels),
-                    [
-                        {"issue_id": issue_uuid, "label_id": lid}
-                        for lid in current_label_ids
-                    ],
+                    [{"issue_id": issue_uuid, "label_id": lid} for lid in current_label_ids],
                 )
 
         await tool_context.db_session.flush()

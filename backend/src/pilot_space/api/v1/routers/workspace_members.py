@@ -71,9 +71,7 @@ async def list_workspace_members(
     session: SessionDep,
     current_user_id: CurrentUserId,
     service: WorkspaceMemberServiceDep,
-    project_id: UUID | None = Query(
-        default=None, description="Filter to members of this project"
-    ),
+    project_id: UUID | None = Query(default=None, description="Filter to members of this project"),
     search: str | None = Query(
         default=None, description="Case-insensitive filter on full_name and email"
     ),
@@ -365,12 +363,8 @@ async def get_workspace_member_activity(
     current_user_id: CurrentUserId,
     service: MemberProfileServiceDep,
     page: int = Query(default=1, ge=1, description="Page number (1-indexed)"),
-    page_size: int = Query(
-        default=20, ge=1, le=50, description="Items per page (max 50)"
-    ),
-    type_filter: ActivityType | None = Query(
-        default=None, description="Filter by activity type"
-    ),
+    page_size: int = Query(default=20, ge=1, le=50, description="Items per page (max 50)"),
+    type_filter: ActivityType | None = Query(default=None, description="Filter by activity type"),
 ) -> MemberActivityResponse:
     """Get paginated activity feed for a workspace member.
 
@@ -481,10 +475,7 @@ async def bulk_update_member_assignments(
         user_id=uid,
         workspace_role=result.workspace_role,
         project_assignments_updated=result.project_assignments_updated,
-        warnings=[
-            BulkAssignmentWarning(code=w.code, message=w.message)
-            for w in result.warnings
-        ],
+        warnings=[BulkAssignmentWarning(code=w.code, message=w.message) for w in result.warnings],
     )
 
 

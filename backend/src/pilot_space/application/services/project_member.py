@@ -155,9 +155,7 @@ class ProjectMemberService:
 
     def _require_admin(self, role: str, action: str = "manage project members") -> None:
         if role not in ("ADMIN", "OWNER"):
-            raise UnauthorizedError(
-                f"You must be a workspace Admin or Owner to {action}."
-            )
+            raise UnauthorizedError(f"You must be a workspace Admin or Owner to {action}.")
 
     async def add_member(self, payload: AddMemberPayload) -> ProjectMember:
         """Add a user to a project.
@@ -168,9 +166,7 @@ class ProjectMemberService:
         """
         self._require_admin(payload.requesting_user_role)
 
-        existing = await self._repo.get_active_membership(
-            payload.project_id, payload.user_id
-        )
+        existing = await self._repo.get_active_membership(payload.project_id, payload.user_id)
         if existing:
             raise AlreadyProjectMemberError(
                 f"User {payload.user_id} is already an active member of project {payload.project_id}."
@@ -192,9 +188,7 @@ class ProjectMemberService:
         """
         self._require_admin(payload.requesting_user_role)
 
-        removed = await self._repo.deactivate_membership(
-            payload.project_id, payload.user_id
-        )
+        removed = await self._repo.deactivate_membership(payload.project_id, payload.user_id)
         return removed is not None
 
     async def list_members(self, payload: ListMembersPayload) -> ListMembersResult:
@@ -213,9 +207,7 @@ class ProjectMemberService:
             has_next=page.has_next,
         )
 
-    async def bulk_update_assignments(
-        self, payload: BulkUpdatePayload
-    ) -> BulkUpdateResult:
+    async def bulk_update_assignments(self, payload: BulkUpdatePayload) -> BulkUpdateResult:
         """Bulk-add or bulk-remove project assignments for a workspace member.
 
         Also optionally updates workspace role (handled by caller updating the
@@ -257,9 +249,7 @@ class ProjectMemberService:
                 )
                 updated += 1
             elif action == "remove":
-                removed = await self._repo.deactivate_membership(
-                    project_id, payload.target_user_id
-                )
+                removed = await self._repo.deactivate_membership(project_id, payload.target_user_id)
                 if removed:
                     updated += 1
 
@@ -270,9 +260,7 @@ class ProjectMemberService:
             warnings=warnings,
         )
 
-    async def materialize_invite_assignments(
-        self, payload: InviteAssignmentsPayload
-    ) -> int:
+    async def materialize_invite_assignments(self, payload: InviteAssignmentsPayload) -> int:
         """Create project_members rows from a workspace invitation's project_assignments.
 
         Called during invite acceptance (ensure_user_synced). Null-safe:
@@ -303,8 +291,7 @@ class ProjectMemberService:
                 created += 1
             except Exception:
                 logger.exception(
-                    "Failed to materialize project assignment for user %s, "
-                    "project %s",
+                    "Failed to materialize project assignment for user %s, project %s",
                     payload.user_id,
                     entry.get("project_id"),
                 )
