@@ -89,7 +89,12 @@ def mock_client_pool() -> MagicMock:
 def mock_key_storage() -> AsyncMock:
     storage = AsyncMock()
     storage.get_api_key.return_value = TEST_API_KEY
-    storage.get_key_info.return_value = None
+    mock_key_info = MagicMock()
+    mock_key_info.base_url = None
+    mock_key_info.model_name = None
+    storage.get_key_info.return_value = mock_key_info
+    storage.get_all_key_infos.return_value = []
+    storage.db = None  # skip DB settings lookup in _resolve_workspace_provider
     return storage
 
 
@@ -212,6 +217,9 @@ async def test_proxy_enabled_no_byok_key_uses_env_key_and_proxy(
     # key_storage returns no workspace key
     key_storage = AsyncMock()
     key_storage.get_api_key.return_value = None
+    key_storage.get_key_info.return_value = None
+    key_storage.get_all_key_infos.return_value = []
+    key_storage.db = None
 
     service = GhostTextService(
         redis=mock_redis,
