@@ -47,7 +47,7 @@ class TestCompleteSignup:
     """Tests for POST /auth/complete-signup."""
 
     @pytest.mark.asyncio
-    async def test_complete_signup_success(self, client: "AsyncClient") -> None:
+    async def test_complete_signup_success(self, client: AsyncClient) -> None:
         """Returns 200 with workspace_slug on valid authenticated request."""
         from pilot_space.infrastructure.database.models.workspace_invitation import (
             InvitationStatus,
@@ -98,7 +98,7 @@ class TestCompleteSignup:
             assert "workspace_slug" in data
 
     @pytest.mark.asyncio
-    async def test_complete_signup_invitation_not_found(self, client: "AsyncClient") -> None:
+    async def test_complete_signup_invitation_not_found(self, client: AsyncClient) -> None:
         """Returns 404 when invitation does not exist."""
         from pilot_space.domain.exceptions import NotFoundError
 
@@ -134,7 +134,7 @@ class TestCompleteSignup:
         assert response.status_code in (401, 404)
 
     @pytest.mark.asyncio
-    async def test_complete_signup_already_accepted(self, client: "AsyncClient") -> None:
+    async def test_complete_signup_already_accepted(self, client: AsyncClient) -> None:
         """Returns 409 when invitation was already accepted."""
         from pilot_space.domain.exceptions import ConflictError
 
@@ -170,7 +170,7 @@ class TestCompleteSignup:
         assert response.status_code in (401, 409)
 
     @pytest.mark.asyncio
-    async def test_complete_signup_full_name_too_short(self, client: "AsyncClient") -> None:
+    async def test_complete_signup_full_name_too_short(self, client: AsyncClient) -> None:
         """Returns 422 when full_name is less than 2 characters (pydantic validation)."""
         invitation_id = str(uuid.uuid4())
 
@@ -184,7 +184,7 @@ class TestCompleteSignup:
         assert response.status_code in (401, 422)
 
     @pytest.mark.asyncio
-    async def test_complete_signup_password_too_short(self, client: "AsyncClient") -> None:
+    async def test_complete_signup_password_too_short(self, client: AsyncClient) -> None:
         """Returns 422 when password is less than 8 characters (pydantic validation)."""
         invitation_id = str(uuid.uuid4())
 
@@ -197,7 +197,7 @@ class TestCompleteSignup:
         assert response.status_code in (401, 422)
 
     @pytest.mark.asyncio
-    async def test_complete_signup_requires_auth(self, client: "AsyncClient") -> None:
+    async def test_complete_signup_requires_auth(self, client: AsyncClient) -> None:
         """Returns 401 when no Authorization header is provided."""
         invitation_id = str(uuid.uuid4())
 

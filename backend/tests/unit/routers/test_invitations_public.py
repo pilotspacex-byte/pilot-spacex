@@ -63,8 +63,7 @@ def _make_invitation(
 
 def _make_session() -> MagicMock:
     """Return a minimal async session mock."""
-    session = MagicMock()
-    return session
+    return MagicMock()
 
 
 # ---------------------------------------------------------------------------
@@ -245,15 +244,14 @@ class TestRequestMagicLinkEndpoint:
                 WorkspaceInvitationService,
                 "request_magic_link",
                 new=AsyncMock(side_effect=_RateLimitError("Too many requests")),
-            ),
+            ),pytest.raises(AppError) as exc_info
         ):
-            with pytest.raises(AppError) as exc_info:
-                await request_magic_link(
-                    invitation_id=invitation_id,
-                    request=request,
-                    session=session,
-                    rate_limiter=rate_limiter,
-                )
+            await request_magic_link(
+                invitation_id=invitation_id,
+                request=request,
+                session=session,
+                rate_limiter=rate_limiter,
+            )
 
         assert exc_info.value.http_status == 429
 

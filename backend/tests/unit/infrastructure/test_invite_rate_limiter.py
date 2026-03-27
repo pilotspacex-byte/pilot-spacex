@@ -12,7 +12,6 @@ import pytest
 
 from pilot_space.infrastructure.cache.invite_rate_limiter import InviteRateLimiter
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

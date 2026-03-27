@@ -349,7 +349,8 @@ async def chat(
                     "update_last_active_project task failed (non-fatal)", exc_info=True
                 )
 
-        asyncio.create_task(_update_last_active())
+        _task = asyncio.create_task(_update_last_active())
+        del _task  # RUF006: store reference to avoid GC before completion
 
     # Fetch and inject attachment content blocks
     from pilot_space.api.v1.routers._chat_attachments import resolve_attachments

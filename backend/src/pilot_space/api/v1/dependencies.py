@@ -1159,21 +1159,21 @@ ProjectMemberServiceDep = Annotated[
 # ===== require_project_membership dependency (US6 — T037) =====
 
 
-from uuid import UUID as _UUID
+from uuid import UUID as _UUID  # noqa: E402
 
-from fastapi import (
+from fastapi import (  # noqa: E402
     HTTPException as _HTTPException,
     status as _status,
 )
 
-from pilot_space.dependencies.auth import (
+from pilot_space.dependencies.auth import (  # noqa: E402
     CurrentUserId as _CurrentUserId,
     SessionDep as _SessionDep,
 )
-from pilot_space.infrastructure.database.models.workspace_member import (
+from pilot_space.infrastructure.database.models.workspace_member import (  # noqa: E402
     WorkspaceRole as _WorkspaceRole,
 )
-from pilot_space.infrastructure.database.repositories.workspace_member_repository import (
+from pilot_space.infrastructure.database.repositories.workspace_member_repository import (  # noqa: E402
     WorkspaceMemberRepository,
 )
 
@@ -1203,7 +1203,7 @@ async def require_project_membership(
         return
 
     # Check explicit project membership
-    repo = project_member_svc._repo  # type: ignore[attr-defined]
+    repo = project_member_svc._repo  # type: ignore[attr-defined]  # noqa: SLF001
     membership = await repo.get_active_membership(project_id, current_user_id)
     if not membership:
         raise _HTTPException(

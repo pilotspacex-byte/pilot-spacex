@@ -9,8 +9,8 @@ S010: Tests the accept-invitation endpoint covering:
 from __future__ import annotations
 
 import uuid
-from typing import TYPE_CHECKING, Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import TYPE_CHECKING
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -40,7 +40,7 @@ class TestAcceptWorkspaceInvitation:
     """Tests for POST /auth/workspace-invitations/{id}/accept."""
 
     @pytest.mark.asyncio
-    async def test_invalid_uuid_returns_404(self, client: "AsyncClient") -> None:
+    async def test_invalid_uuid_returns_404(self, client: AsyncClient) -> None:
         """Non-UUID invitation_id returns 404."""
         response = await client.post(
             "/api/v1/auth/workspace-invitations/not-a-uuid/accept",
@@ -49,7 +49,7 @@ class TestAcceptWorkspaceInvitation:
         assert response.status_code in (401, 404, 422)
 
     @pytest.mark.asyncio
-    async def test_missing_auth_returns_401(self, client: "AsyncClient") -> None:
+    async def test_missing_auth_returns_401(self, client: AsyncClient) -> None:
         """Request without Authorization header returns 401."""
         invitation_id = str(uuid.uuid4())
         response = await client.post(
@@ -58,7 +58,7 @@ class TestAcceptWorkspaceInvitation:
         assert response.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_not_found_invitation_returns_404(self, client: "AsyncClient") -> None:
+    async def test_not_found_invitation_returns_404(self, client: AsyncClient) -> None:
         """Returns 404 when service raises NotFoundError."""
         from pilot_space.domain.exceptions import NotFoundError
 
@@ -77,7 +77,7 @@ class TestAcceptWorkspaceInvitation:
         assert response.status_code in (401, 404)
 
     @pytest.mark.asyncio
-    async def test_already_accepted_returns_409(self, client: "AsyncClient") -> None:
+    async def test_already_accepted_returns_409(self, client: AsyncClient) -> None:
         """Returns 409 when service raises ConflictError."""
         from pilot_space.domain.exceptions import ConflictError
 

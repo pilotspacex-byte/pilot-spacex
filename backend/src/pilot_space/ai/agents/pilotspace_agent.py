@@ -883,6 +883,9 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         input_data: ChatInput,
         context: AgentContext,
     ) -> AsyncIterator[str]:
+        if not (self._space_manager and context.workspace_id and context.user_id):
+            msg = "SpaceManager, workspace_id, and user_id are required."
+            raise ValueError(msg)
         try:
             self._resolved_model = input_data.resolved_model  # AIPR-04
             provider_config = await self._get_provider_config(context.workspace_id)
@@ -895,11 +898,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             if input_data.resume_session_id and session_id_str:
                 resume_id = session_id_str
                 logger.info("Resuming SDK session: %s", resume_id)
-
-            if not (self._space_manager and context.workspace_id and context.user_id):
-                raise ValueError(
-                    "SpaceManager, workspace_id, and user_id are required."
-                )
             async for chunk in self._stream_with_space(
                 input_data=input_data,
                 context=context,
