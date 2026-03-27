@@ -1,8 +1,10 @@
-"""Anthropic-compatible LLM proxy — standalone FastAPI sub-application.
+"""Anthropic-compatible LLM proxy — standalone FastAPI sub-application (INTERNAL ONLY).
 
 Mounted on the main app at ``/api/v1/ai/proxy`` via ``app.mount()``.
 This is a separate ASGI application (FastAPI sub-application pattern)
-so it can run independently with its own exception handlers and CORS.
+with its own exception handlers. **Not for public/external access** —
+accepts only internal calls from LLMGateway, GhostTextService, Agent SDK,
+and subagents running on the same host.
 
 Flow:
     Claude Agent SDK -> ANTHROPIC_BASE_URL=http://localhost:8000/api/v1/ai/proxy
@@ -79,15 +81,31 @@ def _register_proxy_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(Exception, generic_exception_handler)
 
 
-def _configure_proxy_cors(app: FastAPI) -> None:
-    """Configure CORS for the proxy sub-app.
+async def _internal_only_middleware(request: Request, call_next: Any) -> Any:
+    """Reject requests not originating from localhost.
 
-    Uses a permissive policy since the proxy accepts calls from
-    Claude Agent SDK and other Anthropic-compatible clients.
+    The proxy is an internal service — only LLMGateway, GhostTextService,
+    Agent SDK, and subagents running on the same host should call it.
     """
-    from pilot_space.api.middleware.cors import configure_cors
-
-    configure_cors(app)
+    client_host = request.client.host if request.client else None
+    allowed_hosts = {"127.0.0.1", "::1", "localhost"}
+    if client_host not in allowed_hosts:
+        logger.warning(
+            "ai_proxy_external_request_rejected",
+            client_host=client_host,
+            path=str(request.url.path),
+        )
+        return JSONResponse(
+            status_code=403,
+            content={
+                "type": "https://httpstatuses.com/403",
+                "title": "Forbidden",
+                "status": 403,
+                "detail": "Proxy accepts internal requests only",
+            },
+            media_type="application/problem+json",
+        )
+    return await call_next(request)
 
 
 # ---------------------------------------------------------------------------
@@ -95,16 +113,16 @@ def _configure_proxy_cors(app: FastAPI) -> None:
 # ---------------------------------------------------------------------------
 
 proxy_app = FastAPI(
-    title="Pilot Space AI Proxy",
-    description="Anthropic-compatible LLM proxy with tenant validation and provider routing.",
+    title="Pilot Space AI Proxy (Internal)",
+    description="Internal LLM proxy — not for public access.",
     version="0.1.0",
-    docs_url=None,  # No separate docs for the proxy
+    docs_url=None,
     redoc_url=None,
     openapi_url=None,
 )
 
 _register_proxy_exception_handlers(proxy_app)
-_configure_proxy_cors(proxy_app)
+proxy_app.middleware("http")(_internal_only_middleware)
 
 # Session dependency — reuses the same ContextVar-based get_session from the
 # main app's auth module.  The ContextVar is per-coroutine so it works
