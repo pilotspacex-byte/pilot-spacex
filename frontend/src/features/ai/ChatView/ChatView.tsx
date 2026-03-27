@@ -251,14 +251,23 @@ const ChatViewInternal = observer<ChatViewProps>(
     }, [modalApprovals.length]);
 
     const handleSubmit = useCallback(
-      async (payload: { attachmentIds: string[]; voiceAudioUrl?: string | null }) => {
+      async (payload: {
+        attachmentIds: string[];
+        attachments: Array<{ attachmentId: string; filename: string; mimeType: string; sizeBytes: number; source: 'local' | 'google_drive' }>;
+        voiceAudioUrl?: string | null;
+      }) => {
         if (!inputValue.trim() || store.isStreaming) return;
 
         const message = inputValue.trim();
         try {
           setInputValue('');
-          const metadata = payload.voiceAudioUrl
-            ? { voiceAudioUrl: payload.voiceAudioUrl }
+          const hasAttachments = payload.attachments.length > 0;
+          const hasVoice = !!payload.voiceAudioUrl;
+          const metadata = hasAttachments || hasVoice
+            ? {
+                ...(hasVoice ? { voiceAudioUrl: payload.voiceAudioUrl } : {}),
+                ...(hasAttachments ? { attachments: payload.attachments } : {}),
+              }
             : undefined;
           await store.sendMessage(message, metadata, payload.attachmentIds);
         } catch (error) {

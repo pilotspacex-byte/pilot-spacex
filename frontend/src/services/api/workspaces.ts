@@ -156,25 +156,21 @@ export const workspacesApi = {
    * Invite a new member to the workspace.
    *
    * Returns the created WorkspaceMember for immediate invites (existing Supabase user),
-   * or null for pending invitations (new user — magic link sent via Supabase).
+   * or an invitation object for pending invitations (new user — magic link sent via Supabase).
    */
-  async inviteMember(workspaceId: string, data: InviteMemberData): Promise<WorkspaceMember | null> {
-    interface InvitationApiResponse {
-      id: string;
-      email: string;
-      role: string;
-      status: string;
-      created_at: string;
-    }
-    const response = await apiClient.post<WorkspaceMemberResponse | InvitationApiResponse>(
+  async inviteMember(
+    workspaceId: string,
+    data: InviteMemberData
+  ): Promise<WorkspaceMember | { invitation: true; id: string; email: string }> {
+    const response = await apiClient.post<Record<string, unknown>>(
       `/workspaces/${workspaceId}/members`,
       { ...data, role: data.role.toUpperCase() }
     );
-    // Pending invitation path: backend returns { id, email, role, status, created_at }
-    if ('userId' in response) {
-      return transformWorkspaceMember(response as WorkspaceMemberResponse);
+    // Discriminate by presence of 'status' field (InvitationResponse has it, WorkspaceMemberResponse doesn't)
+    if ('status' in response && typeof response.status === 'string') {
+      return { invitation: true, id: response.id as string, email: response.email as string };
     }
-    return null;
+    return transformWorkspaceMember(response as unknown as WorkspaceMemberResponse);
   },
 
   /**

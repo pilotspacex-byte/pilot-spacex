@@ -51,6 +51,8 @@ class ChatAttachment(Base, TimestampMixin):
         source: Upload origin — ``local`` or ``google_drive``.
         drive_file_id: Google Drive file ID; non-null iff source is
             ``google_drive``.
+        extracted_text: Cached markdown extracted from Office documents; nullable.
+            Populated by AttachmentContentService to avoid re-extraction on repeat calls.
         expires_at: TTL timestamp; defaults to NOW() + 24 hours.
         created_at: Row creation timestamp (from TimestampMixin).
         updated_at: Last modification timestamp (from TimestampMixin).
@@ -111,6 +113,10 @@ class ChatAttachment(Base, TimestampMixin):
     )
     drive_file_id: Mapped[str | None] = mapped_column(
         String(255),
+        nullable=True,
+    )
+    extracted_text: Mapped[str | None] = mapped_column(
+        Text,
         nullable=True,
     )
     expires_at: Mapped[datetime] = mapped_column(

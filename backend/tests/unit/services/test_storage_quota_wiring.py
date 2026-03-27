@@ -312,33 +312,35 @@ async def test_create_note_warning_header_at_80pct() -> None:
 
 @pytest.mark.asyncio
 async def test_attachment_upload_507_when_quota_exceeded() -> None:
-    """Router raises HTTP 507 when _check_storage_quota returns (False, None) on upload.
+    """Router raises HTTP 507 when AttachmentManagementService.check_storage_quota raises.
 
     TENANT-03: Hard block at 100% quota for attachment upload.
-    Patch target: pilot_space.api.v1.routers.ai_attachments._check_storage_quota
+    AttachmentManagementService.check_storage_quota raises StorageQuotaExceededError (507).
     """
     from pilot_space.api.v1.routers.ai_attachments import upload_attachment
+    from pilot_space.application.services.attachment_management import (
+        StorageQuotaExceededError,
+    )
 
     workspace_id = uuid.uuid4()
     user_id = uuid.uuid4()
 
     mock_db = AsyncMock()
-    # Simulate member role lookup returning a non-GUEST role
-    mock_result = MagicMock()
-    mock_result.scalar.return_value = "MEMBER"
-    mock_db.execute = AsyncMock(return_value=mock_result)
-
     mock_upload_service = AsyncMock()
     mock_file = AsyncMock()
     mock_file.read = AsyncMock(return_value=b"file content bytes here")
     mock_file.filename = "test.pdf"
     mock_file.content_type = "application/pdf"
 
-    with (
-        patch(f"{ATTACH_MODULE}._check_storage_quota", return_value=(False, None)),
-        patch(f"{ATTACH_MODULE}._update_storage_usage", new_callable=AsyncMock),
-        pytest.raises(HTTPException) as exc_info,
-    ):
+    # Mock AttachmentManagementService — check_storage_quota raises 507
+    mock_svc = AsyncMock()
+    mock_svc.check_guest_restriction = AsyncMock(return_value=None)
+    mock_svc.check_storage_quota = AsyncMock(
+        side_effect=StorageQuotaExceededError("Storage quota exceeded")
+    )
+    mock_svc.update_storage_usage = AsyncMock(return_value=None)
+
+    with pytest.raises(StorageQuotaExceededError) as exc_info:
         await upload_attachment(
             user_id=user_id,
             upload_service=mock_upload_service,
@@ -346,9 +348,10 @@ async def test_attachment_upload_507_when_quota_exceeded() -> None:
             workspace_id=workspace_id,
             file=mock_file,
             session_id=None,
+            svc=mock_svc,
         )
 
-    assert exc_info.value.status_code == 507
+    assert exc_info.value.http_status == 507
 
 
 # ---------------------------------------------------------------------------

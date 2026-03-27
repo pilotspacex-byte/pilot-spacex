@@ -8,12 +8,13 @@ Design Decisions: DD-011 (Haiku for latency)
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
 
+from pilot_space.ai.exceptions import AIError
+from pilot_space.api.v1.schemas.ghost_text import GhostTextRequest, GhostTextResponse
 from pilot_space.dependencies import CurrentUserId, DbSession, GhostTextServiceDep, RedisDep
 from pilot_space.domain.exceptions import AppError, ForbiddenError, ServiceUnavailableError
 from pilot_space.infrastructure.logging import get_logger
@@ -26,45 +27,6 @@ router = APIRouter(prefix="/ai/ghost-text", tags=["ghost-text"])
 RATE_LIMIT_REQUESTS = 10  # requests
 RATE_LIMIT_WINDOW = 1  # seconds
 RATE_LIMIT_KEY_PREFIX = "ghost_text_rate_limit"
-
-
-class GhostTextRequest(BaseModel):
-    """GhostText completion request.
-
-    Attributes:
-        context: Context text (previous paragraphs, max 500 chars).
-        prefix: Prefix to complete (current line, max 200 chars).
-        workspace_id: Workspace UUID for context and caching.
-        block_type: TipTap block type for prompt routing (paragraph, codeBlock,
-            heading, bulletList). Defaults to paragraph behavior when omitted.
-        note_title: Title of the note being edited (optional context).
-        linked_issues: Linked issue identifiers for context (optional).
-    """
-
-    context: str = Field(..., max_length=500, description="Context text")
-    prefix: str = Field(..., max_length=200, description="Prefix to complete")
-    workspace_id: UUID = Field(..., description="Workspace ID")
-    block_type: Literal["paragraph", "codeBlock", "heading", "bulletList"] | None = Field(
-        None, description="TipTap block type for prompt routing"
-    )
-    note_title: str | None = Field(None, max_length=200, description="Note title for context")
-    linked_issues: list[str] | None = Field(
-        None, max_length=20, description="Linked issue identifiers"
-    )
-
-
-class GhostTextResponse(BaseModel):
-    """GhostText completion response.
-
-    Attributes:
-        suggestion: Completion suggestion text.
-        confidence: Confidence score (0.0-1.0).
-        cached: Whether result was cached.
-    """
-
-    suggestion: str = Field(..., description="Completion suggestion")
-    confidence: float = Field(..., ge=0.0, le=1.0, description="Confidence score")
-    cached: bool = Field(False, description="Whether cached")
 
 
 async def check_rate_limit(
@@ -160,7 +122,7 @@ async def generate_ghost_text(
             cached=result["cached"],
         )
 
-    except AppError:
+    except (AppError, AIError):
         raise
     except Exception as e:
         logger.exception("Ghost text generation failed: %s", e)

@@ -252,13 +252,13 @@ async def test_openai_compatible_key_success() -> None:
     """Valid OpenAI-compatible key returns (True, 'API key is valid')."""
     import openai
 
-    from pilot_space.api.v1.routers.ai_configuration import _test_openai_compatible_key
+    from pilot_space.application.services.ai_configuration import AIConfigurationService
 
     mock_client = AsyncMock()
     mock_client.models.list = AsyncMock(return_value=[])
 
     with patch.object(openai, "AsyncOpenAI", return_value=mock_client) as mock_ctor:
-        success, message = await _test_openai_compatible_key(
+        success, message = await AIConfigurationService._test_openai_compatible_key(
             "valid-key",
             "https://api.moonshot.cn/v1",  # pragma: allowlist secret
         )
@@ -275,7 +275,7 @@ async def test_openai_compatible_key_auth_error() -> None:
     """Invalid key returns (False, 'Invalid API key')."""
     import openai
 
-    from pilot_space.api.v1.routers.ai_configuration import _test_openai_compatible_key
+    from pilot_space.application.services.ai_configuration import AIConfigurationService
 
     mock_client = AsyncMock()
     mock_client.models.list = AsyncMock(
@@ -287,7 +287,7 @@ async def test_openai_compatible_key_auth_error() -> None:
     )
 
     with patch.object(openai, "AsyncOpenAI", return_value=mock_client):
-        success, message = await _test_openai_compatible_key(
+        success, message = await AIConfigurationService._test_openai_compatible_key(
             "bad-key",
             "https://api.example.com/v1",  # pragma: allowlist secret
         )
@@ -300,7 +300,7 @@ async def test_openai_compatible_key_rate_limit() -> None:
     """Rate-limited key returns (True, 'API key is valid (rate limited)')."""
     import openai
 
-    from pilot_space.api.v1.routers.ai_configuration import _test_openai_compatible_key
+    from pilot_space.application.services.ai_configuration import AIConfigurationService
 
     mock_client = AsyncMock()
     mock_client.models.list = AsyncMock(
@@ -312,7 +312,7 @@ async def test_openai_compatible_key_rate_limit() -> None:
     )
 
     with patch.object(openai, "AsyncOpenAI", return_value=mock_client):
-        success, message = await _test_openai_compatible_key(
+        success, message = await AIConfigurationService._test_openai_compatible_key(
             "valid-key",
             "https://api.example.com/v1",  # pragma: allowlist secret
         )
@@ -328,15 +328,16 @@ async def test_openai_compatible_key_rate_limit() -> None:
 
 async def test_provider_api_key_kimi_dispatches_to_compatible() -> None:
     """KIMI provider calls _test_openai_compatible_key with default base_url."""
-    from pilot_space.api.v1.routers.ai_configuration import _test_provider_api_key
+    from pilot_space.application.services.ai_configuration import AIConfigurationService
     from pilot_space.infrastructure.database.models.ai_configuration import LLMProvider
 
-    with patch(
-        "pilot_space.api.v1.routers.ai_configuration._test_openai_compatible_key",
+    with patch.object(
+        AIConfigurationService,
+        "_test_openai_compatible_key",
         new_callable=AsyncMock,
         return_value=(True, "API key is valid"),
     ) as mock_compat:
-        success, message = await _test_provider_api_key(
+        success, message = await AIConfigurationService._test_provider_api_key(
             LLMProvider.KIMI,
             "kimi-key",  # pragma: allowlist secret
         )
@@ -347,15 +348,16 @@ async def test_provider_api_key_kimi_dispatches_to_compatible() -> None:
 
 async def test_provider_api_key_kimi_custom_base_url() -> None:
     """KIMI provider uses explicit base_url when provided."""
-    from pilot_space.api.v1.routers.ai_configuration import _test_provider_api_key
+    from pilot_space.application.services.ai_configuration import AIConfigurationService
     from pilot_space.infrastructure.database.models.ai_configuration import LLMProvider
 
-    with patch(
-        "pilot_space.api.v1.routers.ai_configuration._test_openai_compatible_key",
+    with patch.object(
+        AIConfigurationService,
+        "_test_openai_compatible_key",
         new_callable=AsyncMock,
         return_value=(True, "API key is valid"),
     ) as mock_compat:
-        success, _ = await _test_provider_api_key(
+        success, _ = await AIConfigurationService._test_provider_api_key(
             LLMProvider.KIMI,
             "kimi-key",  # pragma: allowlist secret
             base_url="https://custom.kimi.api/v1",
@@ -367,15 +369,16 @@ async def test_provider_api_key_kimi_custom_base_url() -> None:
 
 async def test_provider_api_key_glm_dispatches_to_compatible() -> None:
     """GLM provider calls _test_openai_compatible_key with default base_url."""
-    from pilot_space.api.v1.routers.ai_configuration import _test_provider_api_key
+    from pilot_space.application.services.ai_configuration import AIConfigurationService
     from pilot_space.infrastructure.database.models.ai_configuration import LLMProvider
 
-    with patch(
-        "pilot_space.api.v1.routers.ai_configuration._test_openai_compatible_key",
+    with patch.object(
+        AIConfigurationService,
+        "_test_openai_compatible_key",
         new_callable=AsyncMock,
         return_value=(True, "API key is valid"),
     ) as mock_compat:
-        success, _ = await _test_provider_api_key(
+        success, _ = await AIConfigurationService._test_provider_api_key(
             LLMProvider.GLM,
             "glm-key",  # pragma: allowlist secret
         )
@@ -386,15 +389,16 @@ async def test_provider_api_key_glm_dispatches_to_compatible() -> None:
 
 async def test_provider_api_key_custom_dispatches_to_compatible() -> None:
     """CUSTOM provider calls _test_openai_compatible_key with provided base_url."""
-    from pilot_space.api.v1.routers.ai_configuration import _test_provider_api_key
+    from pilot_space.application.services.ai_configuration import AIConfigurationService
     from pilot_space.infrastructure.database.models.ai_configuration import LLMProvider
 
-    with patch(
-        "pilot_space.api.v1.routers.ai_configuration._test_openai_compatible_key",
+    with patch.object(
+        AIConfigurationService,
+        "_test_openai_compatible_key",
         new_callable=AsyncMock,
         return_value=(True, "API key is valid"),
     ) as mock_compat:
-        success, _ = await _test_provider_api_key(
+        success, _ = await AIConfigurationService._test_provider_api_key(
             LLMProvider.CUSTOM,
             "custom-key",  # pragma: allowlist secret
             base_url="https://my-llm.example.com/v1",
@@ -406,10 +410,10 @@ async def test_provider_api_key_custom_dispatches_to_compatible() -> None:
 
 async def test_provider_api_key_custom_requires_base_url() -> None:
     """CUSTOM provider without base_url returns error."""
-    from pilot_space.api.v1.routers.ai_configuration import _test_provider_api_key
+    from pilot_space.application.services.ai_configuration import AIConfigurationService
     from pilot_space.infrastructure.database.models.ai_configuration import LLMProvider
 
-    success, message = await _test_provider_api_key(
+    success, message = await AIConfigurationService._test_provider_api_key(
         LLMProvider.CUSTOM,
         "custom-key",  # pragma: allowlist secret
     )
@@ -420,29 +424,38 @@ async def test_provider_api_key_custom_requires_base_url() -> None:
 
 async def test_provider_api_key_existing_providers_unchanged() -> None:
     """Existing providers (anthropic, openai, google) still dispatch correctly."""
-    from pilot_space.api.v1.routers.ai_configuration import _test_provider_api_key
+    from pilot_space.application.services.ai_configuration import AIConfigurationService
     from pilot_space.infrastructure.database.models.ai_configuration import LLMProvider
 
-    with patch(
-        "pilot_space.api.v1.routers.ai_configuration._test_anthropic_key",
+    with patch.object(
+        AIConfigurationService,
+        "_test_anthropic_key",
         new_callable=AsyncMock,
         return_value=(True, "API key is valid"),
     ) as mock_anthropic:
-        await _test_provider_api_key(LLMProvider.ANTHROPIC, "key")  # pragma: allowlist secret
+        await AIConfigurationService._test_provider_api_key(
+            LLMProvider.ANTHROPIC, "key"
+        )  # pragma: allowlist secret
     mock_anthropic.assert_awaited_once_with("key")
 
-    with patch(
-        "pilot_space.api.v1.routers.ai_configuration._test_openai_key",
+    with patch.object(
+        AIConfigurationService,
+        "_test_openai_key",
         new_callable=AsyncMock,
         return_value=(True, "API key is valid"),
     ) as mock_openai:
-        await _test_provider_api_key(LLMProvider.OPENAI, "key")  # pragma: allowlist secret
+        await AIConfigurationService._test_provider_api_key(
+            LLMProvider.OPENAI, "key"
+        )  # pragma: allowlist secret
     mock_openai.assert_awaited_once_with("key")
 
-    with patch(
-        "pilot_space.api.v1.routers.ai_configuration._test_google_key",
+    with patch.object(
+        AIConfigurationService,
+        "_test_google_key",
         new_callable=AsyncMock,
         return_value=(True, "API key is valid"),
     ) as mock_google:
-        await _test_provider_api_key(LLMProvider.GOOGLE, "key")  # pragma: allowlist secret
+        await AIConfigurationService._test_provider_api_key(
+            LLMProvider.GOOGLE, "key"
+        )  # pragma: allowlist secret
     mock_google.assert_awaited_once_with("key")

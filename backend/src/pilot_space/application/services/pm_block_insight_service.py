@@ -46,6 +46,118 @@ class PMBlockInsightService:
 
     # ── Public API ────────────────────────────────────────────────────────────
 
+    async def list_blocks(
+        self,
+        block_id: str,
+        workspace_id: UUID,
+        *,
+        include_dismissed: bool = False,
+    ) -> list[PMBlockInsightModel]:
+        """List AI insights for a PM block.
+
+        Args:
+            block_id: TipTap block node ID.
+            workspace_id: Workspace UUID (RLS boundary).
+            include_dismissed: Whether to include dismissed insights.
+
+        Returns:
+            List of PMBlockInsight ORM models.
+        """
+        return list(
+            await self._repo.list_by_block(
+                block_id=block_id,
+                workspace_id=workspace_id,
+                include_dismissed=include_dismissed,
+            )
+        )
+
+    async def dismiss(
+        self,
+        insight_id: UUID,
+        workspace_id: UUID,
+    ) -> None:
+        """Dismiss a single insight.
+
+        Args:
+            insight_id: Insight UUID.
+            workspace_id: Workspace UUID for ownership check.
+
+        Raises:
+            NotFoundError: If insight not found or belongs to another workspace.
+        """
+        from pilot_space.domain.exceptions import NotFoundError
+
+        insight = await self._repo.get_by_id(insight_id)
+        if not insight or insight.workspace_id != workspace_id:
+            raise NotFoundError("Insight not found")
+        insight.dismissed = True
+        await self._session.flush()
+        await self._session.commit()
+
+    async def batch_dismiss(
+        self,
+        block_id: str,
+        workspace_id: UUID,
+    ) -> None:
+        """Batch-dismiss all active insights for a block.
+
+        Args:
+            block_id: TipTap block node ID.
+            workspace_id: Workspace UUID (RLS boundary).
+        """
+        await self._repo.batch_dismiss(block_id=block_id, workspace_id=workspace_id)
+        await self._session.commit()
+
+    async def refresh_insights_debounced(
+        self,
+        block_id: str,
+        block_type_str: str,
+        workspace_id: UUID,
+        data: dict[str, Any],
+    ) -> list[PMBlockInsightModel]:
+        """Refresh insights with 30s debounce.
+
+        Returns cached insights if newest was created within 30s.
+        Otherwise generates fresh insights.
+
+        Args:
+            block_id: TipTap block node ID.
+            block_type_str: PM block type enum value string.
+            workspace_id: Workspace UUID.
+            data: Block payload forwarded to analyze.
+
+        Returns:
+            Persisted PMBlockInsight ORM objects.
+
+        Raises:
+            ValidationError: If block_type_str is invalid.
+        """
+        from datetime import UTC, datetime, timedelta
+
+        from pilot_space.domain.exceptions import ValidationError
+
+        existing = await self._repo.list_by_block(
+            block_id=block_id, workspace_id=workspace_id, include_dismissed=True
+        )
+        if existing:
+            newest = max(i.created_at for i in existing)
+            if newest.tzinfo is None:
+                newest = newest.replace(tzinfo=UTC)
+            if datetime.now(UTC) - newest < timedelta(seconds=30):
+                return list(existing)
+
+        try:
+            block_type_enum = PMBlockType(block_type_str)
+        except ValueError as exc:
+            raise ValidationError(f"Invalid block_type: {block_type_str}") from exc
+
+        return await self.refresh_insights(
+            block_id=block_id,
+            block_type=block_type_enum,
+            workspace_id=str(workspace_id),
+            data=data,
+        )
+
     async def analyze_block(
         self,
         block_id: str,

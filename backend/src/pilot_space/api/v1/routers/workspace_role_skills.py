@@ -41,34 +41,18 @@ router = APIRouter(
 )
 
 
-async def _require_admin(
-    user_id: UUID,
-    workspace_id: UUID,
-    session: DbSession,
-) -> None:
-    """Verify the requesting user is an ADMIN or OWNER in the workspace.
-
-    Args:
-        user_id: Authenticated user UUID.
-        workspace_id: Workspace UUID to check.
-        session: Database session.
-
-    Raises:
-        HTTPException: 403 if user is not a member or lacks ADMIN/OWNER role.
-    """
+async def _require_admin(user_id: UUID, workspace_id: UUID, session: DbSession) -> None:
     stmt = select(WorkspaceMember.role).where(
         WorkspaceMember.workspace_id == workspace_id,
         WorkspaceMember.user_id == user_id,
-        WorkspaceMember.is_deleted == False,  # noqa: E712
+        WorkspaceMember.is_active.is_(True),
+        WorkspaceMember.is_deleted.is_(False),
     )
     result = await session.execute(stmt)
     row = result.scalar()
-
     if row is None:
         raise ForbiddenError("Not a member of this workspace")
-
-    role = row.value if hasattr(row, "value") else str(row).upper()
-
+    role = row.value if hasattr(row, "value") else str(row)
     if role not in (WorkspaceRole.ADMIN.value, WorkspaceRole.OWNER.value):
         raise ForbiddenError("Admin or owner role required")
 
@@ -153,7 +137,7 @@ async def list_workspace_skills(
         WorkspaceRoleSkillListResponse with all non-deleted skills.
 
     Raises:
-        HTTPException: 403 if not admin/owner.
+        ForbiddenError: 403 if not admin/owner.
     """
     await set_rls_context(session, current_user_id, workspace_id)
     await _require_admin(current_user_id, workspace_id, session)
@@ -199,7 +183,7 @@ async def activate_workspace_skill(
         Updated WorkspaceRoleSkillResponse with is_active=True.
 
     Raises:
-        HTTPException: 403 if not admin/owner; 404 if skill not found; 422 on conflict.
+        ForbiddenError: 403 if not admin/owner; NotFoundError: 404 if skill not found.
     """
     await set_rls_context(session, current_user_id, workspace_id)
     await _require_admin(current_user_id, workspace_id, session)
@@ -248,7 +232,7 @@ async def delete_workspace_skill(
         current_user_id: Authenticated user UUID.
 
     Raises:
-        HTTPException: 403 if not admin/owner; 404 if skill not found.
+        ForbiddenError: 403 if not admin/owner; NotFoundError: 404 if skill not found.
     """
     await set_rls_context(session, current_user_id, workspace_id)
     await _require_admin(current_user_id, workspace_id, session)

@@ -26,6 +26,19 @@ vi.mock('next/navigation', () => ({
 // Mock stores
 const mockSidebarCollapsed = vi.fn(() => false);
 const mockWorkspace = { slug: 'test-ws', id: 'test-ws', name: 'Test Workspace' };
+const defaultFeatureToggles = {
+  notes: true,
+  issues: true,
+  projects: true,
+  members: true,
+  knowledge: true,
+  docs: true,
+  skills: true,
+  costs: true,
+  approvals: true,
+};
+const mockFeatureToggles = { ...defaultFeatureToggles };
+
 vi.mock('@/stores', () => ({
   useUIStore: () => ({
     sidebarCollapsed: mockSidebarCollapsed(),
@@ -44,17 +57,8 @@ vi.mock('@/stores', () => ({
     currentWorkspaceId: 'test-ws',
     isOwner: true,
     isAdmin: false,
-    featureToggles: {
-      notes: true,
-      issues: true,
-      projects: true,
-      members: true,
-      knowledge: true,
-      skills: true,
-      costs: true,
-      approvals: true,
-    },
-    isFeatureEnabled: (_key: string) => true,
+    featureToggles: mockFeatureToggles,
+    isFeatureEnabled: (key: keyof typeof mockFeatureToggles) => !!mockFeatureToggles[key],
   }),
   useNotificationStore: () => ({
     unreadCount: 0,
@@ -154,6 +158,7 @@ describe('Sidebar Navigation', () => {
     vi.clearAllMocks();
     mockPathname.mockReturnValue('/test-ws');
     mockSidebarCollapsed.mockReturnValue(false);
+    Object.assign(mockFeatureToggles, defaultFeatureToggles);
   });
 
   describe('section structure', () => {
@@ -168,10 +173,9 @@ describe('Sidebar Navigation', () => {
       expect(screen.getByTestId('nav-knowledge')).toBeInTheDocument();
     });
 
-    it('renders AI section items (Chat, Skill, Costs)', () => {
+    it('renders AI section items (Skill, Costs)', () => {
       renderSidebar();
 
-      expect(screen.getByTestId('nav-chat')).toBeInTheDocument();
       expect(screen.getByTestId('nav-roles')).toBeInTheDocument();
       expect(screen.getByTestId('nav-costs')).toBeInTheDocument();
     });
@@ -206,6 +210,35 @@ describe('Sidebar Navigation', () => {
 
       expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBeInTheDocument();
       expect(screen.getByRole('navigation', { name: 'AI navigation' })).toBeInTheDocument();
+    });
+
+    it('hides Knowledge nav item when knowledge feature is disabled', () => {
+      mockFeatureToggles.knowledge = false;
+      renderSidebar();
+
+      expect(screen.queryByTestId('nav-knowledge')).not.toBeInTheDocument();
+    });
+
+    it('hides Pinned Notes section when notes feature is disabled', () => {
+      mockFeatureToggles.notes = false;
+      renderSidebar();
+
+      expect(screen.queryByTestId('pinned-notes')).not.toBeInTheDocument();
+    });
+
+    it('hides New Note button when notes feature is disabled', () => {
+      mockFeatureToggles.notes = false;
+      renderSidebar();
+
+      expect(screen.queryByTestId('new-note-button')).not.toBeInTheDocument();
+    });
+
+    it('shows Pinned Notes section and New Note button when notes feature is enabled', () => {
+      mockFeatureToggles.notes = true;
+      renderSidebar();
+
+      expect(screen.getByTestId('pinned-notes')).toBeInTheDocument();
+      expect(screen.getByTestId('new-note-button')).toBeInTheDocument();
     });
   });
 
@@ -253,15 +286,6 @@ describe('Sidebar Navigation', () => {
       const membersLink = screen.getByTestId('nav-members');
       expect(membersLink.className).toContain('bg-sidebar-accent');
       expect(membersLink).toHaveAttribute('aria-current', 'page');
-    });
-  });
-
-  describe('Chat rename', () => {
-    it('displays "Chat" instead of "AI Chat"', () => {
-      renderSidebar();
-
-      expect(screen.getByText('Chat')).toBeInTheDocument();
-      expect(screen.queryByText('AI Chat')).not.toBeInTheDocument();
     });
   });
 

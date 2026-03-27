@@ -58,11 +58,20 @@ export interface AttachmentUploadResponse {
  */
 export const ACCEPTED_MIME_TYPES = [
   'application/pdf',
+  // Office documents (Phase 41 – DOCX/XLSX/PPTX extraction)
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
+  'application/msword', // .doc (legacy)
+  'application/vnd.ms-excel', // .xls (legacy)
+  'application/vnd.ms-powerpoint', // .ppt (legacy)
+  // Text / code
   'text/plain',
   'text/markdown',
   'text/csv',
   'text/x-python',
   'application/x-python',
+  'text/x-python-script', // browser-reported variant for .py
   'text/typescript',
   'application/typescript',
   'text/javascript',
@@ -75,6 +84,7 @@ export const ACCEPTED_MIME_TYPES = [
   'text/x-java',
   'text/x-csrc',
   'text/x-c++src',
+  // Images
   'image/jpeg',
   'image/png',
   'image/webp',
@@ -87,6 +97,13 @@ export const ACCEPTED_MIME_TYPES = [
  */
 export const FILE_SIZE_LIMITS: Record<string, number> = {
   'application/pdf': 25 * 1024 * 1024, // 25MB for PDF/docs
+  // Office documents — 25MB matching backend validation
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 25 * 1024 * 1024,
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 25 * 1024 * 1024,
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 25 * 1024 * 1024,
+  'application/msword': 25 * 1024 * 1024,
+  'application/vnd.ms-excel': 25 * 1024 * 1024,
+  'application/vnd.ms-powerpoint': 25 * 1024 * 1024,
   'text/plain': 5 * 1024 * 1024, // 5MB for text/code
   'image/jpeg': 10 * 1024 * 1024, // 10MB for images
   'image/png': 10 * 1024 * 1024,
@@ -117,4 +134,83 @@ export interface DriveFileItem {
 export interface DriveFileListResponse {
   files: DriveFileItem[];
   nextPageToken: string | null;
+}
+
+// --- Artifact Extraction (Phase 44) ---
+
+/**
+ * Metadata returned by GET /ai/attachments/{id}/extraction.
+ * Mirrors backend ExtractionMetadata (BaseSchema → camelCase).
+ */
+export interface ExtractionMetadata {
+  pageCount: number | null;
+  language: string | null;
+  extractionSource: 'office' | 'ocr' | 'raw' | 'none';
+  confidence: number | null; // 0.0-1.0
+  wordCount: number | null;
+  providerName: string | null; // e.g., "HunyuanOCR" - shown in UI footer
+}
+
+/**
+ * One pre-chunked section of a document.
+ * Mirrors backend ExtractionChunk (BaseSchema → camelCase).
+ */
+export interface ExtractionChunk {
+  chunkIndex: number;
+  heading: string;
+  content: string;
+  charCount: number;
+  tokenCount: number;
+  headingHierarchy: string[];
+}
+
+/**
+ * Full extraction result from GET /ai/attachments/{id}/extraction.
+ * Mirrors backend ExtractionResultResponse (BaseSchema → camelCase).
+ */
+export interface AttachmentExtractionResult {
+  attachmentId: string;
+  extractedText: string | null;
+  metadata: ExtractionMetadata;
+  chunks: ExtractionChunk[];
+  tables: string[]; // Markdown table strings
+}
+
+/**
+ * Adjustment to a single chunk before KG ingestion.
+ * Mirrors backend ChunkAdjustment (BaseSchema → camelCase).
+ */
+export interface ChunkAdjustment {
+  chunkIndex: number;
+  excluded: boolean;
+}
+
+/**
+ * Request body for POST /ai/attachments/{id}/ingest.
+ * Mirrors backend DocumentIngestRequest (BaseSchema → camelCase).
+ */
+export interface DocumentIngestRequest {
+  workspaceId: string;
+  projectId: string;
+  chunkAdjustments: ChunkAdjustment[];
+}
+
+/**
+ * MIME types that have extraction results available (from Phase 41 Office extraction
+ * and Phase 42 OCR). Used to conditionally show extraction tabs in FilePreviewModal.
+ */
+export const EXTRACTION_SUPPORTED_MIME_TYPES = new Set([
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+]);
+
+/** Returns true if this MIME type supports extraction (OCR or Office). */
+export function supportsExtraction(mimeType: string): boolean {
+  return EXTRACTION_SUPPORTED_MIME_TYPES.has(mimeType.toLowerCase());
 }

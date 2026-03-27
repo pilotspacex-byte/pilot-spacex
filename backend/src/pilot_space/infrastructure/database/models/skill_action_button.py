@@ -8,22 +8,18 @@ Source: Phase 17, SKBTN-01..04
 
 from __future__ import annotations
 
-import enum
 import uuid
 
 from sqlalchemy import Boolean, Enum, Index, Integer, String, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from pilot_space.domain.enums import BindingType
 from pilot_space.infrastructure.database.base import WorkspaceScopedModel
 from pilot_space.infrastructure.database.types import JSONBCompat
 
-
-class BindingType(enum.StrEnum):
-    """Type of action button binding."""
-
-    SKILL = "skill"
-    MCP_TOOL = "mcp_tool"
+# Re-export so callers that already import BindingType from this module continue to work.
+__all__ = ["BindingType", "SkillActionButton"]
 
 
 class SkillActionButton(WorkspaceScopedModel):
@@ -112,6 +108,3 @@ class SkillActionButton(WorkspaceScopedModel):
             f"<SkillActionButton(workspace_id={self.workspace_id}, "
             f"name={self.name!r}, binding={self.binding_type.value} {status})>"
         )
-
-
-__all__ = ["BindingType", "SkillActionButton"]

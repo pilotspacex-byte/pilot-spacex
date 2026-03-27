@@ -23,7 +23,6 @@ from __future__ import annotations
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Path
-from pydantic import BaseModel, Field
 
 from pilot_space.api.v1.routers.ai_annotations import router as annotations_router
 from pilot_space.api.v1.routers.ai_approvals import router as approvals_router
@@ -42,29 +41,6 @@ router.include_router(costs_router)
 router.include_router(approvals_router)
 router.include_router(annotations_router)
 router.include_router(pr_review_router)
-
-
-# Shared schemas for deprecated endpoints
-
-
-class ChatRequest(BaseModel):
-    """DEPRECATED: Chat request schema."""
-
-    message: str = Field(description="User message")
-    context: dict[str, Any] | None = Field(default=None, description="Optional context")
-
-
-class ChatResponse(BaseModel):
-    """DEPRECATED: Chat response schema."""
-
-    response: str = Field(description="AI response")
-
-
-class HealthResponse(BaseModel):
-    """DEPRECATED: Health check response schema."""
-
-    status: str = Field(description="Overall status")
-    providers: dict[str, Any] = Field(description="Provider status details")
 
 
 # PR Review Status (T199)

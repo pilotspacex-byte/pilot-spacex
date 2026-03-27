@@ -4,7 +4,7 @@
 
 Pilot Space embeds an AI agent directly into your software development lifecycle. Write freely in a block-based note canvas — AI provides inline completions, extracts issues from prose, annotates ambiguous requirements, and reviews PRs. Human-in-the-loop on all consequential actions. No AI cost pass-through: bring your own API keys.
 
-**Status**: `v1.0.0-beta` · MIT License
+**Status**: `v1.0.0-alpha3` · MIT License
 
 ---
 

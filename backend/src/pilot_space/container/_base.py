@@ -84,6 +84,9 @@ from pilot_space.infrastructure.database.repositories.issue_link_repository impo
 from pilot_space.infrastructure.database.repositories.issue_repository import (
     IssueRepository,
 )
+from pilot_space.infrastructure.database.repositories.issue_suggestion_dismissal_repository import (
+    IssueSuggestionDismissalRepository,
+)
 from pilot_space.infrastructure.database.repositories.knowledge_graph_repository import (
     KnowledgeGraphRepository,
 )
@@ -111,6 +114,9 @@ from pilot_space.infrastructure.database.repositories.note_version_repository im
 from pilot_space.infrastructure.database.repositories.note_yjs_state_repository import (
     NoteYjsStateRepository,
 )
+from pilot_space.infrastructure.database.repositories.ocr_result_repository import (
+    OcrResultRepository,
+)
 from pilot_space.infrastructure.database.repositories.onboarding_repository import (
     OnboardingRepository,
 )
@@ -129,6 +135,9 @@ from pilot_space.infrastructure.database.repositories.project_repository import 
 from pilot_space.infrastructure.database.repositories.role_skill_repository import (
     RoleSkillRepository,
 )
+from pilot_space.infrastructure.database.repositories.skill_action_button_repository import (
+    SkillActionButtonRepository,
+)
 from pilot_space.infrastructure.database.repositories.skill_execution_repository import (
     SkillExecutionRepository,
 )
@@ -140,6 +149,18 @@ from pilot_space.infrastructure.database.repositories.template_repository import
 )
 from pilot_space.infrastructure.database.repositories.user_repository import (
     UserRepository,
+)
+from pilot_space.infrastructure.database.repositories.workspace_github_credential_repository import (
+    WorkspaceGithubCredentialRepository,
+)
+from pilot_space.infrastructure.database.repositories.workspace_mcp_server_repository import (
+    WorkspaceMcpServerRepository,
+)
+from pilot_space.infrastructure.database.repositories.workspace_member_repository import (
+    WorkspaceMemberRepository,
+)
+from pilot_space.infrastructure.database.repositories.workspace_plugin_repository import (
+    WorkspacePluginRepository,
 )
 from pilot_space.infrastructure.database.repositories.workspace_repository import (
     WorkspaceRepository,
@@ -363,6 +384,11 @@ class InfraContainer(containers.DeclarativeContainer):
         session=providers.Callable(get_current_session),
     )
 
+    issue_suggestion_dismissal_repository = providers.Factory(
+        IssueSuggestionDismissalRepository,
+        session=providers.Callable(get_current_session),
+    )
+
     constitution_rule_repository = providers.Factory(
         ConstitutionRuleRepository,
         session=providers.Callable(get_current_session),
@@ -370,6 +396,36 @@ class InfraContainer(containers.DeclarativeContainer):
 
     pilot_api_key_repository = providers.Factory(
         PilotAPIKeyRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    workspace_member_repository = providers.Factory(
+        WorkspaceMemberRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    ocr_result_repository = providers.Factory(
+        OcrResultRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    workspace_github_credential_repository = providers.Factory(
+        WorkspaceGithubCredentialRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    workspace_mcp_server_repository = providers.Factory(
+        WorkspaceMcpServerRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    workspace_plugin_repository = providers.Factory(
+        WorkspacePluginRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    skill_action_button_repository = providers.Factory(
+        SkillActionButtonRepository,
         session=providers.Callable(get_current_session),
     )
 

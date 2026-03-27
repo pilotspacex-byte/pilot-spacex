@@ -51,6 +51,10 @@ const LoginPage = observer(function LoginPage() {
 
   // workspace_id may be passed via query param (e.g. when redirected from a workspace login page)
   const workspaceId = searchParams.get('workspace_id');
+  // redirect URL after successful auth (e.g. from accept-invite page)
+  // Only allow relative paths starting with / to prevent open redirect
+  const rawRedirect = searchParams.get('redirect');
+  const redirectTo = rawRedirect && rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') ? rawRedirect : null;
 
   // Allowlist of known session error codes — prevents phishing via arbitrary query params
   const KNOWN_SESSION_ERRORS: Record<string, string> = {
@@ -69,10 +73,10 @@ const LoginPage = observer(function LoginPage() {
   // MobX observer() tracks authStore.isLoading/isAuthenticated reactively.
   useEffect(() => {
     if (!authStore.isLoading && authStore.isAuthenticated) {
-      router.replace('/');
+      router.replace(redirectTo || '/');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authStore.isLoading, authStore.isAuthenticated, router]);
+  }, [authStore.isLoading, authStore.isAuthenticated, router, redirectTo]);
 
   // Defer authStore.isLoading to post-mount to avoid hydration mismatch:
   // server singleton may have isLoading=false while client starts with isLoading=true
@@ -109,7 +113,7 @@ const LoginPage = observer(function LoginPage() {
     }
 
     if (success) {
-      router.push('/');
+      router.push(redirectTo || '/');
     }
   };
 

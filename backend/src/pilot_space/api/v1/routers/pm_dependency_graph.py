@@ -13,40 +13,19 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Query
-from pydantic import BaseModel
 
 from pilot_space.api.v1.dependencies import WorkspaceRepositoryDep
+from pilot_space.api.v1.schemas.pm_dependency_graph import (
+    DependencyMapResponse,
+    DepMapEdge,
+    DepMapNode,
+)
 from pilot_space.dependencies.auth import CurrentUserId, SessionDep, require_workspace_member
 from pilot_space.infrastructure.database.repositories.pm_block_queries_repository import (
     PMBlockQueriesRepository,
 )
 
 router = APIRouter(prefix="", tags=["pm-blocks"])
-
-
-# ── Response Schemas ──────────────────────────────────────────────────────────
-
-
-class DepMapNode(BaseModel):
-    id: str
-    identifier: str
-    name: str
-    state: str
-    state_group: str
-
-
-class DepMapEdge(BaseModel):
-    source_id: str
-    target_id: str
-    is_critical: bool = False
-
-
-class DependencyMapResponse(BaseModel):
-    nodes: list[DepMapNode]
-    edges: list[DepMapEdge]
-    critical_path: list[str]
-    circular_deps: list[list[str]]
-    has_circular: bool
 
 
 # ── Graph Algorithms ──────────────────────────────────────────────────────────

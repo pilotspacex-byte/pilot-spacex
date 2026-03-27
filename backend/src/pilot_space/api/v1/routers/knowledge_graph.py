@@ -11,7 +11,6 @@ from typing import Annotated, TypeVar
 from uuid import UUID
 
 from fastapi import APIRouter, Path, Query, status
-from pydantic import BaseModel
 from sqlalchemy import select
 
 from pilot_space.ai.agents.pilotspace_stream_utils import get_workspace_embedding_key
@@ -21,6 +20,7 @@ from pilot_space.api.v1.schemas.knowledge_graph import (
     GraphEdgeDTO,
     GraphNodeDTO,
     GraphResponse,
+    RegenerateResponse,
 )
 from pilot_space.application.services.embedding_service import EmbeddingConfig, EmbeddingService
 from pilot_space.application.services.memory.graph_search_service import (
@@ -499,18 +499,6 @@ def _build_kg_payload(
         "workspace_id": str(workspace_id),
         "project_id": str(project_id),
     }
-
-
-# ---------------------------------------------------------------------------
-# Regeneration response
-# ---------------------------------------------------------------------------
-
-
-class RegenerateResponse(BaseModel):
-    """Response for knowledge graph regeneration endpoints."""
-
-    enqueued: int
-    detail: str
 
 
 # ---------------------------------------------------------------------------

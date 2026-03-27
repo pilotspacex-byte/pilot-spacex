@@ -7,6 +7,151 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-alpha3] - 2026-03-25
+
+### Added
+
+**Multi-Theme System (Phase 46)**
+- `ThemeStore` (MobX): 4 modes (light, dark, high-contrast, system) + 8 accent color presets (green, blue, purple, orange, pink, red, teal, indigo)
+- Runtime CSS custom property injection via `applyAccentColor()` — overrides `--primary`, `--primary-hover`, `--primary-muted`, `--ring`, `--sidebar-primary`
+- Appearance settings page in account section with theme mode, accent color, editor theme, font size, and font family controls
+- `ThemeStore` wired into `RootStore`; bidirectional sync between localStorage and server preferences
+- `ThemeProvider` (next-themes) integrated into root providers
+
+**Office Suite Preview (Phase 41)**
+- Excel renderer: spreadsheet viewer with sheet tabs, cell formatting, and column auto-sizing
+- Word renderer: DOCX document viewer with paragraph styles, tables, and images
+- PowerPoint renderer: slide viewer with navigation, thumbnails, and full-screen mode
+- PPTX slide annotations: per-slide annotation CRUD (`ArtifactAnnotationRepository`, `artifact_annotations` router)
+- File artifact upload service: DB-first lifecycle (pending_upload → ready), 10 MB limit, 94-extension allowlist
+- Artifact cleanup background job for stale pending records
+- Migrations 091–094: `artifacts` table, RLS policies, enum case fix, `WITH CHECK` clauses
+- Migrations 096–097: `artifact_annotations` table with RLS and fix
+
+**MCP Workspace Custom Servers**
+- Remote + command MCP server registration per workspace with SSRF and command injection validation
+- Bulk import from Claude Desktop / Cursor / VS Code JSON config (`ImportMcpServersService`)
+- Connection testing with 10s timeout, latency measurement, and status mapping (ENABLED/UNHEALTHY/UNREACHABLE)
+- OAuth2 callback handling for MCP server authorization
+- MCP server card component with status badge, auth type badge, and action buttons
+- `mcp_validation.py` security module: HTTPS enforcement, blocked networks (RFC 1918, loopback, AWS metadata), shell metachar rejection
+- Encrypted env vars and auth tokens via `encrypt_kv` / `decrypt_kv`
+- Migrations 098–099: `workspace_mcp_servers` redevelopment, admin-only RLS tightening
+
+**Voice Input & Live Transcription**
+- ElevenLabs Speech-to-Text integration: `TranscriptionService` with HTTP multipart upload (25 MB limit, 7 MIME types)
+- Live transcription WebSocket: `transcription_ws.py` streaming audio to ElevenLabs Scribe Realtime
+- SHA-256 transcript caching with configurable TTL to avoid duplicate API calls
+- Audio artifact upload to Supabase Storage `voice-recordings` bucket with signed URLs
+- STT cost tracking: `stt_pricing.py` calculator ($0.012/min), integrated with `CostTracker`
+- BYOK: workspace-scoped ElevenLabs API key via `SecureKeyStorage`
+- PCM processor worklet for browser audio capture
+- Migration 094: `transcript_cache` table with RLS
+
+**Workspace Feature Toggles**
+- Per-workspace sidebar module visibility: notes, issues, projects, cycles, knowledge graph, AI features
+- `FeatureToggleService` with admin/owner-only write access, any-member read
+- AI skill filtering respects feature toggles (disabled features hide related skills)
+- Feature toggle REST API: `GET/PATCH /{workspace_id}/feature-toggles`
+- Frontend `AIFeatureToggles` component with prerequisite checks (embedding + LLM required)
+
+**Knowledge Graph Redesign**
+- Interactive ReactFlow graph panel with node-type filters (Issues, Notes, PRs, Decisions, Code) and depth slider
+- Botanical "Entwined Growth Tree" node aesthetic: seed pods, leaf capsules, buds with tier-based sizing
+- 15+ Lucide icon mappings for graph node types
+- Workspace overview graph with cross-project relationships
+- Empty state handling with regeneration action
+- Graph node renderer with Radix tooltips showing metadata (type, timestamp, relationships)
+- `NOTE_CHUNK` node type added (migration 096)
+- Backend knowledge graph regeneration endpoint
+
+**Medium-Style Editor Enhancements**
+- Medium-style TOC sidebar with `#` section mentions in chat
+- Single Enter = line break (hard break within block), double Enter = new paragraph (`ParagraphSplitExtension`)
+- Paste handler: `\n\n` in pasted text auto-splits into separate paragraphs
+- File preview modal with TipTap + Dialog fix (4-layer: stopEvent, state isolation, Radix outside-click, Suspense)
+- Video embed support in note editor
+- Selection toolbar improvements
+
+**AI Provider Settings Redesign**
+- Tabbed provider panel: LLM (default), Embedding, Voice/STT tabs with connection status badges
+- Setup progress indicator showing Embedding + LLM configuration state
+- Official simple-icons SVGs for provider logos (Anthropic, Google, OpenAI)
+- Per-user AI model defaults and `base_url` overrides
+- Service-based provider setup for embedding + LLM with validation
+- Unified AI providers list view with per-provider config cards
+
+**Settings Modal Migration**
+- Settings migrated from full-page routes to responsive modal dialog
+- Lazy-loaded settings pages with Suspense + skeleton fallbacks
+- Sidebar navigation (desktop) + select dropdown (mobile)
+- Role-based access: guests see only Profile + Appearance
+- 14 settings pages: General, Features, AI Providers, MCP Servers, Integrations, SSO, Encryption, AI Governance, Audit, Roles, Usage, Billing, Profile, Appearance
+
+**Skill System Enhancements**
+- Skill modal redesign with tags, usage fields, and extracted prompt module
+- MCP auto-approve execution fix for skill dispatch
+- 7 skill feature bug fixes
+
+**Infrastructure & SDK Migration**
+- Supabase HTTP calls migrated to `supabase-py` async SDK (`get_supabase_client()` with double-checked locking)
+- `AppError` domain exception hierarchy: `NotFoundError` (404), `ForbiddenError` (403), `ConflictError` (409), `ValidationError` (422), `UnauthorizedError` (401), `ServiceUnavailableError` (503)
+- Centralized RFC 7807 error handler with domain-specific handlers: `app_error_handler`, `transcription_error_handler`, `feature_toggle_error_handler`, `mcp_server_error_handler`
+- UUID sanitization and sensitive key filtering in production error responses
+- Env-based model defaults and centralized SDK env builder
+- `pgmq_set_vt` public schema wrapper (migration 100)
+- Docs migrated to separate private repository (`pilotspace/pilot-space-docs`)
+
+**Other Additions**
+- Project CRUD fixes + RAG-powered MCP tools + chunking enhancements
+- In-app documentation page
+- AI chat issue extraction card with 6 UX improvements
+- Provider setup enhancement with workspace LLM routing
+- Kanban scroll fade + member card email dedup
+- Audit actor resolution + greeting display name fix
+- Global pointermove guard for tooltip visibility management
+- Free-tier deployment guide (Vercel + Render + Supabase Cloud)
+
+### Changed
+
+- Settings UI moved from dedicated pages to modal dialog with lazy loading
+- AI providers page restructured with tabbed layout (LLM / Embedding / Voice)
+- Knowledge graph nodes redesigned with botanical aesthetic and tier-based sizing
+- Enter key behavior: single Enter = line break, double Enter = new paragraph (was: single Enter = new paragraph)
+- Members page: fire-and-forget `refreshMembers` helper replaces blocking fetch
+- Design tokens updated in `globals.css` (typography, spacing, colors)
+- Removed unused font imports from layout
+
+### Fixed
+
+- Editor page crash when opening file preview (TipTap + Dialog interaction)
+- Sidebar collapsed layout and accessibility issues
+- Missing cost tracking on all AI call sites (ghost text, extraction, context, PR review)
+- Member management: owner self-demotion guard, role case normalization, confirmation dialog
+- Migration 093 made no-op (enum already uses UPPERCASE, not lowercase)
+- SSE streaming stuck with missing infra debug logging
+- Workspace switcher: fetch all workspaces when switcher opens
+- Missing `GET /velocity` endpoint causing 422 in cycles
+- 7 skill feature issues (execution, display, filtering)
+- AI config enum fix, `NoteIssueLink` creation, `linkType` alignment
+- Note cards: content preview, hide 0-word count, sort dropdown width
+- Login banner: error icon, Terms/Privacy links, icon field helper text
+- Hide progress ring/bar at 0%
+- Banner localStorage TTL + SSO/Roles/Security page headers for non-admins
+- Removed `hover:-translate-y-0.5` causing layout jitter in 5 components
+- Resolved 227 preexisting pytest failures and removed e2e from CI
+- Alembic migration versioning cleanup and CI workflow update
+
+### Security
+
+- SSRF prevention in MCP server URL validation: HTTPS enforcement, blocked networks (RFC 1918, loopback, link-local, AWS metadata 169.254.169.254)
+- Command injection prevention: shell metachar rejection in MCP command package args
+- Workspace membership check added to personal page RLS policy
+- Per-user AI settings hardening: SSRF prevention, model validation, state preservation
+- v1.1 security + accessibility review followup fixes
+- MCP RLS tightened to admin-only (migration 099)
+- Workspace members RLS index added (migration 095)
+
 ## [1.0.0-beta] - 2026-03-09
 
 ### Added
@@ -234,7 +379,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Meilisearch full-text search integration
 - pgvector 768-dim HNSW embeddings for semantic search
 
-[Unreleased]: https://github.com/TinDang97/pilot-space/compare/v1.0.0-beta...HEAD
+[Unreleased]: https://github.com/TinDang97/pilot-space/compare/v1.0.0-alpha3...HEAD
+[1.0.0-alpha3]: https://github.com/TinDang97/pilot-space/compare/v1.0.0-alpha2...v1.0.0-alpha3
 [1.0.0-beta]: https://github.com/TinDang97/pilot-space/compare/v0.1.0-alpha.2...v1.0.0-beta
 [0.1.0-alpha.2]: https://github.com/TinDang97/pilot-space/compare/0.0.4-fixed...v0.1.0-alpha.2
 [0.1.0-alpha.1]: https://github.com/TinDang97/pilot-space/compare/0.0.4-fixed...v0.1.0-alpha.1

@@ -22,14 +22,14 @@ from fastapi.responses import StreamingResponse
 
 from pilot_space.ai.sdk.question_adapter import Question, get_question_adapter
 from pilot_space.ai.session.session_manager import AIMessage
-from pilot_space.api.v1.routers._chat_schemas import (
+from pilot_space.api.v1.routers.ai_chat_model_routing import resolve_model_override
+from pilot_space.api.v1.schemas.ai_chat import (
     AbortRequest,
     AbortResponse,
     ChatRequest,
     SkillListItem,
     SkillListResponse,
 )
-from pilot_space.api.v1.routers.ai_chat_model_routing import resolve_model_override
 from pilot_space.dependencies import (
     CurrentUserId,
     DbSession,
@@ -355,11 +355,12 @@ async def chat(
     from pilot_space.api.v1.routers._chat_attachments import resolve_attachments
 
     ctx_attachment_ids = ctx.attachment_ids if ctx else []
+    container = fastapi_request.app.state.container
     attachments, attachment_content_blocks = await resolve_attachments(
         ctx_attachment_ids if ctx_workspace_id is not None else [],
         user_id,
         session,
-        storage_client=fastapi_request.app.state.container.storage_client(),
+        attachment_content_service=container.attachment_content_service(),
     )
 
     # Extract full AI context (loads Note/Issue objects if IDs provided)
@@ -697,6 +698,8 @@ async def _execute_agent_stream(
             UUID(input_data["workspace_id"]) if input_data.get("workspace_id") else None
         ),
         resolved_model=input_data.get("resolved_model"),
+        attachment_content_blocks=input_data.get("attachment_content_blocks") or None,
+        attachment_metadata=input_data.get("attachment_metadata") or None,
     )
 
     ws_id = input_data.get("workspace_id")

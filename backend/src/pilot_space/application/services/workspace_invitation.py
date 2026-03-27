@@ -18,7 +18,10 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from pilot_space.infrastructure.database.models.workspace_invitation import InvitationStatus
+from pilot_space.domain.exceptions import ForbiddenError, NotFoundError
+from pilot_space.infrastructure.database.models.workspace_invitation import (
+    InvitationStatus,
+)
 from pilot_space.infrastructure.database.rls import set_rls_context
 from pilot_space.infrastructure.logging import get_logger
 
@@ -138,6 +141,20 @@ class AcceptInvitationPayload:
 
     invitation_id: UUID
     user_id: UUID
+
+
+@dataclass
+class InvitationDetailResult:
+    """Public invitation details for the accept-invite page."""
+
+    id: UUID
+    workspace_name: str
+    workspace_slug: str
+    inviter_name: str | None
+    role: str
+    email_masked: str
+    status: str
+    expires_at: datetime
 
 
 @dataclass
@@ -378,6 +395,42 @@ class WorkspaceInvitationService:
             expires_in_minutes=60,
         )
 
+    async def get_invitation_details(
+        self,
+        invitation_id: UUID,
+    ) -> InvitationDetailResult:
+        """Get public-facing invitation details (no auth required).
+
+        Args:
+            invitation_id: The invitation UUID.
+
+        Returns:
+            Public invitation details for the accept-invite page.
+
+        Raises:
+            NotFoundError: If invitation not found, expired, or not pending.
+        """
+        invitation = await self.invitation_repo.get_by_id(invitation_id)
+        if invitation is None or invitation.is_deleted:
+            msg = "Invitation not found"
+            raise NotFoundError(msg)
+
+        # Mark expired invitations on read
+        if invitation.is_expired and invitation.status == InvitationStatus.PENDING:
+            await self.invitation_repo.mark_expired(invitation_id)
+            invitation.status = InvitationStatus.EXPIRED
+
+        return InvitationDetailResult(
+            id=invitation.id,
+            workspace_name=invitation.workspace.name if invitation.workspace else "Unknown",
+            workspace_slug=invitation.workspace.slug if invitation.workspace else "",
+            inviter_name=invitation.inviter.full_name if invitation.inviter else None,
+            role=invitation.role.value,
+            email_masked=_mask_email(invitation.email),
+            status=invitation.status.value,
+            expires_at=invitation.expires_at,
+        )
+
     async def accept_invitation(
         self,
         payload: AcceptInvitationPayload,
@@ -481,11 +534,23 @@ class WorkspaceInvitationService:
         )
 
 
+def _mask_email(email: str) -> str:
+    """Mask an email address for public display (e.g. t***@example.com)."""
+    parts = email.split("@")
+    if len(parts) != 2:
+        return "***"
+    local = parts[0]
+    if len(local) <= 1:
+        return f"*@{parts[1]}"
+    return f"{local[0]}{'*' * (len(local) - 1)}@{parts[1]}"
+
+
 __all__ = [
     "AcceptInvitationPayload",
     "AcceptInvitationResult",
     "CancelInvitationPayload",
     "CancelInvitationResult",
+    "InvitationDetailResult",
     "ListInvitationsPayload",
     "ListInvitationsResult",
     "RequestMagicLinkPayload",

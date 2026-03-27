@@ -139,6 +139,7 @@ export interface WorkspaceFeatureToggles {
   projects: boolean;
   members: boolean;
   knowledge: boolean;
+  docs: boolean;
   skills: boolean;
   costs: boolean;
   approvals: boolean;
@@ -150,6 +151,7 @@ export const DEFAULT_FEATURE_TOGGLES: WorkspaceFeatureToggles = {
   projects: true,
   members: true,
   knowledge: true,
+  docs: true,
   skills: true,
   costs: true,
   approvals: true,

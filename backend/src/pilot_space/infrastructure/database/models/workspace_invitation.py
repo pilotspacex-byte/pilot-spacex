@@ -17,7 +17,6 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     String,
-    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -133,12 +132,9 @@ class WorkspaceInvitation(BaseModel):
     )
 
     # Indexes and constraints
+    # NOTE: Partial unique index uq_workspace_invitations_pending is managed
+    # by migration 103 (WHERE status='pending' AND is_deleted=false).
     __table_args__ = (
-        UniqueConstraint(
-            "workspace_id",
-            "email",
-            name="uq_workspace_invitations_pending",
-        ),
         Index("ix_workspace_invitations_email_status", "email", "status"),
         Index("ix_workspace_invitations_workspace_status", "workspace_id", "status"),
         Index("ix_workspace_invitations_expires_at", "expires_at"),

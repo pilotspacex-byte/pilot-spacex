@@ -15,6 +15,11 @@ from uuid import UUID
 from pydantic import Field
 
 from pilot_space.api.v1.schemas.base import BaseSchema
+from pilot_space.schemas.attachment_management import (
+    ExtractionChunk,
+    ExtractionMetadata,
+    ExtractionResultResponse,
+)
 
 
 class AttachmentUploadResponse(BaseSchema):
@@ -115,10 +120,30 @@ class DriveImportRequest(BaseSchema):
     )
 
 
+class ChunkAdjustment(BaseSchema):
+    """User-requested adjustment to a single chunk before KG ingestion."""
+
+    chunk_index: int
+    excluded: bool = False
+
+
+class DocumentIngestRequest(BaseSchema):
+    """Request body for POST /ai/attachments/{id}/ingest."""
+
+    workspace_id: UUID
+    project_id: UUID
+    chunk_adjustments: list[ChunkAdjustment] = Field(default_factory=list)  # Empty = use all chunks
+
+
 __all__ = [
     "AttachmentUploadResponse",
+    "ChunkAdjustment",
+    "DocumentIngestRequest",
     "DriveFileItem",
     "DriveFileListResponse",
     "DriveImportRequest",
     "DriveStatusResponse",
+    "ExtractionChunk",
+    "ExtractionMetadata",
+    "ExtractionResultResponse",
 ]

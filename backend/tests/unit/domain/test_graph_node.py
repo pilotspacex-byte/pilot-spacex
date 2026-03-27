@@ -63,6 +63,8 @@ class TestNodeTypeEnum:
             "constitution_rule",
             "work_intent",
             "user_preference",
+            "document",
+            "document_chunk",
         }
         actual = {member.value for member in NodeType}
         assert actual == expected

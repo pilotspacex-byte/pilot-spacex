@@ -12,17 +12,20 @@ Routes:
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Path, status
-from pydantic import Field
 
 from pilot_space.api.v1.dependencies import (
     NoteRepositoryDep,
 )
 from pilot_space.api.v1.repository_deps import NoteNoteLinkRepositoryDep
-from pilot_space.api.v1.schemas.base import BaseSchema
+from pilot_space.api.v1.schemas.workspace_note_links import (
+    BacklinkResponse,
+    CreateNoteLinkRequest,
+    NoteLinkResponse,
+)
 from pilot_space.dependencies.auth import CurrentUserId, SessionDep
 from pilot_space.domain.exceptions import NotFoundError, ValidationError
 from pilot_space.infrastructure.database.models.note_note_link import (
@@ -34,49 +37,6 @@ from pilot_space.infrastructure.logging import get_logger
 logger = get_logger(__name__)
 
 router = APIRouter()
-
-
-# ---------------------------------------------------------------------------
-# Pydantic schemas
-# ---------------------------------------------------------------------------
-
-
-class CreateNoteLinkRequest(BaseSchema):
-    """Request body for POST /{wid}/notes/{nid}/links."""
-
-    target_note_id: UUID = Field(description="Target note UUID to link to")
-    link_type: Literal["inline", "embed"] = Field(
-        default="inline",
-        description="Link type: inline (wiki-style) or embed (block)",
-    )
-    block_id: str | None = Field(
-        default=None,
-        description="TipTap block ID where the link originates",
-    )
-
-
-class NoteLinkResponse(BaseSchema):
-    """Response for a NoteNoteLink record."""
-
-    id: UUID
-    source_note_id: UUID
-    target_note_id: UUID
-    link_type: str
-    block_id: str | None = None
-    workspace_id: UUID
-    target_note_title: str | None = None
-
-
-class BacklinkResponse(BaseSchema):
-    """Response for a backlink (incoming link)."""
-
-    id: UUID
-    source_note_id: UUID
-    target_note_id: UUID
-    link_type: str
-    block_id: str | None = None
-    workspace_id: UUID
-    source_note_title: str | None = None
 
 
 # ---------------------------------------------------------------------------

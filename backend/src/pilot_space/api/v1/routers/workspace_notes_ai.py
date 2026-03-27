@@ -10,14 +10,17 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Path, status
-from pydantic import BaseModel, Field
 
 from pilot_space.api.v1.dependencies import (
-    CreateIssueServiceDep,
+    CreateExtractedIssuesServiceDep,
     NoteAIUpdateServiceDep,
     WorkspaceRepositoryDep,
 )
 from pilot_space.api.v1.schemas.note import AIUpdateRequest, AIUpdateResponse
+from pilot_space.api.v1.schemas.workspace_notes_ai import (
+    CreateExtractedIssuesRequest,
+    CreateExtractedIssuesResponse,
+)
 from pilot_space.dependencies.auth import CurrentUserId, SessionDep
 from pilot_space.domain.exceptions import NotFoundError
 from pilot_space.infrastructure.database.repositories.note_repository import (
@@ -84,29 +87,7 @@ async def ai_update_workspace_note(
     ai_update_service: NoteAIUpdateServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
 ) -> AIUpdateResponse:
-    """Apply AI-generated content update to a note.
-
-    Separate endpoint from user autosave for audit trail and conflict detection.
-    Supports three operations:
-    - replace_block: Replace a block's content by ID
-    - append_blocks: Insert blocks after a specified position
-    - insert_inline_issue: Add an inlineIssue node to a block
-
-    Args:
-        workspace_id: The workspace ID (UUID) or slug.
-        note_id: The note ID.
-        update_data: AI update request data.
-        current_user_id: Current user ID.
-        session: Database session.
-        note_repo: Note repository.
-        workspace_repo: Workspace repository.
-
-    Returns:
-        AI update response with affected blocks.
-
-    Raises:
-        HTTPException: If note not found or validation fails.
-    """
+    """Apply AI-generated content update to a note."""
     from pilot_space.application.services.note.ai_update_service import (
         AIUpdateOperation,
         AIUpdatePayload,
@@ -114,12 +95,10 @@ async def ai_update_workspace_note(
 
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
 
-    # Verify note exists and belongs to workspace
     note = await note_repo.get_by_id(note_id)
     if not note or note.workspace_id != workspace.id:
         raise NotFoundError("Note not found")
 
-    # Convert operation string to enum
     try:
         operation = AIUpdateOperation(update_data.operation)
     except ValueError:
@@ -128,7 +107,6 @@ async def ai_update_workspace_note(
             detail=f"Invalid operation: {update_data.operation}",
         ) from None
 
-    # Create payload
     payload = AIUpdatePayload(
         note_id=note_id,
         operation=operation,
@@ -141,7 +119,6 @@ async def ai_update_workspace_note(
         user_id=current_user_id,
     )
 
-    # Execute update
     result = await ai_update_service.execute(payload)
     await session.commit()
 
@@ -163,29 +140,6 @@ async def ai_update_workspace_note(
     )
 
 
-class ExtractedIssueInput(BaseModel):
-    """Single extracted issue to create."""
-
-    title: str = Field(..., min_length=1, max_length=255)
-    description: str | None = None
-    priority: str = "medium"
-    type: str = "task"
-    source_block_id: str | None = None
-
-
-class CreateExtractedIssuesRequest(BaseModel):
-    """Request to create multiple extracted issues from a note."""
-
-    issues: list[ExtractedIssueInput] = Field(..., min_length=1, max_length=50)
-
-
-class CreateExtractedIssuesResponse(BaseModel):
-    """Response with created issue IDs."""
-
-    created_issue_ids: list[str]
-    count: int
-
-
 @router.post(
     "/{workspace_id}/notes/{note_id}/create-extracted-issues",
     response_model=CreateExtractedIssuesResponse,
@@ -204,46 +158,30 @@ async def create_extracted_issues(
     session: SessionDep,
     current_user_id: CurrentUserId,
     note_repo: NoteRepo,
-    create_issue_service: CreateIssueServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
+    service: CreateExtractedIssuesServiceDep,
 ) -> CreateExtractedIssuesResponse:
     """Create issues from AI extraction and link them to the note.
 
-    Args:
-        workspace_id: Workspace ID (UUID) or slug.
-        note_id: Note ID the issues were extracted from.
-        body: Extracted issues to create.
-        current_user_id: Current user ID.
-        session: Database session.
-        note_repo: Note repository.
-        workspace_repo: Workspace repository.
-
-    Returns:
-        Created issue IDs and count.
-
-    Raises:
-        HTTPException: If note/workspace not found or validation fails.
+    Delegates to CreateExtractedIssuesService for issue creation and linking.
     """
-    from pilot_space.application.services.issue.create_issue_service import (
-        CreateIssuePayload,
+    from pilot_space.application.services.ai_extraction import (
+        CreateExtractedIssuesPayload,
+        ExtractedIssueInput as ServiceExtractedIssueInput,
     )
+    from pilot_space.domain.mappers.issue_priority import map_priority_string
     from pilot_space.infrastructure.database.models.issue import IssuePriority
-    from pilot_space.infrastructure.database.models.note_issue_link import (
-        NoteIssueLink,
-        NoteLinkType,
-    )
     from pilot_space.infrastructure.database.repositories.project_repository import (
         ProjectRepository,
     )
 
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
 
-    # Verify note exists and belongs to workspace
     note = await note_repo.get_by_id(note_id)
     if not note or note.workspace_id != workspace.id:
         raise NotFoundError("Note not found")
 
-    # Get project_id from note or first workspace project
+    # Resolve project_id from note or first workspace project
     project_id = note.project_id
     if not project_id:
         project_repo = ProjectRepository(session=session)
@@ -255,50 +193,44 @@ async def create_extracted_issues(
             )
         project_id = projects[0].id
 
-    priority_map = {
-        "urgent": IssuePriority.URGENT,
-        "high": IssuePriority.HIGH,
-        "medium": IssuePriority.MEDIUM,
-        "low": IssuePriority.LOW,
-        "none": IssuePriority.NONE,
+    # Map string priorities to integer priorities used by CreateExtractedIssuesService
+    _priority_to_int: dict[IssuePriority, int] = {
+        IssuePriority.URGENT: 0,
+        IssuePriority.HIGH: 1,
+        IssuePriority.MEDIUM: 2,
+        IssuePriority.LOW: 3,
+        IssuePriority.NONE: 4,
     }
 
-    created_ids: list[str] = []
-
-    for extracted in body.issues:
-        payload = CreateIssuePayload(
-            workspace_id=workspace.id,
-            project_id=project_id,
-            reporter_id=current_user_id,
-            name=extracted.title,
-            description=extracted.description,
-            priority=priority_map.get(extracted.priority, IssuePriority.MEDIUM),
-            ai_enhanced=False,
-        )
-        result = await create_issue_service.execute(payload)
-        created_ids.append(str(result.issue.id))
-
-        # Create NoteIssueLink to track extraction traceability
-        link = NoteIssueLink(
-            note_id=note_id,
-            issue_id=result.issue.id,
-            link_type=NoteLinkType.EXTRACTED,
-            block_id=extracted.source_block_id,
-            workspace_id=workspace.id,
-        )
-        session.add(link)
-
-    await session.commit()
+    payload = CreateExtractedIssuesPayload(
+        workspace_id=workspace.id,
+        note_id=str(note_id),
+        issues=[
+            ServiceExtractedIssueInput(
+                title=extracted.title,
+                description=extracted.description,
+                priority=_priority_to_int.get(
+                    map_priority_string(extracted.priority, IssuePriority.MEDIUM),
+                    2,
+                ),
+                source_block_id=extracted.source_block_id,
+            )
+            for extracted in body.issues
+        ],
+        project_id=str(project_id),
+        user_id=current_user_id,
+    )
+    result = await service.execute(payload)
 
     logger.info(
         "Created %d extracted issues from note %s",
-        len(created_ids),
+        result.created_count,
         str(note_id),
     )
 
     return CreateExtractedIssuesResponse(
-        created_issue_ids=created_ids,
-        count=len(created_ids),
+        created_issue_ids=[ci.id for ci in result.created_issues],
+        count=result.created_count,
     )
 
 

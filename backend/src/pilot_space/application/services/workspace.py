@@ -40,6 +40,7 @@ if TYPE_CHECKING:
     from pilot_space.infrastructure.database.repositories.workspace_repository import (
         WorkspaceRepository,
     )
+    from pilot_space.infrastructure.queue.supabase_queue import SupabaseQueueClient
 
 logger = get_logger(__name__)
 
@@ -183,11 +184,13 @@ class WorkspaceService:
         user_repo: UserRepository,
         invitation_repo: InvitationRepository,
         label_repo: LabelRepository,
+        queue: SupabaseQueueClient | None = None,
     ) -> None:
         self.workspace_repo = workspace_repo
         self.user_repo = user_repo
         self.invitation_repo = invitation_repo
         self.label_repo = label_repo
+        self._queue = queue
 
     @staticmethod
     def _is_valid_uuid(value: str) -> bool:
@@ -577,5 +580,23 @@ class WorkspaceService:
                 "invitation_id": str(invitation.id),
             },
         )
+
+        # Enqueue email delivery — written in the same DB transaction as the
+        # invitation, so if the transaction rolls back, the email job also
+        # rolls back (transactional outbox via pgmq).
+        if self._queue is not None:
+            try:
+                from pilot_space.infrastructure.queue.models import QueueName
+
+                await self._queue.enqueue(
+                    QueueName.AI_NORMAL,
+                    {
+                        "task_type": "send_invitation_email",
+                        "email": normalized_email,
+                        "invitation_id": str(invitation.id),
+                    },
+                )
+            except Exception as exc:
+                logger.warning("Failed to enqueue invitation email: %s", exc)
 
         return InviteMemberResult(is_immediate=False, invitation=invitation)

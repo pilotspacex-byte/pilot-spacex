@@ -15,11 +15,11 @@ from uuid import UUID
 
 from fastapi import APIRouter
 
+from pilot_space.api.v1.dependencies import FeatureToggleServiceDep
 from pilot_space.api.v1.schemas.workspace import (
     WorkspaceFeatureToggles,
     WorkspaceFeatureTogglesUpdate,
 )
-from pilot_space.application.services.feature_toggle import FeatureToggleService
 from pilot_space.dependencies import (
     CurrentUser,
     DbSession,
@@ -40,6 +40,7 @@ async def get_feature_toggles(
     workspace_id: UUID,
     current_user: CurrentUser,
     session: DbSession,
+    service: FeatureToggleServiceDep,
 ) -> WorkspaceFeatureToggles:
     """Get workspace feature toggles.
 
@@ -49,7 +50,6 @@ async def get_feature_toggles(
     Service exceptions propagate to the global feature_toggle_error_handler
     which returns RFC 7807 application/problem+json responses.
     """
-    service = FeatureToggleService(session)
     return await service.get_toggles(workspace_id, current_user.user_id)
 
 
@@ -63,6 +63,7 @@ async def update_feature_toggles(
     body: WorkspaceFeatureTogglesUpdate,
     current_user: CurrentUser,
     session: DbSession,
+    service: FeatureToggleServiceDep,
 ) -> WorkspaceFeatureToggles:
     """Update workspace feature toggles.
 
@@ -72,5 +73,4 @@ async def update_feature_toggles(
     Service exceptions propagate to the global feature_toggle_error_handler
     which returns RFC 7807 application/problem+json responses.
     """
-    service = FeatureToggleService(session)
     return await service.update_toggles(workspace_id, current_user.user_id, body)

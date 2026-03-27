@@ -12,6 +12,8 @@ PROVIDER_SERVICE_SLOTS: list[tuple[str, str, bool]] = [
     ("ollama", "embedding", True),
     ("anthropic", "llm", False),
     ("ollama", "llm", True),
+    ("hunyuan_ocr", "ocr", False),
+    ("tencent_ocr", "ocr", False),
     ("elevenlabs", "stt", False),
 ]
 
@@ -20,6 +22,8 @@ VALID_PROVIDER_SERVICES: dict[str, set[str]] = {
     "google": {"embedding"},
     "anthropic": {"llm"},
     "ollama": {"embedding", "llm"},
+    "hunyuan_ocr": {"ocr"},
+    "tencent_ocr": {"ocr"},
     "elevenlabs": {"stt"},
 }
 

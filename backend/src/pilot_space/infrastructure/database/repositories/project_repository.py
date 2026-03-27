@@ -334,3 +334,30 @@ class ProjectRepository(BaseRepository[Project]):
             List of projects led by the user.
         """
         return await self.find_by(lead_id=lead_id, include_deleted=include_deleted)
+
+    async def get_identifier_by_id(
+        self,
+        project_id: UUID,
+        workspace_id: UUID,
+    ) -> str | None:
+        """Return only the short identifier string for a project.
+
+        Fetches a single column instead of the full row for lightweight
+        lookups where only the identifier is needed (e.g. building issue
+        identifiers like ``PILOT-42``).
+
+        Args:
+            project_id: The project UUID.
+            workspace_id: The workspace UUID (tenant scope guard).
+
+        Returns:
+            The identifier string (e.g. "PILOT") or None if not found.
+        """
+        result = await self.session.execute(
+            select(Project.identifier).where(
+                Project.id == project_id,
+                Project.workspace_id == workspace_id,
+                Project.is_deleted == False,  # noqa: E712
+            )
+        )
+        return result.scalar_one_or_none()

@@ -24,6 +24,7 @@ const ROUTE_FEATURE_MAP: Record<string, keyof WorkspaceFeatureToggles> = {
   projects: 'projects',
   members: 'members',
   knowledge: 'knowledge',
+  docs: 'docs',
   skills: 'skills',
   costs: 'costs',
   approvals: 'approvals',

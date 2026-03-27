@@ -22,14 +22,22 @@ References:
 from __future__ import annotations
 
 import hmac
-from datetime import datetime
 from typing import TYPE_CHECKING, Annotated
 from uuid import UUID
 
 from cryptography.fernet import Fernet
 from fastapi import APIRouter, HTTPException, Path, status
-from pydantic import BaseModel
 
+from pilot_space.api.v1.schemas.workspace_encryption import (
+    EncryptionKeyRequest,
+    EncryptionKeyResponse,
+    EncryptionStatusResponse,
+    EncryptionVerifyRequest,
+    EncryptionVerifyResponse,
+    GeneratedKeyResponse,
+    KeyRotationRequest,
+    KeyRotationResponse,
+)
 from pilot_space.dependencies.auth import CurrentUser, SessionDep
 from pilot_space.infrastructure.database.permissions import check_permission
 from pilot_space.infrastructure.database.repositories.workspace_encryption_repository import (
@@ -50,66 +58,6 @@ if TYPE_CHECKING:
 router = APIRouter(tags=["encryption"])
 
 WorkspaceSlugPath = Annotated[str, Path(description="Workspace slug or UUID")]
-
-
-# ============================================================================
-# Schemas
-# ============================================================================
-
-
-class EncryptionStatusResponse(BaseModel):
-    """Response for GET /encryption — public-safe status, no key material."""
-
-    enabled: bool
-    key_hint: str | None = None
-    key_version: int | None = None
-    last_rotated: datetime | None = None
-
-
-class EncryptionKeyRequest(BaseModel):
-    """Request body for PUT /encryption/key."""
-
-    key: str
-
-
-class EncryptionKeyResponse(BaseModel):
-    """Response for PUT /encryption/key."""
-
-    key_version: int
-    key_hint: str | None = None
-
-
-class EncryptionVerifyRequest(BaseModel):
-    """Request body for POST /encryption/verify."""
-
-    key: str
-
-
-class EncryptionVerifyResponse(BaseModel):
-    """Response for POST /encryption/verify."""
-
-    verified: bool
-    key_version: int
-
-
-class GeneratedKeyResponse(BaseModel):
-    """Response for POST /encryption/generate-key."""
-
-    key: str
-
-
-class KeyRotationRequest(BaseModel):
-    """Request body for POST /encryption/rotate."""
-
-    new_key: str
-
-
-class KeyRotationResponse(BaseModel):
-    """Response for POST /encryption/rotate."""
-
-    rotated: bool
-    re_encrypted: dict[str, int]
-    key_version: int
 
 
 # ============================================================================

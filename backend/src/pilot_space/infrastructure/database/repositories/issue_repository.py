@@ -658,5 +658,32 @@ class IssueRepository(BaseRepository[Issue]):
 
         return query
 
+    async def get_active_by_ids(
+        self,
+        issue_ids: list[UUID],
+    ) -> dict[UUID, Issue]:
+        """Batch-fetch active (non-deleted) issues by IDs.
+
+        Used for enriching search results that already have UUIDs (e.g.
+        KG-based related-issue suggestions) without issuing N individual
+        queries.
+
+        Args:
+            issue_ids: List of issue UUIDs to retrieve.
+
+        Returns:
+            Dict mapping issue.id -> Issue for all found non-deleted rows.
+        """
+        if not issue_ids:
+            return {}
+        query = select(Issue).where(
+            and_(
+                Issue.id.in_(issue_ids),
+                Issue.is_deleted == False,  # noqa: E712
+            )
+        )
+        result = await self.session.execute(query)
+        return {issue.id: issue for issue in result.scalars().all()}
+
 
 __all__ = ["IssueFilters", "IssueRepository"]

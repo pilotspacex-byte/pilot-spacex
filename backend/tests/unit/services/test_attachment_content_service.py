@@ -24,6 +24,10 @@ import pytest
 from pilot_space.application.services.ai.attachment_content_service import (
     AttachmentContentService,
 )
+from pilot_space.application.services.document.office_extraction_service import (
+    ExtractionResult,
+    OfficeExtractionService,
+)
 from pilot_space.infrastructure.database.models.chat_attachment import ChatAttachment
 
 # ---------------------------------------------------------------------------
@@ -52,6 +56,7 @@ def make_attachment(
     attachment.storage_key = storage_key or f"chat-attachments/ws/user/{uuid.uuid4()}/{filename}"
     attachment.source = "local"
     attachment.drive_file_id = None
+    attachment.extracted_text = None
     attachment.expires_at = datetime(2099, 1, 1, tzinfo=UTC)
     return attachment
 
@@ -77,9 +82,19 @@ class TestBuildContentBlocks:
         return client
 
     @pytest.fixture
-    def service(self, storage_client: MagicMock) -> AttachmentContentService:
-        """Service under test wired with the mock storage client."""
-        return AttachmentContentService(storage_client=storage_client)
+    def office_extraction(self) -> MagicMock:
+        """Mock OfficeExtractionService (not called for non-Office MIME tests)."""
+        return MagicMock(spec=OfficeExtractionService)
+
+    @pytest.fixture
+    def service(
+        self, storage_client: MagicMock, office_extraction: MagicMock
+    ) -> AttachmentContentService:
+        """Service under test wired with the mock storage client and office extraction."""
+        return AttachmentContentService(
+            storage_client=storage_client,
+            office_extraction=office_extraction,
+        )
 
     def _patch_httpx(self, content: bytes) -> MagicMock:
         """Return a context-manager mock for httpx.AsyncClient.get returning content."""
@@ -279,3 +294,154 @@ class TestBuildContentBlocks:
         """Empty input list returns an empty list without any I/O calls."""
         blocks = await service.build_content_blocks([])
         assert blocks == []
+
+
+# ---------------------------------------------------------------------------
+# TestOfficeExtraction
+# ---------------------------------------------------------------------------
+
+
+class TestOfficeExtraction:
+    """Tests for PIPE-05 / OFFICE-04: Office document (.docx/.xlsx/.pptx) extraction.
+
+    Office files are converted to markdown text blocks via injected OfficeExtractionService.
+    Tests mock the service — real Office libs are not required for unit tests.
+    """
+
+    _DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    _XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    _PPTX_MIME = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+
+    _MOCK_MARKDOWN = "## Header\n\nBody text"
+    _FAKE_OFFICE_BYTES = b"PK\x03\x04fake-office-binary"
+
+    @pytest.fixture
+    def storage_client(self) -> MagicMock:
+        """Mock storage client with a get_signed_url coroutine."""
+        client = MagicMock()
+        client.get_signed_url = AsyncMock(return_value="https://storage.example.com/file")
+        return client
+
+    @pytest.fixture
+    def office_extraction(self) -> MagicMock:
+        """Mock OfficeExtractionService returning markdown."""
+        svc = MagicMock(spec=OfficeExtractionService)
+        svc.extract.return_value = ExtractionResult(
+            text=self._MOCK_MARKDOWN,
+            metadata={"word_count": 4},
+        )
+        return svc
+
+    @pytest.fixture
+    def service(
+        self, storage_client: MagicMock, office_extraction: MagicMock
+    ) -> AttachmentContentService:
+        """Service under test wired with mock storage and office extraction."""
+        return AttachmentContentService(
+            storage_client=storage_client,
+            office_extraction=office_extraction,
+        )
+
+    def _patch_httpx(self, content: bytes) -> MagicMock:
+        """Return a context-manager mock for httpx.AsyncClient.get returning content."""
+        response = MagicMock()
+        response.content = content
+        response.raise_for_status = MagicMock()
+
+        http_client = MagicMock()
+        http_client.get = AsyncMock(return_value=response)
+
+        cm = MagicMock()
+        cm.__aenter__ = AsyncMock(return_value=http_client)
+        cm.__aexit__ = AsyncMock(return_value=False)
+        return cm
+
+    async def test_docx_produces_text_block(
+        self,
+        service: AttachmentContentService,
+        office_extraction: MagicMock,
+    ) -> None:
+        """PIPE-05: .docx MIME type attachment produces a text block with extracted markdown."""
+        attachment = make_attachment(mime_type=self._DOCX_MIME, filename="report.docx")
+
+        with patch(
+            "pilot_space.application.services.ai.attachment_content_service.httpx.AsyncClient",
+            return_value=self._patch_httpx(self._FAKE_OFFICE_BYTES),
+        ):
+            blocks = await service.build_content_blocks([attachment])
+
+        assert len(blocks) == 1
+        block = blocks[0]
+        assert block["type"] == "text"
+        assert self._MOCK_MARKDOWN in block["text"]
+        office_extraction.extract.assert_called_once_with(
+            self._FAKE_OFFICE_BYTES, self._DOCX_MIME, "report.docx"
+        )
+
+    async def test_xlsx_produces_text_block(
+        self,
+        service: AttachmentContentService,
+        office_extraction: MagicMock,
+    ) -> None:
+        """PIPE-05: .xlsx MIME type attachment produces a text block with extracted markdown."""
+        attachment = make_attachment(mime_type=self._XLSX_MIME, filename="data.xlsx")
+
+        with patch(
+            "pilot_space.application.services.ai.attachment_content_service.httpx.AsyncClient",
+            return_value=self._patch_httpx(self._FAKE_OFFICE_BYTES),
+        ):
+            blocks = await service.build_content_blocks([attachment])
+
+        assert len(blocks) == 1
+        block = blocks[0]
+        assert block["type"] == "text"
+        assert self._MOCK_MARKDOWN in block["text"]
+        office_extraction.extract.assert_called_once_with(
+            self._FAKE_OFFICE_BYTES, self._XLSX_MIME, "data.xlsx"
+        )
+
+    async def test_pptx_produces_text_block(
+        self,
+        service: AttachmentContentService,
+        office_extraction: MagicMock,
+    ) -> None:
+        """PIPE-05: .pptx MIME type attachment produces a text block with extracted markdown."""
+        attachment = make_attachment(mime_type=self._PPTX_MIME, filename="slides.pptx")
+
+        with patch(
+            "pilot_space.application.services.ai.attachment_content_service.httpx.AsyncClient",
+            return_value=self._patch_httpx(self._FAKE_OFFICE_BYTES),
+        ):
+            blocks = await service.build_content_blocks([attachment])
+
+        assert len(blocks) == 1
+        block = blocks[0]
+        assert block["type"] == "text"
+        assert self._MOCK_MARKDOWN in block["text"]
+        office_extraction.extract.assert_called_once_with(
+            self._FAKE_OFFICE_BYTES, self._PPTX_MIME, "slides.pptx"
+        )
+
+    async def test_office_extraction_failure_returns_fallback_text_block(
+        self,
+        storage_client: MagicMock,
+    ) -> None:
+        """PIPE-05: Extraction failure returns a fallback text block — does not raise."""
+        failing_svc = MagicMock(spec=OfficeExtractionService)
+        failing_svc.extract.side_effect = Exception("corrupted file")
+        service = AttachmentContentService(
+            storage_client=storage_client,
+            office_extraction=failing_svc,
+        )
+        attachment = make_attachment(mime_type=self._DOCX_MIME, filename="corrupted.docx")
+
+        with patch(
+            "pilot_space.application.services.ai.attachment_content_service.httpx.AsyncClient",
+            return_value=self._patch_httpx(self._FAKE_OFFICE_BYTES),
+        ):
+            blocks = await service.build_content_blocks([attachment])
+
+        assert len(blocks) == 1
+        block = blocks[0]
+        assert block["type"] == "text"
+        assert "failed" in block["text"].lower() or "extraction" in block["text"].lower()

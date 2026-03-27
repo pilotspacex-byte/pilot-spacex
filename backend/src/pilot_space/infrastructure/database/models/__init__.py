@@ -83,12 +83,14 @@ from pilot_space.infrastructure.database.models.note_note_link import (
     NoteNoteLink,
     NoteNoteLinkType,
 )
+from pilot_space.infrastructure.database.models.note_template import NoteTemplate
 from pilot_space.infrastructure.database.models.note_version import NoteVersion, VersionTrigger
 from pilot_space.infrastructure.database.models.notification import (
     Notification,
     NotificationPriority,
     NotificationType,
 )
+from pilot_space.infrastructure.database.models.ocr_result import OcrResultModel
 from pilot_space.infrastructure.database.models.onboarding import WorkspaceOnboarding
 from pilot_space.infrastructure.database.models.pilot_api_key import PilotAPIKey
 from pilot_space.infrastructure.database.models.pm_block_insight import PMBlockInsight
@@ -217,10 +219,12 @@ __all__ = [
     "NoteLinkType",
     "NoteNoteLink",
     "NoteNoteLinkType",
+    "NoteTemplate",
     "NoteVersion",
     "Notification",
     "NotificationPriority",
     "NotificationType",
+    "OcrResultModel",
     "PMBlockInsight",
     "PilotAPIKey",
     "Project",

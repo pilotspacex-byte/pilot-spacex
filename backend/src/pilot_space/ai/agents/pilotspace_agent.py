@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import copy
 import json
 import os
 import sys
@@ -181,9 +182,9 @@ class ChatInput:
     context: dict[str, Any] = field(default_factory=dict)
     user_id: UUID | None = None
     workspace_id: UUID | None = None
-    resolved_model: Any | None = (
-        None  # ResolvedModelConfig when model_override set (AIPR-04)
-    )
+    resolved_model: Any | None = None  # ResolvedModelConfig when model_override set (AIPR-04)
+    attachment_content_blocks: list[dict[str, Any]] | None = None
+    attachment_metadata: list[dict[str, Any]] | None = None
 
 
 @dataclass
@@ -195,6 +196,51 @@ class ChatOutput:
     tasks: list[dict[str, Any]] = field(default_factory=list)
     approvals: list[dict[str, Any]] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
+
+
+def _classify_stream_error(exc: Exception) -> tuple[str, str, bool]:
+    """Classify a streaming exception into (error_code, user_message, retryable).
+
+    Translates raw SDK/infrastructure errors into user-friendly messages
+    instead of exposing internal details like "Command failed with exit code 1".
+    """
+    from pilot_space.ai.exceptions import AIError, AINotConfiguredError
+
+    # AI layer errors already have good messages
+    if isinstance(exc, AINotConfiguredError):
+        return ("ai_not_configured", str(exc), False)
+    if isinstance(exc, AIError):
+        return (exc.error_code, str(exc), False)
+
+    # Claude Agent SDK subprocess crash
+    try:
+        from claude_agent_sdk._errors import ProcessError
+
+        if isinstance(exc, ProcessError):
+            exit_code = getattr(exc, "exit_code", None)
+            stderr_text = getattr(exc, "stderr", "") or ""
+            # API key / auth errors from the CLI
+            if exit_code == 1 and (
+                "api key" in stderr_text.lower()
+                or "unauthorized" in stderr_text.lower()
+                or stderr_text == "Check stderr output for details"
+            ):
+                return (
+                    "ai_not_configured",
+                    "No API key configured for this workspace. "
+                    "Configure a key in Settings > AI Providers.",
+                    False,
+                )
+            return (
+                "sdk_process_error",
+                f"AI service encountered an error (code {exit_code}). Please try again.",
+                True,
+            )
+    except ImportError:
+        pass
+
+    # Generic fallback
+    return ("sdk_error", "An unexpected error occurred. Please try again.", True)
 
 
 @dataclass(frozen=True, slots=True)
@@ -211,6 +257,42 @@ class _ProviderConfig:
 class _StreamConfig:
     sdk_options: ClaudeAgentOptions
     ref_map: BlockRefMap | None
+
+
+def _build_multimodal_prompt(
+    enriched_message: str,
+    blocks: list[dict[str, Any]],
+    session_id: str,
+) -> AsyncIterator[dict[str, Any]]:
+    """Return an async generator that yields a single multimodal user message for the Claude SDK.
+
+    Captures blocks by value eagerly (at call time, not at iteration time) to
+    prevent closure mutation bugs — the caller's list can be modified after this
+    function returns without affecting the yielded message.
+
+    The yielded dict matches the Claude SDK wire format for content arrays:
+      {"type": "user", "message": {"role": "user", "content": [...]}, ...}
+
+    Args:
+        enriched_message: Pre-built contextual message string.
+        blocks: Attachment content blocks (document/image/text types).
+        session_id: SDK session identifier for the query.
+    """
+    # Copy eagerly here (regular function body) — before the async generator is entered.
+    # This ensures the caller mutating 'blocks' after calling this function has no effect.
+    _blocks = copy.deepcopy(blocks)
+    content: list[dict[str, Any]] = [{"type": "text", "text": enriched_message}]
+    content.extend(_blocks)
+
+    async def _gen() -> AsyncIterator[dict[str, Any]]:
+        yield {
+            "type": "user",
+            "message": {"role": "user", "content": content},
+            "parent_tool_use_id": None,
+            "session_id": session_id,
+        }
+
+    return _gen()
 
 
 class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
@@ -734,6 +816,10 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         sdk_env = sdk_params.get("env", {})
         if "PATH" not in sdk_env:
             sdk_env["PATH"] = os.environ.get("PATH", "")
+        # Unset CLAUDECODE to prevent "nested session" block when the backend
+        # server itself runs inside a Claude Code session (e.g. dev mode).
+        sdk_env.pop("CLAUDECODE", None)
+        sdk_env["CLAUDECODE"] = ""
 
         can_use_tool_cb = create_can_use_tool_callback(
             tool_event_queue, context.user_id
@@ -825,13 +911,9 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 yield chunk
 
         except Exception as e:
-            logger.error(
-                "[SDK/Stream] Top-level error: %s: %s",
-                type(e).__name__,
-                e,
-                exc_info=True,
-            )
-            err = {"errorCode": "sdk_error", "message": str(e), "retryable": False}
+            logger.error("[SDK/Stream] Top-level error: %s: %s", type(e).__name__, e, exc_info=True)
+            error_code, user_message, retryable = _classify_stream_error(e)
+            err = {"errorCode": error_code, "message": user_message, "retryable": retryable}
             yield f"event: error\ndata: {json.dumps(err)}\n\n"
 
     async def _stream_with_space(
@@ -925,7 +1007,18 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                     input_data,
                     block_ref_map=ref_map,
                 )
-                await client.query(enriched_message, session_id=query_session_id)
+
+                if input_data.attachment_content_blocks:
+                    await client.query(
+                        _build_multimodal_prompt(
+                            enriched_message,
+                            input_data.attachment_content_blocks,
+                            session_id=query_session_id,
+                        ),
+                        session_id=query_session_id,
+                    )
+                else:
+                    await client.query(enriched_message, session_id=query_session_id)
 
                 # Yield intent_detected events after query is dispatched
                 for intent_sse in intent_events:
@@ -991,7 +1084,8 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                         duration_ms=duration_ms,
                         exc_info=True,
                     )
-                    yield f"event: error\ndata: {json.dumps({'errorCode': 'stream_error', 'message': str(stream_err), 'retryable': False})}\n\n"
+                    _err_code, _err_msg, _err_retry = _classify_stream_error(stream_err)
+                    yield f"event: error\ndata: {json.dumps({'errorCode': _err_code, 'message': _err_msg, 'retryable': _err_retry})}\n\n"
                 else:
                     final_flush = delta_buffer.flush()
                     if final_flush:

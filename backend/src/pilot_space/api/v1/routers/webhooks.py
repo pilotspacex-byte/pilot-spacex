@@ -9,23 +9,16 @@ from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException, Request, status
 
+from pilot_space.api.v1.dependencies import ProcessGitHubWebhookServiceDep
 from pilot_space.api.v1.schemas.integration import WebhookProcessResult
 from pilot_space.application.services.integration import (
-    ProcessGitHubWebhookService,
     ProcessWebhookPayload,
 )
 from pilot_space.config import get_settings
 from pilot_space.dependencies import DbSession
 from pilot_space.domain.exceptions import ServiceUnavailableError
-from pilot_space.infrastructure.database.repositories import (
-    ActivityRepository,
-    IntegrationLinkRepository,
-    IntegrationRepository,
-    IssueRepository,
-)
 from pilot_space.infrastructure.logging import get_logger
 from pilot_space.integrations.github import (
-    GitHubSyncService,
     GitHubWebhookHandler,
     WebhookVerificationError,
 )
@@ -43,6 +36,7 @@ router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 async def receive_github_webhook(
     request: Request,
     session: DbSession,
+    service: ProcessGitHubWebhookServiceDep,
     x_github_event: str = Header(..., alias="X-GitHub-Event"),
     x_github_delivery: str = Header(..., alias="X-GitHub-Delivery"),
     x_hub_signature_256: str = Header(..., alias="X-Hub-Signature-256"),
@@ -64,7 +58,7 @@ async def receive_github_webhook(
     # Get raw body for signature verification
     body = await request.body()
 
-    # Create handler and verify signature
+    # Create handler and verify signature (per-request, depends on secret)
     handler = GitHubWebhookHandler(
         webhook_secret=settings.github_webhook_secret.get_secret_value(),
     )
@@ -86,26 +80,6 @@ async def receive_github_webhook(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid JSON payload",
         ) from e
-
-    # Construct repositories and services inline (per-request, no shared state)
-    integration_link_repo = IntegrationLinkRepository(session)
-    issue_repo = IssueRepository(session)
-
-    sync_service = GitHubSyncService(
-        session=session,
-        integration_link_repo=integration_link_repo,
-        issue_repo=issue_repo,
-    )
-
-    service = ProcessGitHubWebhookService(
-        session=session,
-        integration_repo=IntegrationRepository(session),
-        integration_link_repo=integration_link_repo,
-        issue_repo=issue_repo,
-        activity_repo=ActivityRepository(session),
-        webhook_handler=handler,
-        sync_service=sync_service,
-    )
 
     result = await service.execute(
         ProcessWebhookPayload(

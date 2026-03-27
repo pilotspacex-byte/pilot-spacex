@@ -37,7 +37,11 @@ import { attachmentsApi } from '@/services/api/attachments';
 interface ChatInputProps {
   value: string;
   onChange: (value: string) => void;
-  onSubmit: (payload: { attachmentIds: string[]; voiceAudioUrl?: string | null }) => void;
+  onSubmit: (payload: {
+    attachmentIds: string[];
+    attachments: Array<{ attachmentId: string; filename: string; mimeType: string; sizeBytes: number; source: 'local' | 'google_drive' }>;
+    voiceAudioUrl?: string | null;
+  }) => void;
   isStreaming?: boolean;
   isDisabled?: boolean;
   autoFocus?: boolean;
@@ -303,7 +307,16 @@ export const ChatInput = observer<ChatInputProps>(
         ) {
           e.preventDefault();
           if (value.trim() && !isStreaming && !isDisabled) {
-            onSubmit({ attachmentIds, voiceAudioUrl: pendingAudioUrl });
+            const readyAttachments = attachments
+              .filter((a) => a.status === 'ready' && a.attachmentId)
+              .map((a) => ({
+                attachmentId: a.attachmentId!,
+                filename: a.filename,
+                mimeType: a.mimeType,
+                sizeBytes: a.sizeBytes,
+                source: a.source,
+              }));
+            onSubmit({ attachmentIds, attachments: readyAttachments, voiceAudioUrl: pendingAudioUrl });
             setPendingAudioUrl(null);
             reset();
           }
@@ -318,6 +331,7 @@ export const ChatInput = observer<ChatInputProps>(
         sectionMenuOpen,
         resumeMenuOpen,
         onSubmit,
+        attachments,
         attachmentIds,
         pendingAudioUrl,
         reset,

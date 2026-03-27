@@ -46,6 +46,7 @@ from pilot_space.api.v1.routers import (
     integrations_router,
     intents_router,
     invitations_public_router,
+    invitation_router,
     issue_implement_router,
     issues_ai_context_router,
     issues_ai_context_streaming_router,
@@ -88,6 +89,7 @@ from pilot_space.api.v1.routers import (
     workspace_note_links_router,
     workspace_notes_ai_router,
     workspace_notes_router,
+    workspace_ocr_settings_router,
     workspace_quota_router,
     workspace_sessions_router,
     workspace_tasks_router,
@@ -173,6 +175,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             await queue_client.create_queue(QueueName.AI_LOW)
             await queue_client.create_queue(QueueName.AI_NORMAL)
             await queue_client.create_queue(QueueName.NOTIFICATIONS)
+            await queue_client.create_queue(QueueName.DEAD_LETTER)
         except QueueConnectionError:
             logger.warning("Queue unavailable — workers will not start (degraded mode)")
             queue_client = None
@@ -331,6 +334,7 @@ app.include_router(integrations_router, prefix=API_V1_PREFIX)
 app.include_router(github_links_router, prefix=API_V1_PREFIX)
 app.include_router(webhooks_router, prefix=API_V1_PREFIX)
 app.include_router(workspace_ai_settings_router, prefix=f"{API_V1_PREFIX}/workspaces")
+app.include_router(workspace_ocr_settings_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_mcp_servers_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(mcp_oauth_callback_router, prefix=API_V1_PREFIX)
 app.include_router(workspace_encryption_router, prefix=f"{API_V1_PREFIX}/workspaces")
@@ -346,6 +350,7 @@ app.include_router(workspace_plugins_router, prefix=f"{API_V1_PREFIX}/workspaces
 app.include_router(workspace_action_buttons_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_issue_branches_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_invitations_router, prefix=API_V1_PREFIX)
+app.include_router(invitation_router, prefix=API_V1_PREFIX)
 app.include_router(workspace_members_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(project_members_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_sessions_router, prefix=f"{API_V1_PREFIX}/workspaces")

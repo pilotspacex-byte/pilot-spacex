@@ -181,6 +181,7 @@ class InvitationResponse(BaseSchema):
         description="Invitation status (pending/accepted/expired/cancelled)"
     )
     invited_by: UUID = Field(description="Inviter user ID")
+    invited_by_name: str | None = Field(default=None, description="Inviter display name")
     suggested_sdlc_role: str | None = Field(
         default=None, description="Owner's suggested SDLC role hint"
     )
@@ -232,6 +233,44 @@ class RequestMagicLinkResponse(BaseSchema):
 
     message: str = Field(description="Confirmation message")
     expires_in_minutes: int = Field(description="Magic link validity in minutes")
+
+
+class InvitationPublicDetailResponse(BaseSchema):
+    """Public-facing invitation details (no auth required).
+
+    Attributes:
+        id: Invitation UUID.
+        workspace_name: Workspace display name.
+        workspace_slug: Workspace URL slug.
+        inviter_name: Name of the person who sent the invitation.
+        role: Intended role upon acceptance.
+        email_masked: Masked email (e.g. t***@example.com).
+        status: Invitation status.
+        expires_at: When the invitation expires.
+    """
+
+    id: UUID = Field(description="Invitation UUID")
+    workspace_name: str = Field(description="Workspace display name")
+    workspace_slug: str = Field(description="Workspace URL slug")
+    inviter_name: str | None = Field(default=None, description="Inviter display name")
+    role: str = Field(description="Intended role upon acceptance")
+    email_masked: str = Field(description="Masked email address")
+    status: str = Field(description="Invitation status")
+    expires_at: datetime = Field(description="Invitation expiry timestamp")
+
+
+class InvitationAcceptResponse(BaseSchema):
+    """Response after accepting an invitation.
+
+    Attributes:
+        workspace_slug: Workspace slug for redirect.
+        workspace_name: Workspace display name.
+        role: Role assigned to the new member.
+    """
+
+    workspace_slug: str = Field(description="Workspace slug for redirect")
+    workspace_name: str = Field(description="Workspace display name")
+    role: str = Field(description="Assigned role")
 
 
 class InvitationCreateRequest(BaseSchema):
@@ -435,6 +474,7 @@ class WorkspaceFeatureToggles(BaseSchema):
         issues: Whether the Issues module is visible in the sidebar.
         projects: Whether the Projects module is visible in the sidebar.
         members: Whether the Members module is visible in the sidebar.
+        docs: Whether the Docs module is visible in the sidebar.
         knowledge: Whether the Knowledge Graph module is visible in the sidebar.
         skills: Whether the AI Skills module is visible in the sidebar.
         costs: Whether the AI Costs module is visible in the sidebar.
@@ -447,6 +487,7 @@ class WorkspaceFeatureToggles(BaseSchema):
         default=True, description="Project management module enabled"
     )
     members: bool = Field(default=True, description="Member directory module enabled")
+    docs: bool = Field(default=True, description="Documentation module enabled")
     knowledge: bool = Field(default=True, description="Knowledge Graph module enabled")
     skills: bool = Field(default=True, description="AI Skills module enabled")
     costs: bool = Field(default=True, description="AI cost tracking module enabled")
@@ -462,18 +503,11 @@ class WorkspaceFeatureTogglesUpdate(BaseSchema):
     """
 
     notes: bool | None = Field(default=None, description="Notes module enabled")
-    issues: bool | None = Field(
-        default=None, description="Issue tracker module enabled"
-    )
-    projects: bool | None = Field(
-        default=None, description="Project management module enabled"
-    )
-    members: bool | None = Field(
-        default=None, description="Member directory module enabled"
-    )
-    knowledge: bool | None = Field(
-        default=None, description="Knowledge Graph module enabled"
-    )
+    issues: bool | None = Field(default=None, description="Issue tracker module enabled")
+    projects: bool | None = Field(default=None, description="Project management module enabled")
+    members: bool | None = Field(default=None, description="Member directory module enabled")
+    docs: bool | None = Field(default=None, description="Documentation module enabled")
+    knowledge: bool | None = Field(default=None, description="Knowledge Graph module enabled")
     skills: bool | None = Field(default=None, description="AI Skills module enabled")
     costs: bool | None = Field(
         default=None, description="AI cost tracking module enabled"
@@ -653,8 +687,10 @@ class WorkspaceAISettingsUpdateResponse(BaseSchema):
 __all__ = [
     "AIFeatureToggles",
     "APIKeyUpdate",
+    "InvitationAcceptResponse",
     "InvitationCreateRequest",
     "InvitationPreviewResponse",
+    "InvitationPublicDetailResponse",
     "InvitationResponse",
     "KeyValidationResult",
     "MemberActivityItem",

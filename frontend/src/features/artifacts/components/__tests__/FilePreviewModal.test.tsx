@@ -91,6 +91,32 @@ vi.mock('../renderers/HtmlRenderer', () => ({
   ),
 }));
 
+// Mock store — required since FilePreviewModal uses useStore for workspace/user context
+vi.mock('@/stores', () => ({
+  useStore: () => ({
+    workspaceStore: { currentWorkspace: { id: 'ws-1', slug: 'test-ws' } },
+    authStore: { user: { id: 'user-1' } },
+  }),
+}));
+
+// Mock extraction hook — returns no extraction by default (tests focus on preview rendering)
+vi.mock('../../hooks/useExtractionResult', () => ({
+  useExtractionResult: vi.fn().mockReturnValue({
+    data: undefined,
+    isLoading: false,
+    isError: false,
+  }),
+  extractionKeys: { all: ['artifacts', 'extraction'], result: (id: string) => ['artifacts', 'extraction', id] },
+}));
+
+// Mock extraction tab components — prevents real dynamic import issues
+vi.mock('../ExtractedTextTab', () => ({
+  ExtractedTextTab: () => <div data-testid="extracted-text-tab" />,
+}));
+vi.mock('../ChunksTab', () => ({
+  ChunksTab: () => <div data-testid="chunks-tab" />,
+}));
+
 function makeClient() {
   return new QueryClient({
     defaultOptions: { queries: { retry: false } },

@@ -29,6 +29,7 @@ import {
   Monitor,
   CheckCircle2,
   Network,
+  BookOpen,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useUIStore, useNotificationStore, useAuthStore, useWorkspaceStore } from '@/stores';
@@ -94,6 +95,7 @@ const navigationSections: NavSection[] = [
       { name: 'Projects', path: 'projects', icon: FolderKanban, testId: 'nav-projects', featureKey: 'projects' },
       { name: 'Members', path: 'members', icon: Users, testId: 'nav-members', featureKey: 'members' },
       { name: 'Knowledge', path: 'knowledge', icon: Network, testId: 'nav-knowledge', featureKey: 'knowledge' },
+      { name: 'Docs', path: 'docs', icon: BookOpen, testId: 'nav-docs', featureKey: 'docs' },
     ],
   },
   {
@@ -278,6 +280,7 @@ export const Sidebar = observer(function Sidebar() {
   const authStore = useAuthStore();
   const workspaceStore = useWorkspaceStore();
   const canCreateContent = workspaceStore.currentUserRole !== 'guest';
+  const isNotesEnabled = workspaceStore.isFeatureEnabled('notes');
   const pathname = usePathname();
   const router = useRouter();
   const collapsed = uiStore.sidebarCollapsed;
@@ -546,9 +549,11 @@ export const Sidebar = observer(function Sidebar() {
 
           {/* Pinned Notes — inside scrollable area */}
           {!collapsed && (
-            <div className="px-2 py-2">
-              <div className="mb-4" data-testid="pinned-notes">
-                <div className="mb-2 flex items-center gap-1.5 px-1.5">
+            <>
+              {/* Pinned Notes — hidden when notes feature is disabled */}
+              {isNotesEnabled && (
+              <div className="mb-3" data-testid="pinned-notes">
+                <div className="mb-1.5 flex items-center gap-1.5 px-1.5">
                   <PinIcon className="h-2.5 w-2.5 text-muted-foreground" />
                   <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                     Pinned
@@ -588,12 +593,13 @@ export const Sidebar = observer(function Sidebar() {
                   })}
                 </div>
               </div>
-            </div>
+              )}
+            </>
           )}
         </ScrollArea>
 
-        {/* New Note Button — hidden for guests */}
-        {canCreateContent && (
+        {/* New Note Button — hidden for guests and when notes feature is disabled */}
+        {canCreateContent && isNotesEnabled && (
           <div
             className={cn(
               'shrink-0 border-t border-sidebar-border p-2',

@@ -1,22 +1,25 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
+import Link from 'next/link';
+import {
+  LayoutDashboard,
+  ListTodo,
+  RefreshCw,
+  Brain,
+  MessageSquare,
+  Settings,
+  FolderKanban,
+  Paperclip,
+  Users,
+} from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import type { Project } from '@/types';
-import {
-  Brain,
-  FolderKanban,
-  LayoutDashboard,
-  ListTodo,
-  MessageSquare,
-  Paperclip,
-  RefreshCw,
-  Settings,
-  Users,
-} from 'lucide-react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import type { WorkspaceFeatureToggles } from '@/types';
 import { ProjectNotesPanel } from './ProjectNotesPanel';
+import { useWorkspaceStore } from '@/stores';
 
 interface ProjectSidebarProps {
   project: Project;
@@ -28,23 +31,30 @@ const NAV_ITEMS: readonly {
   icon: typeof LayoutDashboard;
   segment: string;
   badge?: string;
+  /** Maps to a WorkspaceFeatureToggles key. Hidden when the feature is disabled. */
+  featureKey?: keyof WorkspaceFeatureToggles;
 }[] = [
   { label: 'Overview', icon: LayoutDashboard, segment: 'overview' },
-  { label: 'Issues', icon: ListTodo, segment: 'issues' },
-  { label: 'Cycles', icon: RefreshCw, segment: 'cycles' },
-  { label: 'Knowledge', icon: Brain, segment: 'knowledge' },
+  { label: 'Issues', icon: ListTodo, segment: 'issues', featureKey: 'issues' },
+  { label: 'Cycles', icon: RefreshCw, segment: 'cycles', featureKey: 'issues' },
+  { label: 'Knowledge', icon: Brain, segment: 'knowledge', featureKey: 'knowledge' },
   { label: 'Artifacts', icon: Paperclip, segment: 'artifacts' },
   { label: 'Members', icon: Users, segment: 'members' },
-  { label: 'Chat', icon: MessageSquare, segment: 'chat', badge: 'Soon' },
+  { label: 'Chat', icon: MessageSquare, segment: 'chat', badge: 'Soon', featureKey: 'skills' },
   { label: 'Settings', icon: Settings, segment: 'settings' },
 ];
 
-export function ProjectSidebar({ project, workspaceSlug }: ProjectSidebarProps) {
+export function ProjectSidebarComponent({ project, workspaceSlug }: ProjectSidebarProps) {
   const pathname = usePathname();
+  const workspaceStore = useWorkspaceStore();
   const basePath = `/${workspaceSlug}/projects/${project.id}`;
 
+  const visibleNavItems = NAV_ITEMS.filter(
+    (item) => !item.featureKey || workspaceStore.isFeatureEnabled(item.featureKey)
+  );
+
   const activeSegment =
-    NAV_ITEMS.find((item) => pathname.includes(`${basePath}/${item.segment}`))?.segment ??
+    visibleNavItems.find((item) => pathname.includes(`${basePath}/${item.segment}`))?.segment ??
     'overview';
 
   return (
@@ -71,7 +81,7 @@ export function ProjectSidebar({ project, workspaceSlug }: ProjectSidebarProps) 
         {/* Nav links */}
         <nav className="flex-1 overflow-y-auto px-2 py-2" aria-label="Project navigation">
           <ul className="space-y-0.5">
-            {NAV_ITEMS.map((item) => {
+            {visibleNavItems.map((item) => {
               const isActive = activeSegment === item.segment;
               const Icon = item.icon;
               return (
@@ -100,11 +110,13 @@ export function ProjectSidebar({ project, workspaceSlug }: ProjectSidebarProps) 
           </ul>
 
           <Separator className="mx-0 my-2" />
-          <ProjectNotesPanel
-            project={project}
-            workspaceSlug={workspaceSlug}
-            workspaceId={project.workspaceId}
-          />
+          {workspaceStore.isFeatureEnabled('notes') && (
+            <ProjectNotesPanel
+              project={project}
+              workspaceSlug={workspaceSlug}
+              workspaceId={project.workspaceId}
+            />
+          )}
         </nav>
       </aside>
 
@@ -113,7 +125,7 @@ export function ProjectSidebar({ project, workspaceSlug }: ProjectSidebarProps) 
         className="md:hidden flex overflow-x-auto border-b border-border px-4 scrollbar-none"
         aria-label="Project navigation"
       >
-        {NAV_ITEMS.map((item) => {
+        {visibleNavItems.map((item) => {
           const isActive = activeSegment === item.segment;
           const Icon = item.icon;
           return (
@@ -138,3 +150,5 @@ export function ProjectSidebar({ project, workspaceSlug }: ProjectSidebarProps) 
     </>
   );
 }
+
+export const ProjectSidebar = observer(ProjectSidebarComponent);

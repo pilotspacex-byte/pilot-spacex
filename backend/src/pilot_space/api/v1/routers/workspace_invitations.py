@@ -18,7 +18,9 @@ from pilot_space.api.v1.dependencies import (
 )
 from pilot_space.api.v1.schemas.base import PaginatedResponse
 from pilot_space.api.v1.schemas.workspace import (
+    InvitationAcceptResponse,
     InvitationCreateRequest,
+    InvitationPublicDetailResponse,
     InvitationResponse,
     WorkspaceMemberResponse,
 )
@@ -30,6 +32,9 @@ from pilot_space.config import get_settings
 from pilot_space.dependencies.auth import CurrentUser, CurrentUserId, SessionDep
 from pilot_space.domain.exceptions import AppError, ValidationError
 from pilot_space.infrastructure.database.models.project import Project
+from pilot_space.infrastructure.database.models.workspace_invitation import (
+    WorkspaceInvitation,
+)
 from pilot_space.infrastructure.database.repositories.project_member import (
     ProjectMemberRepository,
 )
@@ -40,6 +45,21 @@ from pilot_space.infrastructure.supabase_client import get_supabase_client
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces", "invitations"])
+
+
+def _to_invitation_response(inv: WorkspaceInvitation) -> InvitationResponse:
+    """Convert a WorkspaceInvitation model to response schema."""
+    return InvitationResponse(
+        id=inv.id,
+        email=inv.email,
+        role=inv.role.value,
+        status=inv.status.value,
+        invited_by=inv.invited_by,
+        invited_by_name=inv.inviter.full_name if inv.inviter else None,
+        suggested_sdlc_role=inv.suggested_sdlc_role,
+        expires_at=inv.expires_at,
+        created_at=inv.created_at,
+    )
 
 
 @router.post(
@@ -283,4 +303,68 @@ async def rescind_workspace_invitation(
     )
 
 
-__all__ = ["router"]
+# ===== Public invitation endpoints (no /workspaces prefix) =====
+
+invitation_router = APIRouter(prefix="/invitations", tags=["invitations"])
+
+
+@invitation_router.get(
+    "/{invitation_id}",
+    response_model=InvitationPublicDetailResponse,
+    tags=["invitations"],
+)
+async def get_invitation_details(
+    invitation_id: UUID,
+    session: SessionDep,
+    service: WorkspaceInvitationServiceDep,
+) -> InvitationPublicDetailResponse:
+    """Get public-facing invitation details.
+
+    No authentication required. Returns limited information
+    for the accept-invite page to display context.
+    """
+    result = await service.get_invitation_details(invitation_id)
+    return InvitationPublicDetailResponse(
+        id=result.id,
+        workspace_name=result.workspace_name,
+        workspace_slug=result.workspace_slug,
+        inviter_name=result.inviter_name,
+        role=result.role,
+        email_masked=result.email_masked,
+        status=result.status,
+        expires_at=result.expires_at,
+    )
+
+
+@invitation_router.post(
+    "/{invitation_id}/accept",
+    response_model=InvitationAcceptResponse,
+    tags=["invitations"],
+)
+async def accept_invitation(
+    invitation_id: UUID,
+    session: SessionDep,
+    current_user: CurrentUser,
+    service: WorkspaceInvitationServiceDep,
+) -> InvitationAcceptResponse:
+    """Accept a pending invitation.
+
+    Requires authentication. Verifies the authenticated user's
+    email matches the invitation email, adds them to the workspace,
+    and marks the invitation as accepted.
+    """
+    if not current_user.email:
+        raise ValidationError("User email is required to accept an invitation")
+    result = await service.accept_invitation(
+        invitation_id=invitation_id,
+        user_id=current_user.user_id,
+        user_email=current_user.email,
+    )
+    return InvitationAcceptResponse(
+        workspace_slug=result.workspace_slug,
+        workspace_name=result.workspace_name,
+        role=result.role,
+    )
+
+
+__all__ = ["invitation_router", "router"]

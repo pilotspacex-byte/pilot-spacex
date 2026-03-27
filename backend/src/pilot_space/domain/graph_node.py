@@ -37,6 +37,8 @@ class NodeType(StrEnum):
     CONSTITUTION_RULE = "constitution_rule"
     WORK_INTENT = "work_intent"
     USER_PREFERENCE = "user_preference"
+    DOCUMENT = "document"
+    DOCUMENT_CHUNK = "document_chunk"
 
 
 _SUMMARY_LENGTH = 120
@@ -384,6 +386,98 @@ class ConversationSummaryNode(GraphNode):
         )
 
 
+@dataclass
+class DocumentNode(GraphNode):
+    """Graph node representing an uploaded document in the workspace.
+
+    properties keys:
+        filename: Original filename (str).
+        mime_type: MIME type, e.g. ``application/pdf`` (str).
+        size_bytes: File size in bytes (int).
+        extraction_source: How text was extracted: "ocr" | "office" | "raw" (str).
+        page_count: Number of pages; None if unknown (int | None).
+        language: Detected language code e.g. "en"; None if unknown (str | None).
+        project_id: UUID of the owning project as str.
+    """
+
+    @classmethod
+    def build(
+        cls,
+        *,
+        workspace_id: UUID,
+        label: str,
+        content: str,
+        filename: str,
+        mime_type: str,
+        size_bytes: int,
+        extraction_source: str,
+        project_id: UUID,
+        page_count: int | None = None,
+        language: str | None = None,
+        external_id: UUID | None = None,
+        user_id: UUID | None = None,
+    ) -> DocumentNode:
+        """Construct a typed DocumentNode with required document properties."""
+        return cls(
+            workspace_id=workspace_id,
+            node_type=NodeType.DOCUMENT,
+            label=label,
+            content=content,
+            properties={
+                "filename": filename,
+                "mime_type": mime_type,
+                "size_bytes": size_bytes,
+                "extraction_source": extraction_source,
+                "project_id": str(project_id),
+                **({"page_count": page_count} if page_count is not None else {}),
+                **({"language": language} if language is not None else {}),
+            },
+            external_id=external_id,
+            user_id=user_id,
+        )
+
+
+@dataclass
+class DocumentChunkNode(GraphNode):
+    """Graph node representing a heading-delimited chunk of a document.
+
+    properties keys:
+        chunk_index: 0-based position of this chunk in the document (int).
+        heading: Heading text for this chunk section (str).
+        heading_level: Markdown heading level 1-6; 0 if no heading (int).
+        parent_document_id: attachment_id of the parent DOCUMENT node as str.
+        project_id: UUID of the owning project as str.
+    """
+
+    @classmethod
+    def build(
+        cls,
+        *,
+        workspace_id: UUID,
+        label: str,
+        content: str,
+        chunk_index: int,
+        heading: str,
+        parent_document_id: UUID,
+        project_id: UUID,
+        heading_level: int = 0,
+    ) -> DocumentChunkNode:
+        """Construct a typed DocumentChunkNode with required chunk properties."""
+        return cls(
+            workspace_id=workspace_id,
+            node_type=NodeType.DOCUMENT_CHUNK,
+            label=label,
+            content=content,
+            properties={
+                "chunk_index": chunk_index,
+                "heading": heading,
+                "heading_level": heading_level,
+                "parent_document_id": str(parent_document_id),
+                "project_id": str(project_id),
+            },
+        )
+
+
 def compute_content_hash(
     workspace_id: UUID,
     node_type: str,
@@ -417,6 +511,8 @@ def compute_content_hash(
 __all__ = [
     "ConversationSummaryNode",
     "DecisionNode",
+    "DocumentChunkNode",
+    "DocumentNode",
     "GraphNode",
     "IssueNode",
     "LearnedPatternNode",
