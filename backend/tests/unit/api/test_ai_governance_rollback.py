@@ -11,12 +11,49 @@ Tests cover:
 from __future__ import annotations
 
 import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from pilot_space.api.v1.routers.ai_governance import _dispatch_rollback
+from pilot_space.application.services.ai_governance import GovernanceRollbackService
 from pilot_space.domain.exceptions import ValidationError as DomainValidationError
+
+
+def _make_service(
+    mock_session: MagicMock,
+) -> tuple[GovernanceRollbackService, AsyncMock, AsyncMock]:
+    """Create a GovernanceRollbackService with injected mock services.
+
+    Returns:
+        Tuple of (service, mock_issue_execute, mock_note_execute).
+    """
+    from pilot_space.infrastructure.database.repositories.audit_log_repository import (
+        AuditLogRepository,
+    )
+    from pilot_space.infrastructure.database.repositories.workspace_ai_policy_repository import (
+        WorkspaceAIPolicyRepository,
+    )
+    from pilot_space.infrastructure.database.repositories.workspace_repository import (
+        WorkspaceRepository,
+    )
+
+    mock_issue_execute = AsyncMock(return_value=MagicMock())
+    mock_update_issue_svc = MagicMock()
+    mock_update_issue_svc.execute = mock_issue_execute
+
+    mock_note_execute = AsyncMock(return_value=MagicMock())
+    mock_update_note_svc = MagicMock()
+    mock_update_note_svc.execute = mock_note_execute
+
+    svc = GovernanceRollbackService(
+        session=mock_session,
+        workspace_repository=MagicMock(spec=WorkspaceRepository),
+        audit_log_repository=MagicMock(spec=AuditLogRepository),
+        workspace_ai_policy_repository=MagicMock(spec=WorkspaceAIPolicyRepository),
+        update_issue_service=mock_update_issue_svc,
+        update_note_service=mock_update_note_svc,
+    )
+    return svc, mock_issue_execute, mock_note_execute
 
 
 @pytest.mark.asyncio
@@ -27,21 +64,8 @@ async def test_dispatch_rollback_issue_calls_service_with_name() -> None:
     mock_session = MagicMock()
     before_state = {"title": "Old Title"}
 
-    mock_execute = AsyncMock(return_value=MagicMock())
-
-    with (
-        patch(
-            "pilot_space.api.v1.routers.ai_governance.UpdateIssueService"
-        ) as MockUpdateIssueService,
-        patch("pilot_space.api.v1.routers.ai_governance.IssueRepository"),
-        patch("pilot_space.api.v1.routers.ai_governance.ActivityRepository"),
-        patch("pilot_space.api.v1.routers.ai_governance.LabelRepository"),
-    ):
-        mock_svc_instance = MagicMock()
-        mock_svc_instance.execute = mock_execute
-        MockUpdateIssueService.return_value = mock_svc_instance
-
-        await _dispatch_rollback("issue", issue_id, before_state, mock_session)
+    svc, mock_execute, _ = _make_service(mock_session)
+    await svc._dispatch_rollback("issue", issue_id, before_state)
 
     mock_execute.assert_awaited_once()
     call_args = mock_execute.call_args[0][0]  # positional first arg = UpdateIssuePayload
@@ -57,19 +81,8 @@ async def test_dispatch_rollback_note_calls_service_with_title_and_content() -> 
     mock_session = MagicMock()
     before_state = {"title": "Old Note Title", "content": {"type": "doc", "content": []}}
 
-    mock_execute = AsyncMock(return_value=MagicMock())
-
-    with (
-        patch(
-            "pilot_space.api.v1.routers.ai_governance.UpdateNoteService"
-        ) as MockUpdateNoteService,
-        patch("pilot_space.api.v1.routers.ai_governance.NoteRepository"),
-    ):
-        mock_svc_instance = MagicMock()
-        mock_svc_instance.execute = mock_execute
-        MockUpdateNoteService.return_value = mock_svc_instance
-
-        await _dispatch_rollback("note", note_id, before_state, mock_session)
+    svc, _, mock_execute = _make_service(mock_session)
+    await svc._dispatch_rollback("note", note_id, before_state)
 
     mock_execute.assert_awaited_once()
     call_args = mock_execute.call_args[0][0]  # positional first arg = UpdateNotePayload
@@ -86,21 +99,8 @@ async def test_dispatch_rollback_issue_maps_priority_high() -> None:
     mock_session = MagicMock()
     before_state = {"priority": "high"}
 
-    mock_execute = AsyncMock(return_value=MagicMock())
-
-    with (
-        patch(
-            "pilot_space.api.v1.routers.ai_governance.UpdateIssueService"
-        ) as MockUpdateIssueService,
-        patch("pilot_space.api.v1.routers.ai_governance.IssueRepository"),
-        patch("pilot_space.api.v1.routers.ai_governance.ActivityRepository"),
-        patch("pilot_space.api.v1.routers.ai_governance.LabelRepository"),
-    ):
-        mock_svc_instance = MagicMock()
-        mock_svc_instance.execute = mock_execute
-        MockUpdateIssueService.return_value = mock_svc_instance
-
-        await _dispatch_rollback("issue", issue_id, before_state, mock_session)
+    svc, mock_execute, _ = _make_service(mock_session)
+    await svc._dispatch_rollback("issue", issue_id, before_state)
 
     from pilot_space.infrastructure.database.models import IssuePriority
 
@@ -116,34 +116,22 @@ async def test_dispatch_rollback_issue_empty_before_state_does_not_raise() -> No
     mock_session = MagicMock()
     before_state: dict = {}
 
-    mock_execute = AsyncMock(return_value=MagicMock())
-
-    with (
-        patch(
-            "pilot_space.api.v1.routers.ai_governance.UpdateIssueService"
-        ) as MockUpdateIssueService,
-        patch("pilot_space.api.v1.routers.ai_governance.IssueRepository"),
-        patch("pilot_space.api.v1.routers.ai_governance.ActivityRepository"),
-        patch("pilot_space.api.v1.routers.ai_governance.LabelRepository"),
-    ):
-        mock_svc_instance = MagicMock()
-        mock_svc_instance.execute = mock_execute
-        MockUpdateIssueService.return_value = mock_svc_instance
-
-        # Should not raise
-        await _dispatch_rollback("issue", issue_id, before_state, mock_session)
+    svc, mock_execute, _ = _make_service(mock_session)
+    # Should not raise
+    await svc._dispatch_rollback("issue", issue_id, before_state)
 
     mock_execute.assert_awaited_once()
 
 
 @pytest.mark.asyncio
 async def test_dispatch_rollback_unknown_resource_type_raises_422() -> None:
-    """Test 5: _dispatch_rollback('other', ...) raises HTTPException 422."""
+    """Test 5: _dispatch_rollback('other', ...) raises DomainValidationError 422."""
     resource_id = uuid.uuid4()
     mock_session = MagicMock()
     before_state: dict = {}
 
+    svc, _, _ = _make_service(mock_session)
     with pytest.raises(DomainValidationError) as exc_info:
-        await _dispatch_rollback("other", resource_id, before_state, mock_session)
+        await svc._dispatch_rollback("other", resource_id, before_state)
 
     assert exc_info.value.http_status == 422

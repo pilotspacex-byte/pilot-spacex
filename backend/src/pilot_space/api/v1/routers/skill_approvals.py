@@ -19,11 +19,16 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Path, Query, status
-from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pilot_space.api.middleware.request_context import WorkspaceId
+from pilot_space.api.v1.schemas.skill_approvals import (
+    PendingApprovalsResponse,
+    PendingSkillExecutionItem,
+    SkillApprovalResponse,
+    SkillApproveRequest,
+)
 from pilot_space.dependencies import CurrentUserId, DbSession
 from pilot_space.domain.exceptions import ForbiddenError, NotFoundError, ValidationError
 from pilot_space.infrastructure.database.models.skill_execution import (
@@ -45,67 +50,6 @@ router = APIRouter(
 )
 
 ExecutionIdPath = Path(..., description="SkillExecution UUID to approve/reject")
-
-
-class SkillApproveRequest(BaseModel):
-    """Request body for approving a skill execution.
-
-    Attributes:
-        note_id: Note UUID to write the approved output to.
-        output_override: Optional user-edited output. If None, original skill output is used.
-    """
-
-    note_id: UUID | None = None
-    output_override: dict[str, object] | None = None
-
-
-class SkillApprovalResponse(BaseModel):
-    """Response for skill approval or rejection.
-
-    Attributes:
-        execution_id: UUID of the resolved execution.
-        status: Final approval status ('approved' or 'rejected').
-    """
-
-    execution_id: UUID
-    status: str
-
-
-class PendingSkillExecutionItem(BaseModel):
-    """Single pending skill execution in the list response.
-
-    Attributes:
-        execution_id: UUID of the execution awaiting approval.
-        skill_name: Name of the skill that produced this output.
-        intent_id: Parent work intent UUID.
-        required_approval_role: Role required to approve (None = any member).
-        created_at: When the execution record was created.
-    """
-
-    execution_id: UUID = Field(description="SkillExecution UUID")
-    skill_name: str = Field(description="Skill that produced the pending output")
-    intent_id: UUID = Field(description="Parent WorkIntent UUID")
-    required_approval_role: str | None = Field(
-        default=None,
-        description="Minimum role required to approve (None = any member)",
-    )
-    created_at: str = Field(description="ISO 8601 creation timestamp")
-
-
-class PendingApprovalsResponse(BaseModel):
-    """Paginated list of pending skill executions.
-
-    Attributes:
-        items: Pending executions on this page.
-        total: Total number of pending executions in the workspace.
-        limit: Page size used.
-        offset: Page offset used.
-    """
-
-    items: list[PendingSkillExecutionItem] = Field(description="Pending executions")
-    total: int = Field(description="Total pending count")
-    limit: int = Field(description="Page size")
-    offset: int = Field(description="Page offset")
 
 
 async def _verify_workspace_membership(

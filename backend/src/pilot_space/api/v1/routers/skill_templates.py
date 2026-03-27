@@ -45,33 +45,18 @@ router = APIRouter(
 )
 
 
-async def _require_admin(
-    user_id: UUID,
-    workspace_id: UUID,
-    session: DbSession,
-) -> None:
-    """Verify user is ADMIN or OWNER in the workspace.
-
-    Args:
-        user_id: Authenticated user UUID.
-        workspace_id: Workspace UUID.
-        session: Database session.
-
-    Raises:
-        HTTPException: 403 if not admin/owner.
-    """
+async def _require_admin(user_id: UUID, workspace_id: UUID, session: DbSession) -> None:
     stmt = select(WorkspaceMember.role).where(
         WorkspaceMember.workspace_id == workspace_id,
         WorkspaceMember.user_id == user_id,
+        WorkspaceMember.is_active.is_(True),
+        WorkspaceMember.is_deleted.is_(False),
     )
     result = await session.execute(stmt)
     row = result.scalar()
-
     if row is None:
         raise ForbiddenError("Not a member of this workspace")
-
     role = row.value if hasattr(row, "value") else str(row)
-
     if role not in (WorkspaceRole.ADMIN.value, WorkspaceRole.OWNER.value):
         raise ForbiddenError("Admin or owner role required")
 
@@ -129,7 +114,7 @@ async def create_skill_template(
         Created SkillTemplateSchema.
 
     Raises:
-        HTTPException: 403 if not admin/owner.
+        ForbiddenError: 403 if not admin/owner.
     """
     await set_rls_context(session, current_user_id, workspace_id)
     await _require_admin(current_user_id, workspace_id, session)
@@ -190,8 +175,8 @@ async def update_skill_template(
         Updated SkillTemplateSchema.
 
     Raises:
-        HTTPException: 403 if not admin or trying to edit built-in fields.
-        HTTPException: 404 if template not found.
+        ForbiddenError: 403 if not admin or trying to edit built-in fields.
+        NotFoundError: 404 if template not found.
     """
     await set_rls_context(session, current_user_id, workspace_id)
     await _require_admin(current_user_id, workspace_id, session)
@@ -247,8 +232,8 @@ async def delete_skill_template(
         current_user_id: Authenticated user UUID.
 
     Raises:
-        HTTPException: 403 if not admin/owner.
-        HTTPException: 404 if template not found.
+        ForbiddenError: 403 if not admin/owner.
+        NotFoundError: 404 if template not found.
     """
     await set_rls_context(session, current_user_id, workspace_id)
     await _require_admin(current_user_id, workspace_id, session)

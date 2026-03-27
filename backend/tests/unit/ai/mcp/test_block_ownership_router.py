@@ -6,7 +6,10 @@ the block approve/reject API without requiring a full HTTP stack.
 
 from __future__ import annotations
 
-from pilot_space.api.v1.routers.block_ownership import _find_block, _remove_block
+from pilot_space.application.services.block_ownership import BlockOwnershipService
+
+_find_block = BlockOwnershipService._find_block
+_remove_block = BlockOwnershipService._remove_block
 
 
 class TestFindBlock:

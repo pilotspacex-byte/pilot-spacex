@@ -15,13 +15,15 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Path, status
-from pydantic import Field
 
 from pilot_space.api.v1.dependencies import (
     NoteIssueLinkRepositoryDep,
     NoteRepositoryDep,
 )
-from pilot_space.api.v1.schemas.base import BaseSchema
+from pilot_space.api.v1.schemas.workspace_note_issue_links import (
+    LinkIssueRequest,
+    NoteIssueLinkResponse,
+)
 from pilot_space.dependencies.auth import CurrentUserId, SessionDep
 from pilot_space.infrastructure.database.models.note_issue_link import (
     NoteIssueLink,
@@ -32,36 +34,6 @@ from pilot_space.infrastructure.logging import get_logger
 logger = get_logger(__name__)
 
 router = APIRouter()
-
-
-# ---------------------------------------------------------------------------
-# Pydantic schemas
-# ---------------------------------------------------------------------------
-
-
-class LinkIssueRequest(BaseSchema):
-    """Request body for POST /{wid}/notes/{nid}/issues."""
-
-    issue_id: UUID = Field(description="Issue UUID to link")
-    link_type: str | None = Field(
-        default=None,
-        description="Link type: EXTRACTED, REFERENCED, RELATED, INLINE",
-    )
-    block_id: str | None = Field(
-        default=None,
-        description="TipTap block ID where the link originates",
-    )
-
-
-class NoteIssueLinkResponse(BaseSchema):
-    """Response for a NoteIssueLink record."""
-
-    id: UUID
-    note_id: UUID
-    issue_id: UUID
-    link_type: str
-    block_id: str | None = None
-    workspace_id: UUID
 
 
 # ---------------------------------------------------------------------------

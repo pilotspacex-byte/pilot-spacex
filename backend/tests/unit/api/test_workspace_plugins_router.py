@@ -56,43 +56,39 @@ def _mock_rls_context():
     )
 
 
-def _mock_workspace_token():
-    """Patch _get_workspace_token to return None (system token)."""
-    return patch(
-        "pilot_space.api.v1.routers.workspace_plugins._get_workspace_token",
-        new_callable=AsyncMock,
-        return_value=None,
-    )
+def _override_plugin_service(app, mock_svc):
+    """Override the PluginLifecycleService DI dependency."""
+    from pilot_space.api.v1 import dependencies as dep_module
+
+    app.dependency_overrides[dep_module._get_plugin_lifecycle_service] = lambda: mock_svc
 
 
 async def test_browse_repo_returns_skill_list() -> None:
     """SKRG-01: GET /plugins/browse returns list of available skills from repo."""
+    from pilot_space.application.services.plugin_lifecycle import BrowseRepoResult
+
     app, _ = _create_test_app()
+
+    mock_svc = MagicMock()
+    mock_svc.browse_repo = AsyncMock(
+        return_value=[
+            BrowseRepoResult(
+                skill_name="mcp-builder",
+                display_name="Test",
+                description="A test skill",
+            ),
+            BrowseRepoResult(
+                skill_name="claude-api",
+                display_name="Claude API",
+            ),
+        ]
+    )
+    _override_plugin_service(app, mock_svc)
 
     with (
         _mock_admin_check(),
         _mock_rls_context(),
-        _mock_workspace_token(),
-        patch(
-            "pilot_space.integrations.github.plugin_service.GitHubPluginService",
-            autospec=False,
-        ) as MockGH,
     ):
-        from pilot_space.integrations.github.plugin_service import SkillContent
-
-        mock_gh = MagicMock()
-        MockGH.return_value = mock_gh
-        mock_gh.list_skills = AsyncMock(return_value=["mcp-builder", "claude-api"])
-        mock_gh.fetch_skill_content = AsyncMock(
-            return_value=SkillContent(
-                skill_md="---\nname: test\n---\n# Test",
-                references=[],
-                display_name="Test",
-                description="A test skill",
-            )
-        )
-        mock_gh.aclose = AsyncMock()
-
         async with AsyncClient(
             transport=ASGITransport(app=app),
             base_url="http://test",
@@ -112,22 +108,16 @@ async def test_browse_repo_raises_on_github_unreachable() -> None:
     """SKRG-01: browse returns 502 when GitHub is unreachable."""
     app, _ = _create_test_app()
 
+    from pilot_space.integrations.github.plugin_service import PluginRateLimitError
+
+    mock_svc = MagicMock()
+    mock_svc.browse_repo = AsyncMock(side_effect=PluginRateLimitError("Rate limit exceeded"))
+    _override_plugin_service(app, mock_svc)
+
     with (
         _mock_admin_check(),
         _mock_rls_context(),
-        _mock_workspace_token(),
-        patch(
-            "pilot_space.integrations.github.plugin_service.GitHubPluginService",
-            autospec=False,
-        ) as MockGH,
     ):
-        from pilot_space.integrations.github.plugin_service import PluginRateLimitError
-
-        mock_gh = MagicMock()
-        MockGH.return_value = mock_gh
-        mock_gh.list_skills = AsyncMock(side_effect=PluginRateLimitError("Rate limit exceeded"))
-        mock_gh.aclose = AsyncMock()
-
         async with AsyncClient(
             transport=ASGITransport(app=app),
             base_url="http://test",
@@ -182,12 +172,6 @@ async def test_update_check_returns_has_update_true_when_sha_differs() -> None:
     """SKRG-04: check-updates returns has_update=true when SHA differs."""
     app, _ = _create_test_app()
 
-    # Override Redis dependency
-    from pilot_space.dependencies.ai import get_redis_client
-
-    mock_redis = AsyncMock()
-    app.dependency_overrides[get_redis_client] = lambda: mock_redis
-
     mock_plugin = MagicMock()
     mock_plugin.id = uuid4()
     mock_plugin.workspace_id = _WORKSPACE_ID
@@ -201,22 +185,14 @@ async def test_update_check_returns_has_update_true_when_sha_differs() -> None:
     mock_plugin.is_active = True
     mock_plugin.is_deleted = False
 
+    mock_svc = MagicMock()
+    mock_svc.check_updates = AsyncMock(return_value=[(mock_plugin, True)])
+    _override_plugin_service(app, mock_svc)
+
     with (
         _mock_admin_check(),
         _mock_rls_context(),
-        _mock_workspace_token(),
-        patch(
-            "pilot_space.infrastructure.database.repositories.workspace_plugin_repository.WorkspacePluginRepository"
-        ) as MockRepo,
-        patch(
-            "pilot_space.api.v1.routers.workspace_plugins._get_cached_head_sha",
-            new_callable=AsyncMock,
-            return_value="b" * 40,
-        ),
     ):
-        mock_repo = MockRepo.return_value
-        mock_repo.get_installed_by_workspace = AsyncMock(return_value=[mock_plugin])
-
         async with AsyncClient(
             transport=ASGITransport(app=app),
             base_url="http://test",
@@ -232,13 +208,8 @@ async def test_update_check_returns_has_update_true_when_sha_differs() -> None:
 
 
 async def test_update_check_caches_result_five_minutes() -> None:
-    """SKRG-04: update check uses Redis cache."""
+    """SKRG-04: update check uses Redis cache (via service)."""
     app, _ = _create_test_app()
-
-    from pilot_space.dependencies.ai import get_redis_client
-
-    mock_redis = AsyncMock()
-    app.dependency_overrides[get_redis_client] = lambda: mock_redis
 
     mock_plugin = MagicMock()
     mock_plugin.id = uuid4()
@@ -253,24 +224,16 @@ async def test_update_check_caches_result_five_minutes() -> None:
     mock_plugin.is_active = True
     mock_plugin.is_deleted = False
 
-    cached_sha = "c" * 40
+    cached_sha = "c" * 40  # referenced by description only
+
+    mock_svc = MagicMock()
+    mock_svc.check_updates = AsyncMock(return_value=[(mock_plugin, False)])
+    _override_plugin_service(app, mock_svc)
 
     with (
         _mock_admin_check(),
         _mock_rls_context(),
-        _mock_workspace_token(),
-        patch(
-            "pilot_space.infrastructure.database.repositories.workspace_plugin_repository.WorkspacePluginRepository"
-        ) as MockRepo,
-        patch(
-            "pilot_space.api.v1.routers.workspace_plugins._get_cached_head_sha",
-            new_callable=AsyncMock,
-            return_value=cached_sha,
-        ) as mock_cache,
     ):
-        mock_repo = MockRepo.return_value
-        mock_repo.get_installed_by_workspace = AsyncMock(return_value=[mock_plugin])
-
         async with AsyncClient(
             transport=ASGITransport(app=app),
             base_url="http://test",
@@ -280,4 +243,4 @@ async def test_update_check_caches_result_five_minutes() -> None:
             )
 
     assert resp.status_code == 200
-    mock_cache.assert_awaited_once()
+    mock_svc.check_updates.assert_awaited_once_with(_WORKSPACE_ID)

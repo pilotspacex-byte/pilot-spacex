@@ -12,9 +12,9 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Query
-from pydantic import BaseModel
 
 from pilot_space.api.v1.dependencies import WorkspaceRepositoryDep
+from pilot_space.api.v1.schemas.pm_release_notes import ReleaseEntry, ReleaseNotesResponse
 from pilot_space.dependencies.auth import CurrentUserId, SessionDep, require_workspace_member
 from pilot_space.domain.exceptions import NotFoundError
 from pilot_space.infrastructure.database.repositories.pm_block_queries_repository import (
@@ -22,25 +22,6 @@ from pilot_space.infrastructure.database.repositories.pm_block_queries_repositor
 )
 
 router = APIRouter(prefix="", tags=["pm-blocks"])
-
-
-# ── Response Schemas ──────────────────────────────────────────────────────────
-
-
-class ReleaseEntry(BaseModel):
-    issue_id: str
-    identifier: str
-    name: str
-    category: str  # features / bug_fixes / improvements / internal / uncategorized
-    confidence: float
-    human_edited: bool = False
-
-
-class ReleaseNotesResponse(BaseModel):
-    cycle_id: str
-    version_label: str
-    entries: list[ReleaseEntry]
-    generated_at: str
 
 
 # ── Heuristic Classifier ──────────────────────────────────────────────────────

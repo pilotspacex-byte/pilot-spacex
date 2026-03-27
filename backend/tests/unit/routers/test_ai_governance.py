@@ -14,15 +14,15 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from pilot_space.domain.exceptions import ValidationError
 from pilot_space.infrastructure.auth.supabase_auth import TokenPayload
-from pilot_space.infrastructure.database.models.audit_log import ActorType, AuditLog
-from pilot_space.infrastructure.database.models.workspace_ai_policy import WorkspaceAIPolicy
+from pilot_space.schemas.ai_governance import AIStatus, GovernanceAction, RollbackResult
 
 pytestmark = pytest.mark.asyncio
 
@@ -55,68 +55,54 @@ def _make_token_payload() -> TokenPayload:
     )
 
 
-def _make_policy_row(role: str = "MEMBER", action_type: str = "extract_issues") -> MagicMock:
-    """Create a minimal WorkspaceAIPolicy-like mock."""
-    row = MagicMock(spec=WorkspaceAIPolicy)
-    row.id = uuid4()
-    row.workspace_id = WORKSPACE_ID
-    row.role = role
-    row.action_type = action_type
-    row.requires_approval = True
-    return row
+def _make_governance_action(
+    role: str = "MEMBER", action_type: str = "extract_issues"
+) -> GovernanceAction:
+    """Create a minimal GovernanceAction domain object."""
+    return GovernanceAction(
+        role=role,
+        action_type=action_type,
+        requires_approval=True,
+    )
 
 
-def _make_audit_entry(
-    actor_type: ActorType = ActorType.AI,
-    action: str = "issue.create",
-    resource_type: str = "issue",
-) -> MagicMock:
-    """Create a minimal AuditLog-like mock."""
-    entry = MagicMock(spec=AuditLog)
-    entry.id = uuid4()
-    entry.workspace_id = WORKSPACE_ID
-    entry.actor_id = uuid4()
-    entry.actor_type = actor_type
-    entry.action = action
-    entry.resource_type = resource_type
-    entry.resource_id = uuid4()
-    entry.payload = {"before": {"title": "Old Title"}, "after": {"title": "New Title"}}
-    entry.created_at = datetime.now(UTC)
-    return entry
+def _make_mock_service() -> MagicMock:
+    """Create a fully-mocked GovernanceRollbackService."""
+    svc = MagicMock()
+    svc.list_policies = AsyncMock(return_value=[])
+    svc.upsert_policy = AsyncMock()
+    svc.delete_policy = AsyncMock()
+    svc.get_ai_status = AsyncMock(return_value=AIStatus(byok_configured=False, providers=()))
+    svc.execute_rollback = AsyncMock()
+    return svc
 
 
 @pytest.fixture
-async def gov_client() -> AsyncGenerator[AsyncClient, None]:
-    """HTTP client with auth and workspace resolution mocked via overrides."""
+async def gov_client() -> AsyncGenerator[tuple[AsyncClient, MagicMock], None]:
+    """HTTP client with auth and service mocked via DI overrides.
+
+    Yields (client, mock_service) so tests can configure mock_service per-test.
+    """
+    from pilot_space.api.v1.dependencies import _get_governance_rollback_service
     from pilot_space.dependencies.auth import get_current_user
     from pilot_space.main import app
 
     token_payload = _make_token_payload()
-    app.dependency_overrides[get_current_user] = lambda: token_payload
+    mock_service = _make_mock_service()
 
-    with (
-        patch(
-            "pilot_space.api.v1.routers.ai_governance._resolve_workspace",
-            new=AsyncMock(return_value=WORKSPACE_ID),
-        ),
-        patch(
-            "pilot_space.api.v1.routers.ai_governance._require_admin_or_owner",
-            new=AsyncMock(),
-        ),
-        patch(
-            "pilot_space.api.v1.routers.ai_governance._require_owner",
-            new=AsyncMock(),
-        ),
-    ):
-        transport = ASGITransport(app=app)
-        async with AsyncClient(
-            transport=transport,
-            base_url="http://test",
-            headers={"Authorization": "Bearer test-token"},
-        ) as client:
-            yield client
+    app.dependency_overrides[get_current_user] = lambda: token_payload
+    app.dependency_overrides[_get_governance_rollback_service] = lambda: mock_service
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        headers={"Authorization": "Bearer test-token"},
+    ) as client:
+        yield client, mock_service
 
     app.dependency_overrides.pop(get_current_user, None)
+    app.dependency_overrides.pop(_get_governance_rollback_service, None)
 
 
 # ---------------------------------------------------------------------------
@@ -124,18 +110,19 @@ async def gov_client() -> AsyncGenerator[AsyncClient, None]:
 # ---------------------------------------------------------------------------
 
 
-async def test_get_ai_policy_returns_matrix(gov_client: AsyncClient) -> None:
+async def test_get_ai_policy_returns_matrix(
+    gov_client: tuple[AsyncClient, MagicMock],
+) -> None:
     """GET /workspaces/{slug}/settings/ai-policy returns list of policy rows."""
-    rows = [
-        _make_policy_row("MEMBER", "extract_issues"),
-        _make_policy_row("ADMIN", "create_issues"),
-    ]
+    client, svc = gov_client
+    svc.list_policies = AsyncMock(
+        return_value=[
+            _make_governance_action("MEMBER", "extract_issues"),
+            _make_governance_action("ADMIN", "create_issues"),
+        ]
+    )
 
-    with patch("pilot_space.api.v1.routers.ai_governance.WorkspaceAIPolicyRepository") as MockRepo:
-        instance = MockRepo.return_value
-        instance.list_for_workspace = AsyncMock(return_value=rows)
-
-        response = await gov_client.get(f"/api/v1/workspaces/{WORKSPACE_SLUG}/settings/ai-policy")
+    response = await client.get(f"/api/v1/workspaces/{WORKSPACE_SLUG}/settings/ai-policy")
 
     assert response.status_code == 200
     data = response.json()
@@ -146,31 +133,36 @@ async def test_get_ai_policy_returns_matrix(gov_client: AsyncClient) -> None:
     assert data[0]["requires_approval"] is True
 
 
-async def test_put_ai_policy_creates_row(gov_client: AsyncClient) -> None:
+async def test_put_ai_policy_creates_row(
+    gov_client: tuple[AsyncClient, MagicMock],
+) -> None:
     """PUT /workspaces/{slug}/settings/ai-policy/{role}/{action_type} upserts a row."""
-    policy_row = _make_policy_row("MEMBER", "extract_issues")
-    policy_row.requires_approval = True
+    client, svc = gov_client
+    svc.upsert_policy = AsyncMock(return_value=_make_governance_action("MEMBER", "extract_issues"))
 
-    with patch("pilot_space.api.v1.routers.ai_governance.WorkspaceAIPolicyRepository") as MockRepo:
-        instance = MockRepo.return_value
-        instance.upsert = AsyncMock(return_value=policy_row)
-
-        response = await gov_client.put(
-            f"/api/v1/workspaces/{WORKSPACE_SLUG}/settings/ai-policy/MEMBER/extract_issues",
-            json={"requires_approval": True},
-        )
+    response = await client.put(
+        f"/api/v1/workspaces/{WORKSPACE_SLUG}/settings/ai-policy/MEMBER/extract_issues",
+        json={"requires_approval": True},
+    )
 
     assert response.status_code == 200
     data = response.json()
     assert data["role"] == "MEMBER"
     assert data["action_type"] == "extract_issues"
     assert data["requires_approval"] is True
-    instance.upsert.assert_called_once_with(WORKSPACE_ID, "MEMBER", "extract_issues", True)
+    svc.upsert_policy.assert_called_once()
 
 
-async def test_put_ai_policy_owner_role_rejected(gov_client: AsyncClient) -> None:
+async def test_put_ai_policy_owner_role_rejected(
+    gov_client: tuple[AsyncClient, MagicMock],
+) -> None:
     """PUT /workspaces/{slug}/settings/ai-policy/OWNER/... returns 422."""
-    response = await gov_client.put(
+    client, svc = gov_client
+    svc.upsert_policy = AsyncMock(
+        side_effect=ValidationError("Owner role policy is not configurable.")
+    )
+
+    response = await client.put(
         f"/api/v1/workspaces/{WORKSPACE_SLUG}/settings/ai-policy/OWNER/extract_issues",
         json={"requires_approval": True},
     )
@@ -184,30 +176,16 @@ async def test_put_ai_policy_owner_role_rejected(gov_client: AsyncClient) -> Non
 # ---------------------------------------------------------------------------
 
 
-async def test_ai_status_byok_configured(gov_client: AsyncClient) -> None:
+async def test_ai_status_byok_configured(
+    gov_client: tuple[AsyncClient, MagicMock],
+) -> None:
     """GET /workspaces/{slug}/settings/ai-status returns byok_configured=true when keys exist."""
-    with patch("pilot_space.api.v1.routers.ai_governance.SecureKeyStorage") as MockStorage:
-        instance = MockStorage.return_value
-        # anthropic key configured and valid, others not configured
-        mock_key_info = MagicMock()
-        mock_key_info.is_valid = True
-        mock_key_info.last_validated_at = None
+    client, svc = gov_client
+    svc.get_ai_status = AsyncMock(
+        return_value=AIStatus(byok_configured=True, providers=("anthropic",))
+    )
 
-        async def _get_key_info(
-            workspace_id: object, provider: str, service_type: str = "llm"
-        ) -> object:
-            if provider == "anthropic":
-                return mock_key_info
-            return None
-
-        instance.get_key_info = _get_key_info
-
-        with patch("pilot_space.api.v1.routers.ai_governance.get_settings") as mock_settings:
-            mock_settings.return_value.encryption_key.get_secret_value.return_value = "fake-key"
-
-            response = await gov_client.get(
-                f"/api/v1/workspaces/{WORKSPACE_SLUG}/settings/ai-status"
-            )
+    response = await client.get(f"/api/v1/workspaces/{WORKSPACE_SLUG}/settings/ai-status")
 
     assert response.status_code == 200
     data = response.json()
@@ -215,18 +193,14 @@ async def test_ai_status_byok_configured(gov_client: AsyncClient) -> None:
     assert "anthropic" in data["providers"]
 
 
-async def test_ai_status_byok_not_configured(gov_client: AsyncClient) -> None:
+async def test_ai_status_byok_not_configured(
+    gov_client: tuple[AsyncClient, MagicMock],
+) -> None:
     """GET /workspaces/{slug}/settings/ai-status returns byok_configured=false when no keys."""
-    with patch("pilot_space.api.v1.routers.ai_governance.SecureKeyStorage") as MockStorage:
-        instance = MockStorage.return_value
-        instance.get_key_info = AsyncMock(return_value=None)
+    client, svc = gov_client
+    svc.get_ai_status = AsyncMock(return_value=AIStatus(byok_configured=False, providers=()))
 
-        with patch("pilot_space.api.v1.routers.ai_governance.get_settings") as mock_settings:
-            mock_settings.return_value.encryption_key.get_secret_value.return_value = "fake-key"
-
-            response = await gov_client.get(
-                f"/api/v1/workspaces/{WORKSPACE_SLUG}/settings/ai-status"
-            )
+    response = await client.get(f"/api/v1/workspaces/{WORKSPACE_SLUG}/settings/ai-status")
 
     assert response.status_code == 200
     data = response.json()
@@ -239,22 +213,17 @@ async def test_ai_status_byok_not_configured(gov_client: AsyncClient) -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_rollback_eligible_entry(gov_client: AsyncClient) -> None:
+async def test_rollback_eligible_entry(
+    gov_client: tuple[AsyncClient, MagicMock],
+) -> None:
     """POST /audit/{id}/rollback on AI create entry returns 200."""
-    entry = _make_audit_entry(ActorType.AI, "issue.create", "issue")
-    entry_id = entry.id
+    client, svc = gov_client
+    entry_id = uuid4()
+    svc.execute_rollback = AsyncMock(
+        return_value=RollbackResult(status="rolled_back", entry_id=entry_id)
+    )
 
-    with (
-        patch("pilot_space.api.v1.routers.ai_governance.AuditLogRepository") as MockAuditRepo,
-        patch("pilot_space.api.v1.routers.ai_governance._dispatch_rollback", new=AsyncMock()),
-    ):
-        audit_instance = MockAuditRepo.return_value
-        audit_instance.get_by_id = AsyncMock(return_value=entry)
-        audit_instance.create = AsyncMock(return_value=MagicMock(id=uuid4()))
-
-        response = await gov_client.post(
-            f"/api/v1/workspaces/{WORKSPACE_SLUG}/audit/{entry_id}/rollback"
-        )
+    response = await client.post(f"/api/v1/workspaces/{WORKSPACE_SLUG}/audit/{entry_id}/rollback")
 
     assert response.status_code == 200
     data = response.json()
@@ -262,49 +231,44 @@ async def test_rollback_eligible_entry(gov_client: AsyncClient) -> None:
     assert data["entry_id"] == str(entry_id)
 
 
-async def test_rollback_ineligible_entry_rejected(gov_client: AsyncClient) -> None:
-    """POST /audit/{id}/rollback on USER entry returns 422."""
-    entry = _make_audit_entry(ActorType.USER, "issue.create", "issue")
-    entry_id = entry.id
-
-    with patch("pilot_space.api.v1.routers.ai_governance.AuditLogRepository") as MockAuditRepo:
-        audit_instance = MockAuditRepo.return_value
-        audit_instance.get_by_id = AsyncMock(return_value=entry)
-
-        response = await gov_client.post(
-            f"/api/v1/workspaces/{WORKSPACE_SLUG}/audit/{entry_id}/rollback"
+async def test_rollback_ineligible_entry_rejected(
+    gov_client: tuple[AsyncClient, MagicMock],
+) -> None:
+    """POST /audit/{id}/rollback on non-eligible entry returns 422."""
+    client, svc = gov_client
+    entry_id = uuid4()
+    svc.execute_rollback = AsyncMock(
+        side_effect=ValidationError(
+            "Entry is not rollback-eligible. "
+            "Rollback applies only to AI create/update actions on supported resource types."
         )
+    )
+
+    response = await client.post(f"/api/v1/workspaces/{WORKSPACE_SLUG}/audit/{entry_id}/rollback")
 
     assert response.status_code == 422
     assert "rollback" in response.json()["detail"].lower()
 
 
-async def test_rollback_creates_audit_entry(gov_client: AsyncClient) -> None:
-    """Successful rollback writes a new audit log row with actor_type=USER."""
-    entry = _make_audit_entry(ActorType.AI, "issue.create", "issue")
-    entry_id = entry.id
+async def test_rollback_calls_service_with_correct_args(
+    gov_client: tuple[AsyncClient, MagicMock],
+) -> None:
+    """Successful rollback delegates to service.execute_rollback with correct arguments."""
+    client, svc = gov_client
+    entry_id = uuid4()
+    svc.execute_rollback = AsyncMock(
+        return_value=RollbackResult(status="rolled_back", entry_id=entry_id)
+    )
 
-    with (
-        patch("pilot_space.api.v1.routers.ai_governance.AuditLogRepository") as MockAuditRepo,
-        patch("pilot_space.api.v1.routers.ai_governance._dispatch_rollback", new=AsyncMock()),
-    ):
-        audit_instance = MockAuditRepo.return_value
-        audit_instance.get_by_id = AsyncMock(return_value=entry)
-        created_rollback = MagicMock(id=uuid4())
-        audit_instance.create = AsyncMock(return_value=created_rollback)
-
-        response = await gov_client.post(
-            f"/api/v1/workspaces/{WORKSPACE_SLUG}/audit/{entry_id}/rollback"
-        )
+    response = await client.post(f"/api/v1/workspaces/{WORKSPACE_SLUG}/audit/{entry_id}/rollback")
 
     assert response.status_code == 200
-    audit_instance.create.assert_called_once()
-    create_kwargs = audit_instance.create.call_args.kwargs
-    assert create_kwargs["actor_type"] == ActorType.USER
-    assert create_kwargs["action"] == "ai.rollback"
+    svc.execute_rollback.assert_called_once_with(WORKSPACE_SLUG, entry_id, USER_ID)
 
 
-async def test_approval_list_returns_pending(gov_client: AsyncClient) -> None:
+async def test_approval_list_returns_pending(
+    gov_client: tuple[AsyncClient, MagicMock],
+) -> None:
     """GET /workspaces/{slug}/approvals — endpoint exists in ai_approvals.py (verify, not reimplemented)."""
     # Verify the ai_approvals router is mounted and accessible with a GET list route
     from pilot_space.api.v1.routers.ai_approvals import router as approvals_router

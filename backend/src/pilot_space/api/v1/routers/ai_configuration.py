@@ -1,19 +1,16 @@
 """AI Configuration router for workspace-level LLM provider management (FR-022).
 
-Provides endpoints for managing workspace AI configurations with BYOK (Bring Your Own Key).
+Thin HTTP shell delegating to AIConfigurationService.
 API keys are encrypted before storage and never returned in responses.
 """
 
 from __future__ import annotations
 
-import asyncio
-import time
-from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, status
 
-from pilot_space.api.v1.dependencies import WorkspaceRepositoryDep
+from pilot_space.api.v1.dependencies import AIConfigurationServiceDep
 from pilot_space.api.v1.schemas.ai_configuration import (
     AIConfigurationCreate,
     AIConfigurationListResponse,
@@ -25,76 +22,9 @@ from pilot_space.api.v1.schemas.ai_configuration import (
 )
 from pilot_space.api.v1.schemas.base import DeleteResponse
 from pilot_space.dependencies import CurrentUser, DbSession
-from pilot_space.domain.exceptions import ConflictError, ForbiddenError, NotFoundError
-from pilot_space.infrastructure.database.models.ai_configuration import (
-    AIConfiguration,
-    LLMProvider,
-)
-from pilot_space.infrastructure.database.models.workspace_member import WorkspaceRole
-from pilot_space.infrastructure.database.repositories.ai_configuration_repository import (
-    AIConfigurationRepository,
-)
-from pilot_space.infrastructure.database.rls import set_rls_context
-from pilot_space.infrastructure.encryption import (
-    decrypt_api_key,
-    encrypt_api_key,
-)
-from pilot_space.infrastructure.logging import get_logger
-
-logger = get_logger(__name__)
+from pilot_space.infrastructure.database.models.ai_configuration import AIConfiguration
 
 router = APIRouter(prefix="/ai/configurations", tags=["ai-configuration"])
-
-# Lock to protect genai.configure() global state mutation from race conditions
-google_api_lock = asyncio.Lock()
-
-
-def get_ai_config_repository(session: DbSession) -> AIConfigurationRepository:
-    """Get AI configuration repository with session."""
-    return AIConfigurationRepository(session=session)
-
-
-AIConfigRepo = Annotated[AIConfigurationRepository, Depends(get_ai_config_repository)]
-
-
-async def _verify_workspace_membership(
-    workspace_id: UUID,
-    user_id: UUID,
-    workspace_repo: WorkspaceRepositoryDep,
-    *,
-    require_admin: bool = False,
-) -> WorkspaceRole:
-    """Verify user is a member of the workspace.
-
-    Args:
-        workspace_id: Workspace UUID.
-        user_id: User UUID.
-        workspace_repo: Workspace repository instance.
-        require_admin: If True, require admin or owner role.
-
-    Returns:
-        User's role in the workspace.
-
-    Raises:
-        HTTPException: If workspace not found or user lacks required access.
-    """
-    # H-4 fix: Use get_with_members to eagerly load members and avoid
-    # MissingGreenlet errors when iterating workspace.members in async context.
-    workspace = await workspace_repo.get_with_members(workspace_id)
-    if not workspace:
-        raise NotFoundError("Workspace not found")
-
-    member = next(
-        (m for m in (workspace.members or []) if m.user_id == user_id and not m.is_deleted),
-        None,
-    )
-    if not member:
-        raise ForbiddenError("Not a member of this workspace")
-
-    if require_admin and member.role not in (WorkspaceRole.ADMIN, WorkspaceRole.OWNER):
-        raise ForbiddenError("Admin role required for this operation")
-
-    return member.role
 
 
 def _config_to_response(config: AIConfiguration) -> AIConfigurationResponse:
@@ -127,27 +57,11 @@ async def list_ai_configurations(
     workspace_id: UUID,
     current_user: CurrentUser,
     session: DbSession,
-    ai_config_repo: AIConfigRepo,
-    workspace_repo: WorkspaceRepositoryDep,
+    service: AIConfigurationServiceDep,
 ) -> AIConfigurationListResponse:
-    """List AI configurations for a workspace.
-
-    Args:
-        workspace_id: Workspace identifier.
-        current_user: Authenticated user.
-        ai_config_repo: AI configuration repository.
-        workspace_repo: Workspace repository.
-        session: Database session for RLS context.
-
-    Returns:
-        List of AI configurations (without API keys).
-    """
-    await set_rls_context(session, current_user.user_id, workspace_id)
-    await _verify_workspace_membership(workspace_id, current_user.user_id, workspace_repo)
-
-    configs = await ai_config_repo.get_by_workspace(workspace_id, include_inactive=True)
-    items = [_config_to_response(config) for config in configs]
-
+    """List AI configurations for a workspace."""
+    configs = await service.list_configurations(workspace_id, current_user.user_id)
+    items = [_config_to_response(c) for c in configs]
     return AIConfigurationListResponse(items=items, total=len(items))
 
 
@@ -163,61 +77,19 @@ async def create_ai_configuration(
     request: AIConfigurationCreate,
     current_user: CurrentUser,
     session: DbSession,
-    ai_config_repo: AIConfigRepo,
-    workspace_repo: WorkspaceRepositoryDep,
+    service: AIConfigurationServiceDep,
 ) -> AIConfigurationResponse:
-    """Create an AI configuration for a workspace.
-
-    Args:
-        workspace_id: Workspace identifier.
-        request: Configuration creation data.
-        current_user: Authenticated user.
-        ai_config_repo: AI configuration repository.
-        workspace_repo: Workspace repository.
-        session: Database session for transaction.
-
-    Returns:
-        Created AI configuration (without API key).
-
-    Raises:
-        HTTPException: If not admin or provider already configured.
-    """
-    await set_rls_context(session, current_user.user_id, workspace_id)
-    await _verify_workspace_membership(
-        workspace_id, current_user.user_id, workspace_repo, require_admin=True
-    )
-
-    # Check if provider already exists for this workspace
-    existing = await ai_config_repo.get_by_workspace_and_provider(workspace_id, request.provider)
-    if existing:
-        raise ConflictError(f"Configuration for provider '{request.provider.value}' already exists")
-
-    # Encrypt the API key
-    encrypted_key = encrypt_api_key(request.api_key)
-
-    # Create configuration
-    config = AIConfiguration(
-        workspace_id=workspace_id,
+    """Create an AI configuration for a workspace."""
+    config = await service.create_configuration(
+        workspace_id,
+        current_user.user_id,
         provider=request.provider,
-        api_key_encrypted=encrypted_key,
-        is_active=True,
+        api_key=request.api_key,
         settings=request.settings,
         usage_limits=request.usage_limits,
         base_url=request.base_url,
         display_name=request.display_name,
     )
-    config = await ai_config_repo.create(config)
-    await session.commit()
-
-    logger.info(
-        "AI configuration created",
-        extra={
-            "workspace_id": str(workspace_id),
-            "provider": request.provider.value,
-            "config_id": str(config.id),
-        },
-    )
-
     return _config_to_response(config)
 
 
@@ -235,35 +107,14 @@ async def list_available_models(
     workspace_id: UUID,
     current_user: CurrentUser,
     session: DbSession,
-    workspace_repo: WorkspaceRepositoryDep,
+    service: AIConfigurationServiceDep,
 ) -> ModelListResponse:
-    """List all models available from active provider configurations.
-
-    Each provider's models are fetched independently. If a provider is
-    unreachable, it returns fallback (hardcoded) models marked is_selectable=False
-    so the UI can still display the provider while indicating degraded status.
-
-    Args:
-        workspace_id: Workspace identifier.
-        current_user: Authenticated user.
-        workspace_repo: Workspace repository for membership verification.
-        session: Database session for fetching configurations.
-
-    Returns:
-        ModelListResponse with items from all active, configured providers.
-    """
-    await set_rls_context(session, current_user.user_id, workspace_id)
-    await _verify_workspace_membership(workspace_id, current_user.user_id, workspace_repo)
-
-    from pilot_space.ai.providers.model_listing import ModelListingService
-
-    service = ModelListingService()
-    models = await service.list_models_for_workspace(workspace_id, session)
-
+    """List all models available from active provider configurations."""
+    models = await service.list_available_models(workspace_id, current_user.user_id)
     return ModelListResponse(
         items=[
             ProviderModelItem(
-                provider_config_id=m.provider_config_id,
+                provider_config_id=str(m.provider_config_id),
                 provider=m.provider,
                 model_id=m.model_id,
                 display_name=m.display_name,
@@ -286,32 +137,10 @@ async def get_ai_configuration(
     config_id: UUID,
     current_user: CurrentUser,
     session: DbSession,
-    ai_config_repo: AIConfigRepo,
-    workspace_repo: WorkspaceRepositoryDep,
+    service: AIConfigurationServiceDep,
 ) -> AIConfigurationResponse:
-    """Get a specific AI configuration.
-
-    Args:
-        workspace_id: Workspace identifier.
-        config_id: Configuration identifier.
-        current_user: Authenticated user.
-        ai_config_repo: AI configuration repository.
-        workspace_repo: Workspace repository.
-        session: Database session for RLS context.
-
-    Returns:
-        AI configuration (without API key).
-
-    Raises:
-        HTTPException: If not found or not a member.
-    """
-    await set_rls_context(session, current_user.user_id, workspace_id)
-    await _verify_workspace_membership(workspace_id, current_user.user_id, workspace_repo)
-
-    config = await ai_config_repo.get_by_workspace_and_id(workspace_id, config_id)
-    if not config:
-        raise NotFoundError("AI configuration not found")
-
+    """Get a specific AI configuration."""
+    config = await service.get_configuration(workspace_id, config_id, current_user.user_id)
     return _config_to_response(config)
 
 
@@ -327,59 +156,13 @@ async def update_ai_configuration(
     request: AIConfigurationUpdate,
     current_user: CurrentUser,
     session: DbSession,
-    ai_config_repo: AIConfigRepo,
-    workspace_repo: WorkspaceRepositoryDep,
+    service: AIConfigurationServiceDep,
 ) -> AIConfigurationResponse:
-    """Update an AI configuration.
-
-    Args:
-        workspace_id: Workspace identifier.
-        config_id: Configuration identifier.
-        request: Update data.
-        current_user: Authenticated user.
-        ai_config_repo: AI configuration repository.
-        workspace_repo: Workspace repository.
-        session: Database session for transaction.
-
-    Returns:
-        Updated AI configuration (without API key).
-
-    Raises:
-        HTTPException: If not found or not admin.
-    """
-    await set_rls_context(session, current_user.user_id, workspace_id)
-    await _verify_workspace_membership(
-        workspace_id, current_user.user_id, workspace_repo, require_admin=True
-    )
-
-    config = await ai_config_repo.get_by_workspace_and_id(workspace_id, config_id)
-    if not config:
-        raise NotFoundError("AI configuration not found")
-
-    # Apply updates
+    """Update an AI configuration."""
     update_data = request.model_dump(exclude_unset=True)
-
-    # Handle API key update separately (needs encryption)
-    if "api_key" in update_data:
-        api_key = update_data.pop("api_key")
-        if api_key:
-            config.api_key_encrypted = encrypt_api_key(api_key)
-
-    # Apply remaining updates
-    for key, value in update_data.items():
-        setattr(config, key, value)
-
-    config = await ai_config_repo.update(config)
-    await session.commit()
-
-    logger.info(
-        "AI configuration updated",
-        extra={
-            "workspace_id": str(workspace_id),
-            "config_id": str(config_id),
-        },
+    config = await service.update_configuration(
+        workspace_id, config_id, current_user.user_id, update_data
     )
-
     return _config_to_response(config)
 
 
@@ -394,46 +177,10 @@ async def delete_ai_configuration(
     config_id: UUID,
     current_user: CurrentUser,
     session: DbSession,
-    ai_config_repo: AIConfigRepo,
-    workspace_repo: WorkspaceRepositoryDep,
+    service: AIConfigurationServiceDep,
 ) -> DeleteResponse:
-    """Delete an AI configuration.
-
-    Args:
-        workspace_id: Workspace identifier.
-        config_id: Configuration identifier.
-        current_user: Authenticated user.
-        ai_config_repo: AI configuration repository.
-        workspace_repo: Workspace repository.
-        session: Database session for transaction.
-
-    Returns:
-        Delete confirmation.
-
-    Raises:
-        HTTPException: If not found or not admin.
-    """
-    await set_rls_context(session, current_user.user_id, workspace_id)
-    await _verify_workspace_membership(
-        workspace_id, current_user.user_id, workspace_repo, require_admin=True
-    )
-
-    config = await ai_config_repo.get_by_workspace_and_id(workspace_id, config_id)
-    if not config:
-        raise NotFoundError("AI configuration not found")
-
-    await ai_config_repo.delete(config)
-    await session.commit()
-
-    logger.info(
-        "AI configuration deleted",
-        extra={
-            "workspace_id": str(workspace_id),
-            "config_id": str(config_id),
-            "provider": config.provider.value,
-        },
-    )
-
+    """Delete an AI configuration."""
+    await service.delete_configuration(workspace_id, config_id, current_user.user_id)
     return DeleteResponse(id=config_id, message="AI configuration deleted successfully")
 
 
@@ -448,201 +195,16 @@ async def test_ai_configuration(
     config_id: UUID,
     current_user: CurrentUser,
     session: DbSession,
-    ai_config_repo: AIConfigRepo,
-    workspace_repo: WorkspaceRepositoryDep,
+    service: AIConfigurationServiceDep,
 ) -> AIConfigurationTestResponse:
-    """Test an AI configuration by validating the API key.
-
-    Makes a minimal API call to the provider to verify the key is valid.
-
-    Args:
-        workspace_id: Workspace identifier.
-        config_id: Configuration identifier.
-        current_user: Authenticated user.
-        ai_config_repo: AI configuration repository.
-        workspace_repo: Workspace repository.
-        session: Database session for RLS context.
-
-    Returns:
-        Test result with success status and latency.
-
-    Raises:
-        HTTPException: If configuration not found.
-    """
-    await set_rls_context(session, current_user.user_id, workspace_id)
-    await _verify_workspace_membership(workspace_id, current_user.user_id, workspace_repo)
-
-    config = await ai_config_repo.get_by_workspace_and_id(workspace_id, config_id)
-    if not config:
-        raise NotFoundError("AI configuration not found")
-
-    # Decrypt API key for testing
-    from pilot_space.infrastructure.encryption import EncryptionError
-
-    try:
-        api_key = decrypt_api_key(config.api_key_encrypted)
-    except EncryptionError:
-        logger.exception("Failed to decrypt API key for testing")
-        return AIConfigurationTestResponse(
-            success=False,
-            provider=config.provider,
-            message="Failed to decrypt API key. Configuration may be corrupted.",
-            latency_ms=None,
-        )
-
-    # Test the API key with the provider
-    start_time = time.perf_counter()
-    success, message = await _test_provider_api_key(config.provider, api_key, config.base_url)
-    latency_ms = int((time.perf_counter() - start_time) * 1000)
-
-    logger.info(
-        "AI configuration test completed",
-        extra={
-            "workspace_id": str(workspace_id),
-            "config_id": str(config_id),
-            "provider": config.provider.value,
-            "success": success,
-            "latency_ms": latency_ms,
-        },
-    )
-
+    """Test an AI configuration by validating the API key."""
+    result = await service.test_configuration(workspace_id, config_id, current_user.user_id)
     return AIConfigurationTestResponse(
-        success=success,
-        provider=config.provider,
-        message=message,
-        latency_ms=latency_ms if success else None,
+        success=result.success,
+        provider=result.provider,
+        message=result.message,
+        latency_ms=result.latency_ms,
     )
-
-
-_OPENAI_COMPATIBLE_DEFAULTS: dict[LLMProvider, str] = {
-    LLMProvider.KIMI: "https://api.moonshot.cn/v1",
-    LLMProvider.GLM: "https://open.bigmodel.cn/api/paas/v4",
-}
-
-
-async def _test_provider_api_key(  # noqa: PLR0911
-    provider: LLMProvider, api_key: str, base_url: str | None = None
-) -> tuple[bool, str]:
-    """Test an API key with the specified provider.
-
-    Args:
-        provider: The LLM provider.
-        api_key: The decrypted API key.
-        base_url: Optional base URL for OpenAI-compatible providers.
-
-    Returns:
-        Tuple of (success, message).
-    """
-    if provider == LLMProvider.ANTHROPIC:
-        return await _test_anthropic_key(api_key)
-    if provider == LLMProvider.OPENAI:
-        return await _test_openai_key(api_key)
-    if provider == LLMProvider.GOOGLE:
-        return await _test_google_key(api_key)
-    if provider in _OPENAI_COMPATIBLE_DEFAULTS:
-        resolved_url = base_url or _OPENAI_COMPATIBLE_DEFAULTS[provider]
-        return await _test_openai_compatible_key(api_key, resolved_url)
-    if provider == LLMProvider.CUSTOM:
-        if not base_url:
-            return False, "Custom provider requires a base_url"
-        return await _test_openai_compatible_key(api_key, base_url)
-    return False, f"Unknown provider: {provider}"
-
-
-async def _test_anthropic_key(api_key: str) -> tuple[bool, str]:
-    """Test Anthropic API key validity.
-
-    Uses a minimal messages API call with max_tokens=1.
-    """
-    import anthropic
-
-    try:
-        client = anthropic.AsyncAnthropic(api_key=api_key)
-        # Minimal request to validate the key
-        await client.messages.create(
-            model="claude-3-5-haiku-20241022",
-            max_tokens=1,
-            messages=[{"role": "user", "content": "test"}],
-        )
-    except anthropic.AuthenticationError:
-        return False, "Invalid API key"
-    except anthropic.PermissionDeniedError:
-        return False, "API key lacks required permissions"
-    except anthropic.RateLimitError:
-        # Rate limited but key is valid
-        return True, "API key is valid (rate limited)"
-    except anthropic.APIError as e:
-        return False, f"API error: {e.message}"
-    else:
-        return True, "API key is valid"
-
-
-async def _test_openai_key(api_key: str) -> tuple[bool, str]:
-    """Test OpenAI API key validity.
-
-    Uses a minimal models list API call.
-    """
-    import openai
-
-    try:
-        client = openai.AsyncOpenAI(api_key=api_key)
-        # List models is a lightweight call to validate the key
-        await client.models.list()
-    except openai.AuthenticationError:
-        return False, "Invalid API key"
-    except openai.PermissionDeniedError:
-        return False, "API key lacks required permissions"
-    except openai.RateLimitError:
-        # Rate limited but key is valid
-        return True, "API key is valid (rate limited)"
-    except openai.APIError as e:
-        return False, f"API error: {e.message}"
-    else:
-        return True, "API key is valid"
-
-
-async def _test_google_key(api_key: str) -> tuple[bool, str]:
-    """Test Google AI API key validity.
-
-    Uses a minimal models list API call. Protected by lock to prevent
-    race conditions from genai.configure() global state mutation.
-    """
-    import google.generativeai as genai  # type: ignore[import-untyped]
-
-    try:
-        # Lock protects genai.configure() global state from concurrent access
-        async with google_api_lock:
-            genai.configure(api_key=api_key)  # pyright: ignore[reportPrivateImportUsage,reportUnknownMemberType]
-            # List models is a lightweight call to validate the key
-            list(genai.list_models())  # pyright: ignore[reportPrivateImportUsage,reportUnknownMemberType,reportUnknownArgumentType]
-    except Exception as e:
-        error_str = str(e).lower()
-        if "invalid" in error_str or "api key" in error_str:
-            return False, "Invalid API key"
-        if "permission" in error_str:
-            return False, "API key lacks required permissions"
-        return False, f"API error: {e!s}"
-    else:
-        return True, "API key is valid"
-
-
-async def _test_openai_compatible_key(api_key: str, base_url: str) -> tuple[bool, str]:
-    """Test an OpenAI-compatible API key by listing models at the given base_url."""
-    import openai
-
-    try:
-        client = openai.AsyncOpenAI(api_key=api_key, base_url=base_url)
-        await client.models.list()
-    except openai.AuthenticationError:
-        return False, "Invalid API key"
-    except openai.PermissionDeniedError:
-        return False, "API key lacks required permissions"
-    except openai.RateLimitError:
-        return True, "API key is valid (rate limited)"
-    except openai.APIError as e:
-        return False, f"API error: {e.message}"
-    else:
-        return True, "API key is valid"
 
 
 __all__ = ["router"]

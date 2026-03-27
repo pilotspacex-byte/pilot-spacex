@@ -67,6 +67,14 @@ def mock_client_pool() -> MagicMock:
 def mock_key_storage() -> AsyncMock:
     storage = AsyncMock()
     storage.get_api_key.return_value = TEST_API_KEY
+    # Set db=None so _resolve_workspace_provider skips the DB settings lookup
+    storage.db = None
+    # _resolve_workspace_provider calls get_key_info first, then get_api_key
+    mock_key_info = MagicMock()
+    mock_key_info.base_url = None
+    mock_key_info.model_name = None
+    storage.get_key_info.return_value = mock_key_info
+    storage.get_all_key_infos.return_value = []
     return storage
 
 

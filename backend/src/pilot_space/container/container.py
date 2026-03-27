@@ -9,7 +9,10 @@ from __future__ import annotations
 
 from dependency_injector import containers, providers
 
+from pilot_space.ai.infrastructure.approval import ApprovalService
 from pilot_space.ai.infrastructure.cost_tracker import CostTracker
+from pilot_space.application.services.action_button import ActionButtonService
+from pilot_space.application.services.admin_dashboard import AdminDashboardService
 from pilot_space.application.services.ai import (
     AttachmentContentService,
     AttachmentUploadService,
@@ -17,17 +20,23 @@ from pilot_space.application.services.ai import (
     TriggerPRReviewService,
 )
 from pilot_space.application.services.ai.ocr_service import OcrService
+from pilot_space.application.services.ai_configuration import AIConfigurationService
 from pilot_space.application.services.ai_context import (
     ExportAIContextService,
     GenerateAIContextService,
     GenerateImplementationPlanService,
     RefineAIContextService,
 )
+from pilot_space.application.services.ai_extraction import CreateExtractedIssuesService
+from pilot_space.application.services.ai_governance import GovernanceRollbackService
 from pilot_space.application.services.annotation import CreateAnnotationService
 from pilot_space.application.services.artifact.artifact_upload_service import (
     ArtifactUploadService,
 )
+from pilot_space.application.services.attachment_management import AttachmentManagementService
 from pilot_space.application.services.auth import AuthService, ValidateAPIKeyService
+from pilot_space.application.services.block_ownership import BlockOwnershipService
+from pilot_space.application.services.capacity_plan import CapacityPlanService
 from pilot_space.application.services.cycle import (
     AddIssueToCycleService,
     CreateCycleService,
@@ -35,10 +44,12 @@ from pilot_space.application.services.cycle import (
     RolloverCycleService,
     UpdateCycleService,
 )
+from pilot_space.application.services.dependency_graph import DependencyGraphService
 from pilot_space.application.services.discussion import CreateDiscussionService
 from pilot_space.application.services.document.office_extraction_service import (
     OfficeExtractionService,
 )
+from pilot_space.application.services.feature_toggle import FeatureToggleService
 from pilot_space.application.services.homepage import (
     DismissSuggestionService,
     GetActivityService,
@@ -60,6 +71,9 @@ from pilot_space.application.services.issue import (
     ListIssuesService,
     UpdateIssueService,
 )
+from pilot_space.application.services.mcp_oauth import McpOAuthService
+from pilot_space.application.services.mcp_server import McpServerService
+from pilot_space.application.services.mcp_tool_execution import MCPToolExecutionService
 from pilot_space.application.services.memory.constitution_service import (
     ConstitutionIngestService,
 )
@@ -84,14 +98,21 @@ from pilot_space.application.services.note.ai_update_service import (
 )
 from pilot_space.application.services.note.move_page_service import MovePageService
 from pilot_space.application.services.note.reorder_page_service import ReorderPageService
+from pilot_space.application.services.note_template import NoteTemplateService
 from pilot_space.application.services.note_write_lock import NoteWriteLock
 from pilot_space.application.services.onboarding import (
     CreateGuidedNoteService,
     GetOnboardingService,
     UpdateOnboardingService,
 )
+from pilot_space.application.services.plugin_lifecycle import PluginLifecycleService
 from pilot_space.application.services.pm_block_insight_service import PMBlockInsightService
+from pilot_space.application.services.project_detail import ProjectDetailService
+from pilot_space.application.services.rate_limit import RateLimitService
 from pilot_space.application.services.rbac_service import RbacService
+from pilot_space.application.services.related_issues import RelatedIssuesSuggestionService
+from pilot_space.application.services.scim_service import ScimService
+from pilot_space.application.services.sprint_board import SprintBoardService
 from pilot_space.application.services.sso_service import SsoService
 from pilot_space.application.services.task_service import TaskService
 from pilot_space.application.services.transcription import TranscriptionService
@@ -102,6 +123,7 @@ from pilot_space.application.services.version.restore_service import VersionRest
 from pilot_space.application.services.version.retention_service import RetentionService
 from pilot_space.application.services.version.snapshot_service import VersionSnapshotService
 from pilot_space.application.services.workspace import WorkspaceService
+from pilot_space.application.services.workspace_ai_settings import WorkspaceAISettingsService
 from pilot_space.application.services.workspace_invitation import (
     WorkspaceInvitationService,
 )
@@ -129,6 +151,18 @@ from pilot_space.infrastructure.database.repositories.audit_log_repository impor
 )
 from pilot_space.infrastructure.database.repositories.custom_role_repository import (
     CustomRoleRepository,
+)
+from pilot_space.infrastructure.database.repositories.issue_link_repository import (
+    IssueLinkRepository,
+)
+from pilot_space.infrastructure.database.repositories.issue_repository import (
+    IssueRepository,
+)
+from pilot_space.infrastructure.database.repositories.note_template_repository import (
+    NoteTemplateRepository,
+)
+from pilot_space.infrastructure.database.repositories.project_repository import (
+    ProjectRepository,
 )
 from pilot_space.infrastructure.database.repositories.workspace_ai_policy_repository import (
     WorkspaceAIPolicyRepository,
@@ -201,6 +235,12 @@ class Container(SkillContainer, PluginContainer):
         session=providers.Callable(get_current_session),
     )
 
+    # AI Approval Service (DD-003) — Factory per request
+    approval_service = providers.Factory(
+        ApprovalService,
+        session=providers.Callable(get_current_session),
+    )
+
     # AI Policy Repository (AIGOV-01) — Factory per request
     workspace_ai_policy_repository = providers.Factory(
         WorkspaceAIPolicyRepository,
@@ -211,6 +251,145 @@ class Container(SkillContainer, PluginContainer):
     audit_log_repository = providers.Factory(
         AuditLogRepository,
         session=providers.Callable(get_current_session),
+    )
+
+    # Action Button Service
+    action_button_service = providers.Factory(
+        ActionButtonService,
+        session=providers.Callable(get_current_session),
+    )
+
+    # Block Ownership Service
+    block_ownership_service = providers.Factory(
+        BlockOwnershipService,
+        session=providers.Callable(get_current_session),
+        note_repository=InfraContainer.note_repository,
+    )
+
+    # Repositories required by refactored services
+    project_repository = providers.Factory(
+        ProjectRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    issue_repository = providers.Factory(
+        IssueRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    issue_link_repository = providers.Factory(
+        IssueLinkRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    note_template_repository = providers.Factory(
+        NoteTemplateRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    # Dependency Graph Service
+    dependency_graph_service = providers.Factory(
+        DependencyGraphService,
+        project_repository=project_repository,
+        issue_repository=issue_repository,
+        issue_link_repository=issue_link_repository,
+    )
+
+    # Note Template Service
+    note_template_service = providers.Factory(
+        NoteTemplateService,
+        session=providers.Callable(get_current_session),
+        note_template_repository=note_template_repository,
+        workspace_member_repository=InfraContainer.workspace_member_repository,
+    )
+
+    # Related Issues Suggestion Service
+    related_issues_suggestion_service = providers.Factory(
+        RelatedIssuesSuggestionService,
+        session=providers.Callable(get_current_session),
+        issue_repository=InfraContainer.issue_repository,
+        knowledge_graph_repository=InfraContainer.knowledge_graph_repository,
+        issue_suggestion_dismissal_repository=InfraContainer.issue_suggestion_dismissal_repository,
+    )
+
+    # Workspace AI Settings Service
+    workspace_ai_settings_service = providers.Factory(
+        WorkspaceAISettingsService,
+        session=providers.Callable(get_current_session),
+        workspace_repository=InfraContainer.workspace_repository,
+    )
+
+    # Sprint Board Service
+    sprint_board_service = providers.Factory(
+        SprintBoardService,
+        session=providers.Callable(get_current_session),
+        pm_block_queries_repository=InfraContainer.pm_block_queries_repository,
+    )
+
+    # Capacity Plan Service
+    capacity_plan_service = providers.Factory(
+        CapacityPlanService,
+        session=providers.Callable(get_current_session),
+        pm_block_queries_repository=InfraContainer.pm_block_queries_repository,
+    )
+
+    # Rate Limit Service — Redis-backed INCR+EXPIRE
+    rate_limit_service = providers.Factory(
+        RateLimitService,
+        redis=InfraContainer.redis_client,
+    )
+
+    # MCP Server Service — CRUD, validation, encryption, status probing
+    mcp_server_service = providers.Factory(
+        McpServerService,
+        session=providers.Callable(get_current_session),
+        workspace_mcp_server_repository=InfraContainer.workspace_mcp_server_repository,
+    )
+
+    # MCP Tool Execution Service — tool discovery and execution
+    mcp_tool_execution_service = providers.Factory(
+        MCPToolExecutionService,
+        session=providers.Callable(get_current_session),
+    )
+
+    # Project Detail Service — aggregation, validation, KG enqueue
+    project_detail_service = providers.Factory(
+        ProjectDetailService,
+        session=providers.Callable(get_current_session),
+        project_repository=InfraContainer.project_repository,
+        workspace_repository=InfraContainer.workspace_repository,
+    )
+
+    # MCP OAuth Service — OAuth 2.0 authorization flows
+    mcp_oauth_service = providers.Factory(
+        McpOAuthService,
+        session=providers.Callable(get_current_session),
+        redis=InfraContainer.redis_client,
+        workspace_mcp_server_repository=InfraContainer.workspace_mcp_server_repository,
+    )
+
+    # Attachment Management Service — quota, extraction, ingest
+    attachment_management_service = providers.Factory(
+        AttachmentManagementService,
+        session=providers.Callable(get_current_session),
+        storage_client=InfraContainer.storage_client,
+        workspace_member_repository=InfraContainer.workspace_member_repository,
+        chat_attachment_repository=InfraContainer.chat_attachment_repository,
+        ocr_result_repository=InfraContainer.ocr_result_repository,
+    )
+
+    # Feature Toggle Service
+    feature_toggle_service = providers.Factory(
+        FeatureToggleService,
+        session=providers.Callable(get_current_session),
+    )
+
+    # SCIM Service (AUTH-07)
+    scim_service = providers.Factory(
+        ScimService,
+        workspace_repo=InfraContainer.workspace_repository,
+        user_repo=InfraContainer.user_repository,
+        supabase_admin_client=InfraContainer.supabase_auth,
     )
 
     # ===== Service Factories =====
@@ -741,6 +920,51 @@ class Container(SkillContainer, PluginContainer):
         custom_role_repo=custom_role_repository,
         workspace_member_repo=workspace_member_rbac_repository,
         audit_log_repository=audit_log_repository,
+    )
+
+    # Admin Dashboard Service (TENANT-04) — Redis optional, no session needed
+    admin_dashboard_service = providers.Factory(
+        AdminDashboardService,
+        redis=InfraContainer.redis_client,
+    )
+
+    # AI Extraction Service — creates issues from AI extraction results
+    create_extracted_issues_service = providers.Factory(
+        CreateExtractedIssuesService,
+        session=providers.Callable(get_current_session),
+        project_repository=InfraContainer.project_repository,
+        issue_repository=InfraContainer.issue_repository,
+        activity_repository=InfraContainer.activity_repository,
+        label_repository=InfraContainer.label_repository,
+        note_issue_link_repository=InfraContainer.note_issue_link_repository,
+    )
+
+    # AI Governance Service — rollback, policy CRUD, BYOK status
+    governance_rollback_service = providers.Factory(
+        GovernanceRollbackService,
+        session=providers.Callable(get_current_session),
+        workspace_repository=InfraContainer.workspace_repository,
+        audit_log_repository=audit_log_repository,
+        workspace_ai_policy_repository=workspace_ai_policy_repository,
+        update_issue_service=update_issue_service,
+        update_note_service=update_note_service,
+    )
+
+    # Plugin Lifecycle Service — browse, toggle, uninstall, update checks
+    plugin_lifecycle_service = providers.Factory(
+        PluginLifecycleService,
+        session=providers.Callable(get_current_session),
+        redis=InfraContainer.redis_client,
+        workspace_github_credential_repository=InfraContainer.workspace_github_credential_repository,
+        workspace_plugin_repository=InfraContainer.workspace_plugin_repository,
+        skill_action_button_repository=InfraContainer.skill_action_button_repository,
+    )
+
+    # AI Configuration Service — workspace-level LLM provider management
+    ai_configuration_service = providers.Factory(
+        AIConfigurationService,
+        session=providers.Callable(get_current_session),
+        workspace_repository=InfraContainer.workspace_repository,
     )
 
 

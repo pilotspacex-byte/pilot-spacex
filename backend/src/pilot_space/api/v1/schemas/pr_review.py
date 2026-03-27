@@ -251,12 +251,46 @@ class ReviewHistoryResponse(BaseModel):
     total: int
 
 
+class StreamPRReviewRequest(BaseModel):
+    """Request body for streaming PR review.
+
+    Attributes:
+        include_architecture: Include architecture review aspect.
+        include_security: Include security scanning aspect.
+        include_performance: Include performance analysis aspect.
+        post_comments: Post review comments back to GitHub PR.
+        force_refresh: If true, bypass cache and re-review.
+    """
+
+    include_architecture: bool = Field(
+        default=True,
+        description="Include architecture review",
+    )
+    include_security: bool = Field(
+        default=True,
+        description="Include security scanning",
+    )
+    include_performance: bool = Field(
+        default=True,
+        description="Include performance analysis",
+    )
+    post_comments: bool = Field(
+        default=False,
+        description="Post review comments to GitHub PR (MVP: disabled by default)",
+    )
+    force_refresh: bool = Field(
+        default=False,
+        description="Force refresh, bypass cache",
+    )
+
+
 __all__ = [
     "ReviewCommentResponse",
     "ReviewHistoryItem",
     "ReviewHistoryResponse",
     "ReviewStatusResponse",
     "ReviewSummaryResponse",
+    "StreamPRReviewRequest",
     "TriggerReviewRequest",
     "TriggerReviewResponse",
 ]

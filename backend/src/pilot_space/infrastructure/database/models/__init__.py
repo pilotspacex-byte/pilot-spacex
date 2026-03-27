@@ -83,6 +83,7 @@ from pilot_space.infrastructure.database.models.note_note_link import (
     NoteNoteLink,
     NoteNoteLinkType,
 )
+from pilot_space.infrastructure.database.models.note_template import NoteTemplate
 from pilot_space.infrastructure.database.models.note_version import NoteVersion, VersionTrigger
 from pilot_space.infrastructure.database.models.notification import (
     Notification,
@@ -218,6 +219,7 @@ __all__ = [
     "NoteLinkType",
     "NoteNoteLink",
     "NoteNoteLinkType",
+    "NoteTemplate",
     "NoteVersion",
     "Notification",
     "NotificationPriority",

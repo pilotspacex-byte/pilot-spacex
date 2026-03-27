@@ -1,7 +1,6 @@
 """Unit tests for AnthropicClientPool.
 
-Tests client caching, API key security (no plaintext in dict keys),
-hash usage, and constructor argument forwarding.
+Tests client caching, eviction, and constructor argument forwarding.
 """
 
 from __future__ import annotations
@@ -52,18 +51,18 @@ class TestAnthropicClientPool:
         with patch("pilot_space.ai.infrastructure.anthropic_client_pool.anthropic.AsyncAnthropic"):
             pool.get_client(TEST_API_KEY)
 
-        assert TEST_API_KEY not in pool._clients
+        # Dict keys are integer slots, not strings
+        assert all(isinstance(k, int) for k in pool._clients)
 
-    def test_hash_used_as_dict_key(self, pool: AnthropicClientPool) -> None:
-        """Dict key is a 16-char hex string (truncated SHA-256)."""
+    def test_integer_slots_used_as_dict_keys(self, pool: AnthropicClientPool) -> None:
+        """Dict keys are monotonic integer slots."""
         with patch("pilot_space.ai.infrastructure.anthropic_client_pool.anthropic.AsyncAnthropic"):
             pool.get_client(TEST_API_KEY)
 
         assert len(pool._clients) == 1
         key = next(iter(pool._clients))
-        assert len(key) == 16
-        # Verify it's valid hex
-        int(key, 16)
+        assert isinstance(key, int)
+        assert key == 0
 
     def test_api_key_passed_to_async_anthropic_constructor(self, pool: AnthropicClientPool) -> None:
         """Raw API key is passed to AsyncAnthropic(api_key=...) only."""
@@ -75,7 +74,7 @@ class TestAnthropicClientPool:
         mock_cls.assert_called_once_with(api_key=TEST_API_KEY)
 
     def test_evict_removes_cached_client(self, pool: AnthropicClientPool) -> None:
-        """evict() removes the client for the given key."""
+        """evict() removes all clients for the given API key."""
         with patch("pilot_space.ai.infrastructure.anthropic_client_pool.anthropic.AsyncAnthropic"):
             pool.get_client(TEST_API_KEY)
 
@@ -100,3 +99,26 @@ class TestAnthropicClientPool:
 
         assert client1 is not client2
         assert mock_cls.call_count == 2
+
+    def test_base_url_creates_separate_client(self, pool: AnthropicClientPool) -> None:
+        """Different base_url with same key gets a separate client."""
+        with patch(
+            "pilot_space.ai.infrastructure.anthropic_client_pool.anthropic.AsyncAnthropic"
+        ) as mock_cls:
+            mock_cls.side_effect = [MagicMock(), MagicMock()]
+
+            client1 = pool.get_client(TEST_API_KEY)
+            client2 = pool.get_client(TEST_API_KEY, base_url="http://localhost:11434/v1")
+
+        assert client1 is not client2
+        assert mock_cls.call_count == 2
+
+    def test_evict_removes_all_base_url_variants(self, pool: AnthropicClientPool) -> None:
+        """evict() removes clients for all base_url variants of the same key."""
+        with patch("pilot_space.ai.infrastructure.anthropic_client_pool.anthropic.AsyncAnthropic"):
+            pool.get_client(TEST_API_KEY)
+            pool.get_client(TEST_API_KEY, base_url="http://localhost:11434/v1")
+
+        assert len(pool._clients) == 2
+        assert pool.evict(TEST_API_KEY) is True
+        assert len(pool._clients) == 0

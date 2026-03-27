@@ -14,7 +14,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, select, update
 
 from pilot_space.infrastructure.database.models.workspace_plugin import WorkspacePlugin
 from pilot_space.infrastructure.database.repositories.base import BaseRepository
@@ -199,6 +199,56 @@ class WorkspacePluginRepository(BaseRepository[WorkspacePlugin]):
         await self.session.flush()
         await self.session.refresh(merged)
         return merged
+
+    async def bulk_set_active(
+        self,
+        plugin_ids: list[UUID],
+        is_active: bool,
+    ) -> int:
+        """Bulk toggle the is_active flag for a list of plugins.
+
+        Args:
+            plugin_ids: List of plugin UUIDs to update.
+            is_active: The new active state to set.
+
+        Returns:
+            Number of rows updated.
+        """
+        if not plugin_ids:
+            return 0
+        stmt = (
+            update(WorkspacePlugin)
+            .where(WorkspacePlugin.id.in_(plugin_ids))
+            .values(is_active=is_active)
+        )
+        result = await self.session.execute(stmt)
+        await self.session.flush()
+        return result.rowcount  # type: ignore[return-value]
+
+    async def bulk_soft_delete(
+        self,
+        plugin_ids: list[UUID],
+    ) -> int:
+        """Bulk soft-delete a list of plugins.
+
+        Sets is_deleted=True and is_active=False for all matching rows.
+
+        Args:
+            plugin_ids: List of plugin UUIDs to soft-delete.
+
+        Returns:
+            Number of rows updated.
+        """
+        if not plugin_ids:
+            return 0
+        stmt = (
+            update(WorkspacePlugin)
+            .where(WorkspacePlugin.id.in_(plugin_ids))
+            .values(is_deleted=True, is_active=False, deleted_at=datetime.now(tz=UTC))
+        )
+        result = await self.session.execute(stmt)
+        await self.session.flush()
+        return result.rowcount  # type: ignore[return-value]
 
     async def soft_delete(  # type: ignore[override]
         self,

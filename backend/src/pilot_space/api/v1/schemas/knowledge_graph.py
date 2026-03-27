@@ -61,8 +61,16 @@ class GraphResponse(BaseModel):
     )
 
 
+class RegenerateResponse(BaseModel):
+    """Response for knowledge graph regeneration endpoints."""
+
+    enqueued: int
+    detail: str
+
+
 __all__ = [
     "GraphEdgeDTO",
     "GraphNodeDTO",
     "GraphResponse",
+    "RegenerateResponse",
 ]

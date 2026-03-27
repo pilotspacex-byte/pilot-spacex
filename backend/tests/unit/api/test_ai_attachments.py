@@ -92,10 +92,11 @@ def _make_upload_service(
 
 
 def _make_db_session(role: WorkspaceRole | None = WorkspaceRole.MEMBER) -> AsyncMock:
-    """Build a mock AsyncSession that returns the given role from scalar()."""
+    """Build a mock AsyncSession that returns the given role from scalar queries."""
     db = AsyncMock()
     scalar_result = MagicMock()
     scalar_result.scalar = MagicMock(return_value=role)
+    scalar_result.scalar_one_or_none = MagicMock(return_value=role)
     db.execute = AsyncMock(return_value=scalar_result)
 
     # Mock workspace for quota check: 5GB quota, 0 used (passes quota)
@@ -111,6 +112,21 @@ def _make_db_session(role: WorkspaceRole | None = WorkspaceRole.MEMBER) -> Async
 # ---------------------------------------------------------------------------
 
 
+def _make_management_service(
+    role: WorkspaceRole | None = WorkspaceRole.MEMBER,
+    raises_guest: Exception | None = None,
+) -> AsyncMock:
+    """Build a mock AttachmentManagementService."""
+    svc = AsyncMock()
+    if raises_guest is not None:
+        svc.check_guest_restriction = AsyncMock(side_effect=raises_guest)
+    else:
+        svc.check_guest_restriction = AsyncMock(return_value=None)
+    svc.check_storage_quota = AsyncMock(return_value=None)
+    svc.update_storage_usage = AsyncMock(return_value=None)
+    return svc
+
+
 class TestUploadEndpoint:
     """POST /ai/attachments/upload"""
 
@@ -120,6 +136,7 @@ class TestUploadEndpoint:
         upload_svc = _make_upload_service(return_record=record)
         file = _make_upload_file()
         db = _make_db_session(WorkspaceRole.MEMBER)
+        mgmt_svc = _make_management_service()
 
         result = await upload_attachment(
             file=file,
@@ -128,6 +145,7 @@ class TestUploadEndpoint:
             user_id=TEST_USER_ID,
             upload_service=upload_svc,
             db=db,
+            svc=mgmt_svc,
         )
 
         assert result.attachment_id == TEST_ATTACHMENT_ID
@@ -152,6 +170,7 @@ class TestUploadEndpoint:
             )
         )
         db = _make_db_session(WorkspaceRole.MEMBER)
+        mgmt_svc = _make_management_service()
 
         with pytest.raises(HTTPException) as exc_info:
             await upload_attachment(
@@ -161,6 +180,7 @@ class TestUploadEndpoint:
                 user_id=TEST_USER_ID,
                 upload_service=upload_svc,
                 db=db,
+                svc=mgmt_svc,
             )
 
         assert exc_info.value.status_code == 400
@@ -181,6 +201,7 @@ class TestUploadEndpoint:
             )
         )
         db = _make_db_session(WorkspaceRole.MEMBER)
+        mgmt_svc = _make_management_service()
 
         with pytest.raises(HTTPException) as exc_info:
             await upload_attachment(
@@ -190,6 +211,7 @@ class TestUploadEndpoint:
                 user_id=TEST_USER_ID,
                 upload_service=upload_svc,
                 db=db,
+                svc=mgmt_svc,
             )
 
         assert exc_info.value.status_code == 400
@@ -209,6 +231,7 @@ class TestUploadEndpoint:
             )
         )
         db = _make_db_session(WorkspaceRole.MEMBER)
+        mgmt_svc = _make_management_service()
 
         with pytest.raises(HTTPException) as exc_info:
             await upload_attachment(
@@ -218,6 +241,7 @@ class TestUploadEndpoint:
                 user_id=TEST_USER_ID,
                 upload_service=upload_svc,
                 db=db,
+                svc=mgmt_svc,
             )
 
         assert exc_info.value.status_code == 400
@@ -287,10 +311,13 @@ class TestGuestRestriction:
     """Guest role must be blocked at the upload router level before service is called."""
 
     async def test_guest_user_upload_blocked_before_service(self) -> None:
-        """Guest role → 403 GUEST_NOT_ALLOWED; service.execute is never called."""
+        """Guest role → 403 GUEST_NOT_ALLOWED; upload service.execute is never called."""
         file = _make_upload_file()
         upload_svc = _make_upload_service(return_record=_make_attachment_record())
         db = _make_db_session(WorkspaceRole.GUEST)
+        mgmt_svc = _make_management_service(
+            raises_guest=ForbiddenError("GUEST_NOT_ALLOWED", error_code="GUEST_NOT_ALLOWED")
+        )
 
         with pytest.raises(ForbiddenError) as exc_info:
             await upload_attachment(
@@ -300,11 +327,12 @@ class TestGuestRestriction:
                 user_id=TEST_USER_ID,
                 upload_service=upload_svc,
                 db=db,
+                svc=mgmt_svc,
             )
 
         assert exc_info.value.http_status == 403
         assert exc_info.value.error_code == "GUEST_NOT_ALLOWED"
-        # Confirm service was never invoked
+        # Confirm upload service was never invoked
         upload_svc.execute.assert_not_awaited()
 
     async def test_member_user_upload_proceeds(self) -> None:
@@ -313,6 +341,7 @@ class TestGuestRestriction:
         upload_svc = _make_upload_service(return_record=record)
         file = _make_upload_file()
         db = _make_db_session(WorkspaceRole.MEMBER)
+        mgmt_svc = _make_management_service()
 
         result = await upload_attachment(
             file=file,
@@ -321,6 +350,7 @@ class TestGuestRestriction:
             user_id=TEST_USER_ID,
             upload_service=upload_svc,
             db=db,
+            svc=mgmt_svc,
         )
 
         assert result.attachment_id == TEST_ATTACHMENT_ID
@@ -332,6 +362,7 @@ class TestGuestRestriction:
         upload_svc = _make_upload_service(return_record=record)
         file = _make_upload_file()
         db = _make_db_session(WorkspaceRole.OWNER)
+        mgmt_svc = _make_management_service()
 
         result = await upload_attachment(
             file=file,
@@ -340,6 +371,7 @@ class TestGuestRestriction:
             user_id=TEST_USER_ID,
             upload_service=upload_svc,
             db=db,
+            svc=mgmt_svc,
         )
 
         assert result.attachment_id == TEST_ATTACHMENT_ID

@@ -1485,7 +1485,7 @@ def test_update_schema_rejects_empty_url_or_command() -> None:
     import pytest
     from pydantic import ValidationError
 
-    from pilot_space.api.v1.routers._mcp_server_schemas import WorkspaceMcpServerUpdate
+    from pilot_space.api.v1.schemas.mcp_server import WorkspaceMcpServerUpdate
 
     with pytest.raises(ValidationError, match="must not be empty"):
         WorkspaceMcpServerUpdate(url_or_command="")
@@ -1496,7 +1496,7 @@ def test_update_schema_rejects_whitespace_url_or_command() -> None:
     import pytest
     from pydantic import ValidationError
 
-    from pilot_space.api.v1.routers._mcp_server_schemas import WorkspaceMcpServerUpdate
+    from pilot_space.api.v1.schemas.mcp_server import WorkspaceMcpServerUpdate
 
     with pytest.raises(ValidationError, match="must not be empty"):
         WorkspaceMcpServerUpdate(url_or_command="   ")
@@ -1507,7 +1507,7 @@ def test_update_schema_rejects_http_url_for_remote_type() -> None:
     import pytest
     from pydantic import ValidationError
 
-    from pilot_space.api.v1.routers._mcp_server_schemas import WorkspaceMcpServerUpdate
+    from pilot_space.api.v1.schemas.mcp_server import WorkspaceMcpServerUpdate
     from pilot_space.infrastructure.database.models.workspace_mcp_server import McpServerType
 
     with pytest.raises(ValidationError, match="HTTPS"):
@@ -1522,7 +1522,7 @@ def test_update_schema_rejects_command_injection_for_npx() -> None:
     import pytest
     from pydantic import ValidationError
 
-    from pilot_space.api.v1.routers._mcp_server_schemas import WorkspaceMcpServerUpdate
+    from pilot_space.api.v1.schemas.mcp_server import WorkspaceMcpServerUpdate
     from pilot_space.infrastructure.database.models.workspace_mcp_server import McpServerType
 
     with pytest.raises(ValidationError, match="metacharacters"):
@@ -1537,7 +1537,7 @@ def test_update_schema_rejects_command_injection_for_uvx() -> None:
     import pytest
     from pydantic import ValidationError
 
-    from pilot_space.api.v1.routers._mcp_server_schemas import WorkspaceMcpServerUpdate
+    from pilot_space.api.v1.schemas.mcp_server import WorkspaceMcpServerUpdate
     from pilot_space.infrastructure.database.models.workspace_mcp_server import McpServerType
 
     with pytest.raises(ValidationError, match="metacharacters"):
@@ -1551,7 +1551,7 @@ def test_update_schema_accepts_valid_https_url_for_remote() -> None:
     """PATCH with server_type=REMOTE and valid HTTPS URL passes schema validation."""
     from unittest.mock import patch
 
-    from pilot_space.api.v1.routers._mcp_server_schemas import WorkspaceMcpServerUpdate
+    from pilot_space.api.v1.schemas.mcp_server import WorkspaceMcpServerUpdate
     from pilot_space.infrastructure.database.models.workspace_mcp_server import McpServerType
 
     # Patch getaddrinfo to avoid real DNS in unit tests
@@ -1565,7 +1565,7 @@ def test_update_schema_accepts_valid_https_url_for_remote() -> None:
 
 def test_update_schema_accepts_valid_npx_command() -> None:
     """PATCH with server_type=COMMAND and clean command passes schema validation."""
-    from pilot_space.api.v1.routers._mcp_server_schemas import WorkspaceMcpServerUpdate
+    from pilot_space.api.v1.schemas.mcp_server import WorkspaceMcpServerUpdate
     from pilot_space.infrastructure.database.models.workspace_mcp_server import McpServerType
 
     body = WorkspaceMcpServerUpdate(
@@ -1577,7 +1577,7 @@ def test_update_schema_accepts_valid_npx_command() -> None:
 
 def test_update_schema_no_validation_when_url_or_command_omitted() -> None:
     """PATCH body without url_or_command skips url_or_command validation entirely."""
-    from pilot_space.api.v1.routers._mcp_server_schemas import WorkspaceMcpServerUpdate
+    from pilot_space.api.v1.schemas.mcp_server import WorkspaceMcpServerUpdate
     from pilot_space.infrastructure.database.models.workspace_mcp_server import McpServerType
 
     # Only changing server_type — url_or_command not in body, so model_validator
@@ -1860,7 +1860,7 @@ def test_create_command_server_requires_command_runner() -> None:
     import pytest
     from pydantic import ValidationError
 
-    from pilot_space.api.v1.routers._mcp_server_schemas import WorkspaceMcpServerCreate
+    from pilot_space.api.v1.schemas.mcp_server import WorkspaceMcpServerCreate
 
     with pytest.raises(ValidationError, match="command_runner"):
         WorkspaceMcpServerCreate(
@@ -1875,7 +1875,7 @@ def test_create_command_server_requires_command_runner() -> None:
 def test_create_command_server_with_npx_runner() -> None:
     """T022: POST schema accepts command server with command_runner=npx."""
 
-    from pilot_space.api.v1.routers._mcp_server_schemas import WorkspaceMcpServerCreate
+    from pilot_space.api.v1.schemas.mcp_server import WorkspaceMcpServerCreate
 
     body = WorkspaceMcpServerCreate(
         display_name="npx-srv",
@@ -1897,7 +1897,7 @@ def test_remote_server_rejects_command_runner() -> None:
     import pytest
     from pydantic import ValidationError
 
-    from pilot_space.api.v1.routers._mcp_server_schemas import WorkspaceMcpServerCreate
+    from pilot_space.api.v1.schemas.mcp_server import WorkspaceMcpServerCreate
 
     with (
         pytest.raises(ValidationError, match="command_runner"),

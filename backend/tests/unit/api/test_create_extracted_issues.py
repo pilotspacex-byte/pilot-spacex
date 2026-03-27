@@ -6,17 +6,20 @@ validates input, and handles edge cases.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
 import pytest
 from fastapi import HTTPException
 
-from pilot_space.api.v1.routers.workspace_notes_ai import (
+from pilot_space.api.v1.routers.workspace_notes_ai import create_extracted_issues
+from pilot_space.api.v1.schemas.workspace_notes_ai import (
     CreateExtractedIssuesRequest,
     ExtractedIssueInput,
-    create_extracted_issues,
+)
+from pilot_space.application.services.ai_extraction import (
+    CreatedIssueResult,
+    CreateExtractedIssuesResult,
 )
 from pilot_space.domain.exceptions import NotFoundError
 
@@ -46,24 +49,19 @@ def _make_workspace(workspace_id: UUID = TEST_WORKSPACE_ID) -> MagicMock:
     return ws
 
 
-@dataclass
-class MockIssueResult:
-    """Mock result from CreateIssueService.execute."""
-
-    issue: MagicMock
+def _make_service_result(issue_ids: list[UUID]) -> CreateExtractedIssuesResult:
+    """Build a CreateExtractedIssuesResult with the given issue IDs."""
+    created_issues = [
+        CreatedIssueResult(id=str(issue_id), identifier=f"PROJ-{i + 1}", title=f"Issue {i + 1}")
+        for i, issue_id in enumerate(issue_ids)
+    ]
+    return CreateExtractedIssuesResult(
+        created_issues=created_issues,
+        created_count=len(issue_ids),
+    )
 
 
 # Patch paths for lazy imports inside the endpoint function
-_SVC_PATH = "pilot_space.application.services.issue.create_issue_service.CreateIssueService"
-_ISSUE_REPO_PATH = (
-    "pilot_space.infrastructure.database.repositories.issue_repository.IssueRepository"
-)
-_ACTIVITY_REPO_PATH = (
-    "pilot_space.infrastructure.database.repositories.activity_repository.ActivityRepository"
-)
-_LABEL_REPO_PATH = (
-    "pilot_space.infrastructure.database.repositories.label_repository.LabelRepository"
-)
 _PROJECT_REPO_PATH = (
     "pilot_space.infrastructure.database.repositories.project_repository.ProjectRepository"
 )
@@ -84,11 +82,6 @@ async def test_create_extracted_issues_success() -> None:
     issue_id_1 = uuid4()
     issue_id_2 = uuid4()
 
-    mock_issue_1 = MagicMock()
-    mock_issue_1.id = issue_id_1
-    mock_issue_2 = MagicMock()
-    mock_issue_2.id = issue_id_2
-
     body = CreateExtractedIssuesRequest(
         issues=[
             ExtractedIssueInput(title="Fix login", priority="high", type="bug"),
@@ -96,37 +89,25 @@ async def test_create_extracted_issues_success() -> None:
         ]
     )
 
-    with (
-        patch(_SVC_PATH) as MockService,
-        patch(_ISSUE_REPO_PATH),
-        patch(_ACTIVITY_REPO_PATH),
-        patch(_LABEL_REPO_PATH),
-    ):
-        mock_service = MagicMock()
-        mock_service.execute = AsyncMock(
-            side_effect=[
-                MockIssueResult(issue=mock_issue_1),
-                MockIssueResult(issue=mock_issue_2),
-            ]
-        )
-        MockService.return_value = mock_service
+    mock_service = AsyncMock()
+    mock_service.execute = AsyncMock(return_value=_make_service_result([issue_id_1, issue_id_2]))
 
-        result = await create_extracted_issues(
-            workspace_id=str(TEST_WORKSPACE_ID),
-            note_id=TEST_NOTE_ID,
-            body=body,
-            current_user_id=TEST_USER_ID,
-            session=mock_session,
-            note_repo=mock_note_repo,
-            create_issue_service=mock_service,
-            workspace_repo=mock_workspace_repo,
-        )
+    result = await create_extracted_issues(
+        workspace_id=str(TEST_WORKSPACE_ID),
+        note_id=TEST_NOTE_ID,
+        body=body,
+        current_user_id=TEST_USER_ID,
+        session=mock_session,
+        note_repo=mock_note_repo,
+        service=mock_service,
+        workspace_repo=mock_workspace_repo,
+    )
 
     assert result.count == 2
     assert len(result.created_issue_ids) == 2
     assert str(issue_id_1) in result.created_issue_ids
     assert str(issue_id_2) in result.created_issue_ids
-    mock_session.commit.assert_awaited_once()
+    mock_service.execute.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -150,7 +131,7 @@ async def test_create_extracted_issues_note_not_found() -> None:
             current_user_id=TEST_USER_ID,
             session=mock_session,
             note_repo=mock_note_repo,
-            create_issue_service=AsyncMock(),
+            service=AsyncMock(),
             workspace_repo=mock_workspace_repo,
         )
 
@@ -179,7 +160,7 @@ async def test_create_extracted_issues_wrong_workspace() -> None:
             current_user_id=TEST_USER_ID,
             session=mock_session,
             note_repo=mock_note_repo,
-            create_issue_service=AsyncMock(),
+            service=AsyncMock(),
             workspace_repo=mock_workspace_repo,
         )
 
@@ -189,6 +170,8 @@ async def test_create_extracted_issues_wrong_workspace() -> None:
 @pytest.mark.asyncio
 async def test_create_extracted_issues_fallback_project() -> None:
     """Should use first workspace project when note has no project_id."""
+    from unittest.mock import patch
+
     mock_session = AsyncMock()
     mock_note_repo = AsyncMock()
     mock_workspace_repo = AsyncMock()
@@ -202,25 +185,16 @@ async def test_create_extracted_issues_fallback_project() -> None:
     mock_project.id = TEST_PROJECT_ID
 
     issue_id = uuid4()
-    mock_issue = MagicMock()
-    mock_issue.id = issue_id
 
     body = CreateExtractedIssuesRequest(issues=[ExtractedIssueInput(title="Test issue")])
 
-    with (
-        patch(_PROJECT_REPO_PATH) as MockProjectRepo,
-        patch(_SVC_PATH) as MockService,
-        patch(_ISSUE_REPO_PATH),
-        patch(_ACTIVITY_REPO_PATH),
-        patch(_LABEL_REPO_PATH),
-    ):
+    mock_service = AsyncMock()
+    mock_service.execute = AsyncMock(return_value=_make_service_result([issue_id]))
+
+    with patch(_PROJECT_REPO_PATH) as MockProjectRepo:
         mock_project_repo = AsyncMock()
         mock_project_repo.get_workspace_projects.return_value = [mock_project]
         MockProjectRepo.return_value = mock_project_repo
-
-        mock_service = MagicMock()
-        mock_service.execute = AsyncMock(return_value=MockIssueResult(issue=mock_issue))
-        MockService.return_value = mock_service
 
         result = await create_extracted_issues(
             workspace_id=str(TEST_WORKSPACE_ID),
@@ -229,7 +203,7 @@ async def test_create_extracted_issues_fallback_project() -> None:
             current_user_id=TEST_USER_ID,
             session=mock_session,
             note_repo=mock_note_repo,
-            create_issue_service=mock_service,
+            service=mock_service,
             workspace_repo=mock_workspace_repo,
         )
 
@@ -240,6 +214,8 @@ async def test_create_extracted_issues_fallback_project() -> None:
 @pytest.mark.asyncio
 async def test_create_extracted_issues_no_project_available() -> None:
     """Should raise 400 when note has no project and workspace has no projects."""
+    from unittest.mock import patch
+
     mock_session = AsyncMock()
     mock_note_repo = AsyncMock()
     mock_workspace_repo = AsyncMock()
@@ -264,7 +240,7 @@ async def test_create_extracted_issues_no_project_available() -> None:
                 current_user_id=TEST_USER_ID,
                 session=mock_session,
                 note_repo=mock_note_repo,
-                create_issue_service=AsyncMock(),
+                service=AsyncMock(),
                 workspace_repo=mock_workspace_repo,
             )
 

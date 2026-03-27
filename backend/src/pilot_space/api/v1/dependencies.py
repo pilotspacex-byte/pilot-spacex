@@ -5,6 +5,7 @@ from typing import Annotated
 from dependency_injector.wiring import Provide, inject
 from fastapi import Depends
 
+from pilot_space.ai.infrastructure.approval import ApprovalService
 from pilot_space.api.v1.repository_deps import (
     ActivityRepositoryDep,
     CycleRepositoryDep,
@@ -16,16 +17,24 @@ from pilot_space.api.v1.repository_deps import (
     UserRepositoryDep,
     WorkspaceRepositoryDep,
 )
+from pilot_space.application.services.action_button import ActionButtonService
+from pilot_space.application.services.admin_dashboard import AdminDashboardService
+from pilot_space.application.services.ai_configuration import AIConfigurationService
 from pilot_space.application.services.ai_context import (
     ExportAIContextService,
     GenerateAIContextService,
     GenerateImplementationPlanService,
     RefineAIContextService,
 )
+from pilot_space.application.services.ai_extraction import CreateExtractedIssuesService
+from pilot_space.application.services.ai_governance import GovernanceRollbackService
 from pilot_space.application.services.annotation import (
     CreateAnnotationService,
 )
+from pilot_space.application.services.attachment_management import AttachmentManagementService
 from pilot_space.application.services.auth import AuthService
+from pilot_space.application.services.block_ownership import BlockOwnershipService
+from pilot_space.application.services.capacity_plan import CapacityPlanService
 from pilot_space.application.services.cycle import (
     AddIssueToCycleService,
     CreateCycleService,
@@ -33,9 +42,11 @@ from pilot_space.application.services.cycle import (
     RolloverCycleService,
     UpdateCycleService,
 )
+from pilot_space.application.services.dependency_graph import DependencyGraphService
 from pilot_space.application.services.discussion import (
     CreateDiscussionService,
 )
+from pilot_space.application.services.feature_toggle import FeatureToggleService
 from pilot_space.application.services.homepage import (
     DismissSuggestionService,
     GetActivityService,
@@ -55,6 +66,9 @@ from pilot_space.application.services.issue import (
     ListIssuesService,
     UpdateIssueService,
 )
+from pilot_space.application.services.mcp_oauth import McpOAuthService
+from pilot_space.application.services.mcp_server import McpServerService
+from pilot_space.application.services.mcp_tool_execution import MCPToolExecutionService
 from pilot_space.application.services.memory.knowledge_graph_query_service import (
     KnowledgeGraphQueryService,
 )
@@ -74,12 +88,19 @@ from pilot_space.application.services.note.ai_update_service import (
 )
 from pilot_space.application.services.note.move_page_service import MovePageService
 from pilot_space.application.services.note.reorder_page_service import ReorderPageService
+from pilot_space.application.services.note_template import NoteTemplateService
+from pilot_space.application.services.ocr_configuration import OcrConfigurationService
 from pilot_space.application.services.onboarding import (
     CreateGuidedNoteService,
     GetOnboardingService,
     UpdateOnboardingService,
 )
+from pilot_space.application.services.plugin_lifecycle import PluginLifecycleService
+from pilot_space.application.services.pm_block_insight_service import PMBlockInsightService
+from pilot_space.application.services.project_detail import ProjectDetailService
+from pilot_space.application.services.rate_limit import RateLimitService
 from pilot_space.application.services.rbac_service import RbacService
+from pilot_space.application.services.related_issues import RelatedIssuesSuggestionService
 from pilot_space.application.services.role_skill import (
     CreateRoleSkillService,
     DeleteRoleSkillService,
@@ -87,15 +108,85 @@ from pilot_space.application.services.role_skill import (
     ListRoleSkillsService,
     UpdateRoleSkillService,
 )
+from pilot_space.application.services.scim_service import ScimService
+from pilot_space.application.services.sprint_board import SprintBoardService
 from pilot_space.application.services.task_service import TaskService
 from pilot_space.application.services.transcription import TranscriptionService
 from pilot_space.application.services.workspace import WorkspaceService
+from pilot_space.application.services.workspace_ai_settings import WorkspaceAISettingsService
 from pilot_space.application.services.workspace_invitation import WorkspaceInvitationService
 from pilot_space.application.services.workspace_member import (
     MemberProfileService,
     WorkspaceMemberService,
 )
 from pilot_space.container import Container
+from pilot_space.dependencies.ai import get_key_storage
+
+# ===== Action Button Service Dependencies =====
+
+
+@inject
+def _get_action_button_service(
+    svc: ActionButtonService = Depends(Provide[Container.action_button_service]),
+) -> ActionButtonService:
+    return svc
+
+
+ActionButtonServiceDep = Annotated[ActionButtonService, Depends(_get_action_button_service)]
+
+# ===== Block Ownership Service Dependencies =====
+
+
+@inject
+def _get_block_ownership_service(
+    svc: BlockOwnershipService = Depends(Provide[Container.block_ownership_service]),
+) -> BlockOwnershipService:
+    return svc
+
+
+BlockOwnershipServiceDep = Annotated[BlockOwnershipService, Depends(_get_block_ownership_service)]
+
+# ===== Dependency Graph Service Dependencies =====
+
+
+@inject
+def _get_dependency_graph_service(
+    svc: DependencyGraphService = Depends(Provide[Container.dependency_graph_service]),
+) -> DependencyGraphService:
+    return svc
+
+
+DependencyGraphServiceDep = Annotated[
+    DependencyGraphService, Depends(_get_dependency_graph_service)
+]
+
+# ===== Note Template Service Dependencies =====
+
+
+@inject
+def _get_note_template_service(
+    svc: NoteTemplateService = Depends(Provide[Container.note_template_service]),
+) -> NoteTemplateService:
+    return svc
+
+
+NoteTemplateServiceDep = Annotated[NoteTemplateService, Depends(_get_note_template_service)]
+
+# ===== Related Issues Suggestion Service Dependencies =====
+
+
+@inject
+def _get_related_issues_suggestion_service(
+    svc: RelatedIssuesSuggestionService = Depends(
+        Provide[Container.related_issues_suggestion_service]
+    ),
+) -> RelatedIssuesSuggestionService:
+    return svc
+
+
+RelatedIssuesSuggestionServiceDep = Annotated[
+    RelatedIssuesSuggestionService, Depends(_get_related_issues_suggestion_service)
+]
 
 # ===== Issue Service Dependencies =====
 
@@ -692,8 +783,192 @@ KnowledgeGraphQueryServiceDep = Annotated[
     KnowledgeGraphQueryService, Depends(_get_knowledge_graph_query_service)
 ]
 
+# ===== Rate Limit Service Dependencies =====
+
+
+@inject
+def _get_rate_limit_service(
+    svc: RateLimitService = Depends(Provide[Container.rate_limit_service]),
+) -> RateLimitService:
+    return svc
+
+
+RateLimitServiceDep = Annotated[RateLimitService, Depends(_get_rate_limit_service)]
+
+# ===== Feature Toggle Service Dependencies =====
+
+
+@inject
+def _get_feature_toggle_service(
+    svc: FeatureToggleService = Depends(Provide[Container.feature_toggle_service]),
+) -> FeatureToggleService:
+    return svc
+
+
+FeatureToggleServiceDep = Annotated[FeatureToggleService, Depends(_get_feature_toggle_service)]
+
+# ===== SCIM Service Dependencies =====
+
+
+@inject
+def _get_scim_service(
+    svc: ScimService = Depends(Provide[Container.scim_service]),
+) -> ScimService:
+    return svc
+
+
+ScimServiceDep = Annotated[ScimService, Depends(_get_scim_service)]
+
+# ===== Workspace AI Settings Service Dependencies =====
+
+
+@inject
+def _get_workspace_ai_settings_service(
+    svc: WorkspaceAISettingsService = Depends(Provide[Container.workspace_ai_settings_service]),
+) -> WorkspaceAISettingsService:
+    return svc
+
+
+WorkspaceAISettingsServiceDep = Annotated[
+    WorkspaceAISettingsService, Depends(_get_workspace_ai_settings_service)
+]
+
+# ===== Approval Service Dependencies =====
+
+
+@inject
+def _get_approval_service(
+    svc: ApprovalService = Depends(Provide[Container.approval_service]),
+) -> ApprovalService:
+    return svc
+
+
+ApprovalServiceDep = Annotated[ApprovalService, Depends(_get_approval_service)]
+
+# ===== Sprint Board Service Dependencies =====
+
+
+@inject
+def _get_sprint_board_service(
+    svc: SprintBoardService = Depends(Provide[Container.sprint_board_service]),
+) -> SprintBoardService:
+    return svc
+
+
+SprintBoardServiceDep = Annotated[SprintBoardService, Depends(_get_sprint_board_service)]
+
+# ===== Capacity Plan Service Dependencies =====
+
+
+@inject
+def _get_capacity_plan_service(
+    svc: CapacityPlanService = Depends(Provide[Container.capacity_plan_service]),
+) -> CapacityPlanService:
+    return svc
+
+
+CapacityPlanServiceDep = Annotated[CapacityPlanService, Depends(_get_capacity_plan_service)]
+
+# ===== PM Block Insight Service Dependencies =====
+
+
+@inject
+def _get_pm_block_insight_service(
+    svc: PMBlockInsightService = Depends(Provide[Container.pm_block_insight_service]),
+) -> PMBlockInsightService:
+    return svc
+
+
+PMBlockInsightServiceDep = Annotated[PMBlockInsightService, Depends(_get_pm_block_insight_service)]
+
+# ===== Admin Dashboard Service Dependencies =====
+
+
+@inject
+def _get_admin_dashboard_service(
+    svc: AdminDashboardService = Depends(Provide[Container.admin_dashboard_service]),
+) -> AdminDashboardService:
+    return svc
+
+
+AdminDashboardServiceDep = Annotated[AdminDashboardService, Depends(_get_admin_dashboard_service)]
+
+# ===== AI Configuration Service Dependencies =====
+
+
+@inject
+def _get_ai_configuration_service(
+    svc: AIConfigurationService = Depends(Provide[Container.ai_configuration_service]),
+) -> AIConfigurationService:
+    return svc
+
+
+AIConfigurationServiceDep = Annotated[
+    AIConfigurationService, Depends(_get_ai_configuration_service)
+]
+
+# ===== Create Extracted Issues Service Dependencies =====
+
+
+@inject
+def _get_create_extracted_issues_service(
+    svc: CreateExtractedIssuesService = Depends(Provide[Container.create_extracted_issues_service]),
+) -> CreateExtractedIssuesService:
+    return svc
+
+
+CreateExtractedIssuesServiceDep = Annotated[
+    CreateExtractedIssuesService, Depends(_get_create_extracted_issues_service)
+]
+
+# ===== Governance Rollback Service Dependencies =====
+
+
+@inject
+def _get_governance_rollback_service(
+    svc: GovernanceRollbackService = Depends(Provide[Container.governance_rollback_service]),
+) -> GovernanceRollbackService:
+    return svc
+
+
+GovernanceRollbackServiceDep = Annotated[
+    GovernanceRollbackService, Depends(_get_governance_rollback_service)
+]
+
+# ===== Plugin Lifecycle Service Dependencies =====
+
+
+@inject
+def _get_plugin_lifecycle_service(
+    svc: PluginLifecycleService = Depends(Provide[Container.plugin_lifecycle_service]),
+) -> PluginLifecycleService:
+    return svc
+
+
+PluginLifecycleServiceDep = Annotated[
+    PluginLifecycleService, Depends(_get_plugin_lifecycle_service)
+]
+
+# ===== OCR Configuration Service Dependencies =====
+# OcrConfigurationService takes key_storage which is request-scoped (built from
+# encryption_key + session). We compose it here using get_key_storage directly.
+
+
+def _get_ocr_configuration_service(
+    key_storage: Annotated[object, Depends(get_key_storage)],
+) -> OcrConfigurationService:
+    return OcrConfigurationService(key_storage=key_storage)  # type: ignore[arg-type]
+
+
+OcrConfigurationServiceDep = Annotated[
+    OcrConfigurationService, Depends(_get_ocr_configuration_service)
+]
+
+
 __all__ = [  # noqa: RUF022
+    "ActionButtonServiceDep",
     "ActivityRepositoryDep",
+    "ApprovalServiceDep",
     "CycleRepositoryDep",
     "InvitationRepositoryDep",
     "IssueRepositoryDep",
@@ -704,6 +979,10 @@ __all__ = [  # noqa: RUF022
     "WorkspaceRepositoryDep",
     "AuthServiceDep",
     "ActivityServiceDep",
+    "BlockOwnershipServiceDep",
+    "DependencyGraphServiceDep",
+    "NoteTemplateServiceDep",
+    "RelatedIssuesSuggestionServiceDep",
     "AddIssueToCycleServiceDep",
     "AutoTransitionServiceDep",
     "ConnectGitHubServiceDep",
@@ -755,6 +1034,24 @@ __all__ = [  # noqa: RUF022
     "MovePageServiceDep",
     "ReorderPageServiceDep",
     "TranscriptionServiceDep",
+    "RateLimitServiceDep",
+    "FeatureToggleServiceDep",
+    "ScimServiceDep",
+    "MCPToolExecutionServiceDep",
+    "McpServerServiceDep",
+    "McpOAuthServiceDep",
+    "ProjectDetailServiceDep",
+    "AttachmentManagementServiceDep",
+    "WorkspaceAISettingsServiceDep",
+    "SprintBoardServiceDep",
+    "CapacityPlanServiceDep",
+    "PMBlockInsightServiceDep",
+    "AdminDashboardServiceDep",
+    "AIConfigurationServiceDep",
+    "CreateExtractedIssuesServiceDep",
+    "GovernanceRollbackServiceDep",
+    "OcrConfigurationServiceDep",
+    "PluginLifecycleServiceDep",
 ]
 
 
@@ -769,3 +1066,68 @@ def _get_transcription_service(
 
 
 TranscriptionServiceDep = Annotated[TranscriptionService, Depends(_get_transcription_service)]
+
+
+# ===== MCP Server Service Dependencies =====
+
+
+@inject
+def _get_mcp_server_service(
+    svc: McpServerService = Depends(Provide[Container.mcp_server_service]),
+) -> McpServerService:
+    return svc
+
+
+McpServerServiceDep = Annotated[McpServerService, Depends(_get_mcp_server_service)]
+
+
+# ===== MCP Tool Execution Service Dependencies =====
+
+
+@inject
+def _get_mcp_tool_execution_service(
+    svc: MCPToolExecutionService = Depends(Provide[Container.mcp_tool_execution_service]),
+) -> MCPToolExecutionService:
+    return svc
+
+
+MCPToolExecutionServiceDep = Annotated[
+    MCPToolExecutionService, Depends(_get_mcp_tool_execution_service)
+]
+
+# ===== Project Detail Service Dependencies =====
+
+
+@inject
+def _get_project_detail_service(
+    svc: ProjectDetailService = Depends(Provide[Container.project_detail_service]),
+) -> ProjectDetailService:
+    return svc
+
+
+ProjectDetailServiceDep = Annotated[ProjectDetailService, Depends(_get_project_detail_service)]
+
+
+@inject
+def _get_mcp_oauth_service(
+    svc: McpOAuthService = Depends(Provide[Container.mcp_oauth_service]),
+) -> McpOAuthService:
+    return svc
+
+
+McpOAuthServiceDep = Annotated[McpOAuthService, Depends(_get_mcp_oauth_service)]
+
+
+# ===== Attachment Management Service Dependencies =====
+
+
+@inject
+def _get_attachment_management_service(
+    svc: AttachmentManagementService = Depends(Provide[Container.attachment_management_service]),
+) -> AttachmentManagementService:
+    return svc
+
+
+AttachmentManagementServiceDep = Annotated[
+    AttachmentManagementService, Depends(_get_attachment_management_service)
+]

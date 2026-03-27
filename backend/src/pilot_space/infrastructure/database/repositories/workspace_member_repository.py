@@ -12,7 +12,10 @@ from uuid import UUID
 
 from sqlalchemy import and_, select, update
 
-from pilot_space.infrastructure.database.models.workspace_member import WorkspaceMember
+from pilot_space.infrastructure.database.models.workspace_member import (
+    WorkspaceMember,
+    WorkspaceRole,
+)
 from pilot_space.infrastructure.database.repositories.base import BaseRepository
 
 if TYPE_CHECKING:
@@ -54,6 +57,34 @@ class WorkspaceMemberRepository(BaseRepository[WorkspaceMember]):
         )
         if not include_deleted:
             stmt = stmt.where(WorkspaceMember.is_deleted == False)  # noqa: E712
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_role_by_user_workspace(
+        self,
+        user_id: UUID,
+        workspace_id: UUID,
+    ) -> WorkspaceRole | None:
+        """Get the role of a user in a workspace.
+
+        Convenience method for role-only checks (e.g. guest check, admin check)
+        that avoids loading the full WorkspaceMember record.
+
+        Args:
+            user_id: The user UUID.
+            workspace_id: The workspace UUID.
+
+        Returns:
+            WorkspaceRole enum value or None if the membership doesn't exist.
+        """
+        stmt = select(WorkspaceMember.role).where(
+            and_(
+                WorkspaceMember.user_id == user_id,
+                WorkspaceMember.workspace_id == workspace_id,
+                WorkspaceMember.is_deleted == False,  # noqa: E712
+                WorkspaceMember.is_active == True,  # noqa: E712
+            )
+        )
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 

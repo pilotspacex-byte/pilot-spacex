@@ -408,6 +408,12 @@ class IssueLinkSchema(BaseSchema):
     related_issue: IssueBriefResponse
 
 
+class StateUpdateRequest(BaseSchema):
+    """Request body for state update."""
+
+    state: str
+
+
 __all__ = [
     "ActivityResponse",
     "ActivityTimelineResponse",
@@ -423,6 +429,7 @@ __all__ = [
     "NoteIssueLinkBriefSchema",
     "ProjectBriefSchema",
     "StateBriefSchema",
+    "StateUpdateRequest",
     "UserBriefSchema",
     "WorkspaceIssueCreateRequest",
     "WorkspaceIssueResponse",

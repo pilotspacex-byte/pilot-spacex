@@ -14,6 +14,7 @@ from uuid import UUID
 from fastapi import APIRouter, Path, Query
 
 from pilot_space.api.middleware.request_context import WorkspaceId
+from pilot_space.api.v1.dependencies import ApprovalServiceDep
 from pilot_space.api.v1.schemas.approval import (
     ApprovalDetailResponse,
     ApprovalListResponse,
@@ -67,7 +68,7 @@ async def verify_workspace_admin(
         session: Database session.
 
     Raises:
-        HTTPException: 403 if user is not an admin/owner.
+        ForbiddenError: 403 if user is not an admin/owner.
     """
     from pilot_space.config import get_settings
 
@@ -110,6 +111,7 @@ async def list_approvals(
     workspace_id: WorkspaceId,
     current_user_id: CurrentUserId,
     session: DbSession,
+    approval_service: ApprovalServiceDep,
     status: Annotated[ApprovalStatusSchema | None, Query(description="Filter by status")] = None,
     limit: Annotated[int, Query(ge=1, le=100, description="Maximum results")] = 20,
     offset: Annotated[int, Query(ge=0, description="Results to skip")] = 0,
@@ -121,26 +123,10 @@ async def list_approvals(
 
     Returns paginated list of approval requests.
     Requires workspace admin permission.
-
-    Args:
-        workspace_id: Workspace UUID from request context.
-        current_user_id: Current user ID.
-        session: Database session.
-        status: Optional status filter.
-        limit: Maximum results.
-        offset: Results to skip.
-
-    Returns:
-        List of approval requests with pagination.
     """
 
     # Verify user is workspace admin
     await verify_workspace_admin(current_user_id, workspace_id, session)
-
-    # Get approval service
-    from pilot_space.ai.infrastructure.approval import ApprovalService
-
-    approval_service = ApprovalService(session)
 
     # List requests
     requests, total = await approval_service.list_requests(
@@ -184,28 +170,12 @@ async def get_approval(
     approval_id: Annotated[uuid.UUID, Path(description="Approval request ID")],
     current_user_id: CurrentUserId,
     session: DbSession,
+    approval_service: ApprovalServiceDep,
 ) -> ApprovalDetailResponse:
-    """Get approval request details including payload.
-
-    Args:
-        workspace_id: Workspace UUID from request context.
-        approval_id: Approval request ID.
-        current_user_id: Current user ID.
-        session: Database session.
-
-    Returns:
-        Full approval request details.
-
-    Raises:
-        HTTPException: If request not found or unauthorized.
-    """
+    """Get approval request details including payload."""
 
     # Verify user is workspace admin
     await verify_workspace_admin(current_user_id, workspace_id, session)
-
-    from pilot_space.ai.infrastructure.approval import ApprovalService
-
-    approval_service = ApprovalService(session)
 
     # Get request
     approval_request = await approval_service.get_request(approval_id)
@@ -242,32 +212,16 @@ async def resolve_approval(
     body: ApprovalResolution,
     current_user_id: CurrentUserId,
     session: DbSession,
+    approval_service: ApprovalServiceDep,
 ) -> ApprovalResolutionResponse:
     """Resolve an approval request.
 
     If approved, executes the pending action.
     If rejected, discards the action.
-
-    Args:
-        workspace_id: Workspace UUID from request context.
-        approval_id: Approval request ID.
-        body: Resolution decision.
-        current_user_id: Current user ID.
-        session: Database session.
-
-    Returns:
-        Resolution result with action outcome.
-
-    Raises:
-        HTTPException: If request not found, unauthorized, or already resolved.
     """
 
     # Verify user is workspace admin
     await verify_workspace_admin(current_user_id, workspace_id, session)
-
-    from pilot_space.ai.infrastructure.approval import ApprovalService
-
-    approval_service = ApprovalService(session)
 
     # Get request
     approval_request = await approval_service.get_request(approval_id)

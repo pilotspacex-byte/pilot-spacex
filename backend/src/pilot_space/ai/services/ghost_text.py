@@ -14,9 +14,10 @@ import hashlib
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
+import anthropic
 from anthropic.types import TextBlock
-from fastapi import HTTPException
 
+from pilot_space.ai.exceptions import AINotConfiguredError
 from pilot_space.ai.prompts.ghost_text import (
     GHOST_TEXT_CODE_SYSTEM_PROMPT,
     GHOST_TEXT_HEADING_SYSTEM_PROMPT,
@@ -167,7 +168,7 @@ class GhostTextService:
             }
 
         Raises:
-            HTTPException: 402 if no Anthropic API key is configured.
+            AINotConfiguredError: If no LLM API key is configured.
             Exception: If API call fails after retries.
         """
         # Check cache first
@@ -190,26 +191,20 @@ class GhostTextService:
                     "cached": True,
                 }
 
-        # BYOK key resolution
-        api_key = await self._key_storage.get_api_key(workspace_id, "anthropic", "llm")
-        if not api_key:
-            settings = get_settings()
-            api_key = (
-                settings.anthropic_api_key.get_secret_value()
-                if settings.anthropic_api_key
-                else None
-            )
-        if not api_key:
-            raise HTTPException(
-                status_code=402,
-                detail="No Anthropic API key configured for this workspace",
-            )
+        # BYOK key resolution — follows PilotSpaceAgent pattern:
+        # 1. Workspace default_llm_provider → workspace_api_keys
+        # 2. Fall back to any configured LLM provider
+        # 3. Fall back to env ANTHROPIC_API_KEY
+        api_key, base_url, model_override = await self._resolve_workspace_provider(
+            workspace_id,
+        )
 
-        # Model from routing table (respects circuit breaker state)
-        _, model = self._provider_selector.select(TaskType.GHOST_TEXT)
+        # Model: prefer workspace-configured model, else routing table default
+        _, default_model = self._provider_selector.select(TaskType.GHOST_TEXT)
+        model = model_override or default_model
 
-        # Client from DI-managed pool — hashed key, reused connection pool
-        client = self._client_pool.get_client(api_key)
+        # Client from DI-managed pool — supports base_url for Ollama/proxy
+        client = self._client_pool.get_client(api_key, base_url=base_url)
 
         # Block-type routing: select system prompt and user prompt
         system_prompt = self._resolve_system_prompt(block_type, note_title, linked_issues)
@@ -228,6 +223,15 @@ class GhostTextService:
                 ),
                 timeout_sec=2.5,
             )
+        except anthropic.BadRequestError as exc:
+            # Surface billing/credit errors so callers get actionable context.
+            logger.warning(
+                "ghost_text_api_bad_request workspace=%s error=%s",
+                workspace_id,
+                exc.message,
+                exc_info=exc,
+            )
+            raise AINotConfiguredError(workspace_id=workspace_id) from exc
         except Exception:
             logger.exception("Failed to generate ghost text completion")
             raise
@@ -287,6 +291,99 @@ class GhostTextService:
         )
 
         return result
+
+    async def _resolve_workspace_provider(
+        self,
+        workspace_id: UUID,
+    ) -> tuple[str, str | None, str | None]:
+        """Resolve BYOK provider config from workspace settings.
+
+        Follows the same pattern as PilotSpaceAgent._resolve_workspace_provider:
+        1. Read workspace.settings.default_llm_provider
+        2. Try that provider's key from workspace_api_keys
+        3. Fall back to any configured LLM provider
+        4. Fall back to env ANTHROPIC_API_KEY
+
+        Args:
+            workspace_id: Workspace UUID.
+
+        Returns:
+            Tuple of (api_key, base_url, model_name).
+
+        Raises:
+            AINotConfiguredError: If no API key found anywhere.
+        """
+        from sqlalchemy import select as sa_select
+
+        from pilot_space.infrastructure.database.models.workspace import Workspace
+
+        # Determine default LLM provider from workspace settings
+        db = getattr(self._key_storage, "db", None)
+        if db is not None:
+            stmt = sa_select(Workspace.settings).where(Workspace.id == workspace_id)
+            result = await db.execute(stmt)
+            ws_settings = result.scalar_one_or_none() or {}
+            default_provider = ws_settings.get("default_llm_provider", "anthropic")
+        else:
+            default_provider = "anthropic"
+
+        # Try the default provider first
+        key_info = await self._key_storage.get_key_info(
+            workspace_id,
+            default_provider,
+            "llm",
+        )
+        if key_info is not None:
+            api_key = await self._key_storage.get_api_key(
+                workspace_id,
+                default_provider,
+                "llm",
+            )
+            if api_key or key_info.base_url:
+                logger.debug(
+                    "ghost_text_byok_resolved provider=%s has_base_url=%s model=%s",
+                    default_provider,
+                    bool(key_info.base_url),
+                    key_info.model_name,
+                )
+                return (
+                    api_key or "no-key-required",
+                    key_info.base_url,
+                    key_info.model_name,
+                )
+
+        # Fall back to any configured LLM provider
+        all_keys = await self._key_storage.get_all_key_infos(workspace_id)
+        for ki in all_keys:
+            if ki.service_type == "llm":
+                api_key = await self._key_storage.get_api_key(
+                    workspace_id,
+                    ki.provider,
+                    "llm",
+                )
+                if api_key or ki.base_url:
+                    logger.debug(
+                        "ghost_text_byok_fallback provider=%s model=%s",
+                        ki.provider,
+                        ki.model_name,
+                    )
+                    return (
+                        api_key or "no-key-required",
+                        ki.base_url,
+                        ki.model_name,
+                    )
+
+        # Fall back to env ANTHROPIC_API_KEY
+        settings = get_settings()
+        if settings.anthropic_api_key:
+            env_key = settings.anthropic_api_key.get_secret_value()
+            if env_key:
+                logger.debug("ghost_text_using_env_key")
+                return (env_key, None, None)
+
+        raise AINotConfiguredError(
+            workspace_id=workspace_id,
+        )
 
     @staticmethod
     def _resolve_system_prompt(

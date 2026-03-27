@@ -13,10 +13,10 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Path, status
-from pydantic import BaseModel, Field
 
 from pilot_space.api.middleware.request_context import CorrelationId, WorkspaceId
 from pilot_space.api.utils.sse import SSEResponse, SSEStreamBuilder
+from pilot_space.api.v1.schemas.ai_annotations import AnnotateBlocksRequest
 from pilot_space.api.v1.schemas.annotation import (
     AnalyzeNoteRequest,
     AnalyzeNoteResponse,
@@ -27,24 +27,6 @@ from pilot_space.infrastructure.logging import get_logger
 logger = get_logger(__name__)
 
 router = APIRouter(tags=["AI Annotations"])
-
-
-class AnnotateBlocksRequest(BaseModel):
-    """Request for block annotation."""
-
-    block_ids: list[str] = Field(..., min_length=1, max_length=20)
-    context_blocks: int = Field(default=3, ge=1, le=10)
-
-
-class AnnotationResponse(BaseModel):
-    """Single annotation in response."""
-
-    block_id: str
-    type: str
-    title: str
-    content: str
-    confidence: float
-    action_label: str | None = None
 
 
 @router.post(
