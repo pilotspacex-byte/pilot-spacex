@@ -58,10 +58,6 @@ def _mock_rls_context():
 
 def _override_plugin_service(app, mock_svc):
     """Override the PluginLifecycleService DI dependency."""
-    from pilot_space.api.v1.dependencies import PluginLifecycleServiceDep
-
-    # PluginLifecycleServiceDep is an Annotated type; get the underlying Depends
-    # by overriding via the internal _get_plugin_lifecycle_service helper
     from pilot_space.api.v1 import dependencies as dep_module
 
     app.dependency_overrides[dep_module._get_plugin_lifecycle_service] = lambda: mock_svc
@@ -228,7 +224,7 @@ async def test_update_check_caches_result_five_minutes() -> None:
     mock_plugin.is_active = True
     mock_plugin.is_deleted = False
 
-    cached_sha = "c" * 40  # noqa: F841 (referenced by description only)
+    cached_sha = "c" * 40  # referenced by description only
 
     mock_svc = MagicMock()
     mock_svc.check_updates = AsyncMock(return_value=[(mock_plugin, False)])
