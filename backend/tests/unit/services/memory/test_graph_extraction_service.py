@@ -3,7 +3,7 @@
 Tests cover:
 - Decision extraction from conversation
 - User preference extraction with user_id binding
-- Empty result when api_key is None (BYOK pattern)
+- Empty result when llm_gateway is None (BYOK pattern)
 - Graceful handling of malformed JSON from LLM
 - Pattern extraction with confidence scores
 - Empty messages → empty result
@@ -18,6 +18,7 @@ from uuid import uuid4
 
 import pytest
 
+from pilot_space.ai.proxy.llm_gateway import LLMResponse
 from pilot_space.application.services.memory.graph_extraction_service import (
     ConversationExtractionPayload,
     ExtractionResult,
@@ -235,14 +236,28 @@ class TestBuildPreferenceNodes:
 
 
 # ---------------------------------------------------------------------------
-# Integration tests: GraphExtractionService
+# Helpers for LLMGateway mocking
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture
-def service() -> GraphExtractionService:
-    """GraphExtractionService instance."""
-    return GraphExtractionService()
+def _make_mock_gateway(text: str) -> AsyncMock:
+    """Build a mock LLMGateway whose complete() returns the given text."""
+    mock_gateway = AsyncMock()
+    mock_gateway.complete = AsyncMock(
+        return_value=LLMResponse(
+            text=text,
+            input_tokens=100,
+            output_tokens=50,
+            model="anthropic/claude-sonnet-4",
+            raw=None,
+        )
+    )
+    return mock_gateway
+
+
+# ---------------------------------------------------------------------------
+# Integration tests: GraphExtractionService
+# ---------------------------------------------------------------------------
 
 
 @pytest.fixture
@@ -260,36 +275,19 @@ def base_messages() -> list[dict[str, str]]:
     ]
 
 
-def _make_anthropic_mock(llm_response: str) -> MagicMock:
-    """Build a mock anthropic.AsyncAnthropic client returning the given response."""
-    mock_message = MagicMock()
-    mock_content_block = MagicMock()
-    mock_content_block.text = llm_response
-    mock_message.content = [mock_content_block]
-
-    mock_client = MagicMock()
-    mock_client.messages.create = AsyncMock(return_value=mock_message)
-
-    return MagicMock(return_value=mock_client)
-
-
-class TestGraphExtractionServiceReturnEmptyOnMissingApiKey:
-    """BYOK: no api_key → empty result, no API call made."""
+class TestGraphExtractionServiceReturnEmptyOnNoGateway:
+    """BYOK: no llm_gateway → empty result, no API call made."""
 
     @pytest.mark.asyncio
-    async def test_returns_empty_on_missing_api_key(
-        self, service: GraphExtractionService, base_messages: list[dict[str, str]]
-    ) -> None:
+    async def test_returns_empty_on_no_gateway(self, base_messages: list[dict[str, str]]) -> None:
+        service = GraphExtractionService(llm_gateway=None)
         payload = ConversationExtractionPayload(
             messages=base_messages,
             workspace_id=uuid4(),
-            api_key=None,
         )
 
-        with patch("anthropic.AsyncAnthropic") as mock_client_cls:
-            result = await service.execute(payload)
+        result = await service.execute(payload)
 
-        mock_client_cls.assert_not_called()
         assert result.nodes == []
         assert result.edges == []
         assert result.decisions == []
@@ -302,7 +300,7 @@ class TestGraphExtractionServiceDecisions:
 
     @pytest.mark.asyncio
     async def test_extracts_decisions_from_conversation(
-        self, service: GraphExtractionService, base_messages: list[dict[str, str]]
+        self, base_messages: list[dict[str, str]]
     ) -> None:
         llm_response = json.dumps(
             {
@@ -315,15 +313,14 @@ class TestGraphExtractionServiceDecisions:
             }
         )
 
-        mock_anthropic_cls = _make_anthropic_mock(llm_response)
+        mock_gateway = _make_mock_gateway(llm_response)
+        service = GraphExtractionService(llm_gateway=mock_gateway)
 
-        with patch("anthropic.AsyncAnthropic", mock_anthropic_cls):
-            payload = ConversationExtractionPayload(
-                messages=base_messages,
-                workspace_id=uuid4(),
-                api_key="sk-ant-test",  # pragma: allowlist secret,
-            )
-            result = await service.execute(payload)
+        payload = ConversationExtractionPayload(
+            messages=base_messages,
+            workspace_id=uuid4(),
+        )
+        result = await service.execute(payload)
 
         decision_nodes = [n for n in result.nodes if n.node_type == NodeType.DECISION]
         assert len(decision_nodes) == 1
@@ -335,9 +332,7 @@ class TestGraphExtractionServiceUserPreferences:
     """Verify user preference extraction binds user_id correctly."""
 
     @pytest.mark.asyncio
-    async def test_extracts_user_preferences(
-        self, service: GraphExtractionService, base_messages: list[dict[str, str]]
-    ) -> None:
+    async def test_extracts_user_preferences(self, base_messages: list[dict[str, str]]) -> None:
         user_id = uuid4()
         llm_response = json.dumps(
             {
@@ -351,16 +346,15 @@ class TestGraphExtractionServiceUserPreferences:
             }
         )
 
-        mock_anthropic_cls = _make_anthropic_mock(llm_response)
+        mock_gateway = _make_mock_gateway(llm_response)
+        service = GraphExtractionService(llm_gateway=mock_gateway)
 
-        with patch("anthropic.AsyncAnthropic", mock_anthropic_cls):
-            payload = ConversationExtractionPayload(
-                messages=base_messages,
-                workspace_id=uuid4(),
-                user_id=user_id,
-                api_key="sk-ant-test",  # pragma: allowlist secret,
-            )
-            result = await service.execute(payload)
+        payload = ConversationExtractionPayload(
+            messages=base_messages,
+            workspace_id=uuid4(),
+            user_id=user_id,
+        )
+        result = await service.execute(payload)
 
         pref_nodes = [n for n in result.nodes if n.node_type == NodeType.USER_PREFERENCE]
         assert len(pref_nodes) == 2
@@ -373,18 +367,17 @@ class TestGraphExtractionServiceMalformedJson:
 
     @pytest.mark.asyncio
     async def test_handles_malformed_json_gracefully(
-        self, service: GraphExtractionService, base_messages: list[dict[str, str]]
+        self, base_messages: list[dict[str, str]]
     ) -> None:
-        mock_anthropic_cls = _make_anthropic_mock("This is totally not JSON: {broken")
+        mock_gateway = _make_mock_gateway("This is totally not JSON: {broken")
+        service = GraphExtractionService(llm_gateway=mock_gateway)
 
-        with patch("anthropic.AsyncAnthropic", mock_anthropic_cls):
-            payload = ConversationExtractionPayload(
-                messages=base_messages,
-                workspace_id=uuid4(),
-                api_key="sk-ant-test",  # pragma: allowlist secret,
-            )
-            # Must not raise
-            result = await service.execute(payload)
+        payload = ConversationExtractionPayload(
+            messages=base_messages,
+            workspace_id=uuid4(),
+        )
+        # Must not raise
+        result = await service.execute(payload)
 
         assert isinstance(result, ExtractionResult)
         assert result.nodes == []
@@ -392,19 +385,17 @@ class TestGraphExtractionServiceMalformedJson:
 
     @pytest.mark.asyncio
     async def test_handles_llm_exception_gracefully(
-        self, service: GraphExtractionService, base_messages: list[dict[str, str]]
+        self, base_messages: list[dict[str, str]]
     ) -> None:
-        mock_client = MagicMock()
-        mock_client.messages.create = AsyncMock(side_effect=RuntimeError("API error"))
-        mock_anthropic_cls = MagicMock(return_value=mock_client)
+        mock_gateway = AsyncMock()
+        mock_gateway.complete = AsyncMock(side_effect=RuntimeError("API error"))
+        service = GraphExtractionService(llm_gateway=mock_gateway)
 
-        with patch("anthropic.AsyncAnthropic", mock_anthropic_cls):
-            payload = ConversationExtractionPayload(
-                messages=base_messages,
-                workspace_id=uuid4(),
-                api_key="sk-ant-test",  # pragma: allowlist secret,
-            )
-            result = await service.execute(payload)
+        payload = ConversationExtractionPayload(
+            messages=base_messages,
+            workspace_id=uuid4(),
+        )
+        result = await service.execute(payload)
 
         assert result.nodes == []
 
@@ -414,34 +405,32 @@ class TestGraphExtractionServiceWhitespaceResponse:
 
     @pytest.mark.asyncio
     async def test_whitespace_only_llm_response_returns_empty(
-        self, service: GraphExtractionService, base_messages: list[dict[str, str]]
+        self, base_messages: list[dict[str, str]]
     ) -> None:
-        mock_anthropic_cls = _make_anthropic_mock("   \n  ")
+        mock_gateway = _make_mock_gateway("   \n  ")
+        service = GraphExtractionService(llm_gateway=mock_gateway)
 
-        with patch("anthropic.AsyncAnthropic", mock_anthropic_cls):
-            payload = ConversationExtractionPayload(
-                messages=base_messages,
-                workspace_id=uuid4(),
-                api_key="sk-ant-test",  # pragma: allowlist secret
-            )
-            result = await service.execute(payload)
+        payload = ConversationExtractionPayload(
+            messages=base_messages,
+            workspace_id=uuid4(),
+        )
+        result = await service.execute(payload)
 
         assert result.nodes == []
         assert result.raw_response is None
 
     @pytest.mark.asyncio
     async def test_empty_fence_llm_response_returns_empty(
-        self, service: GraphExtractionService, base_messages: list[dict[str, str]]
+        self, base_messages: list[dict[str, str]]
     ) -> None:
-        mock_anthropic_cls = _make_anthropic_mock("```json\n```")
+        mock_gateway = _make_mock_gateway("```json\n```")
+        service = GraphExtractionService(llm_gateway=mock_gateway)
 
-        with patch("anthropic.AsyncAnthropic", mock_anthropic_cls):
-            payload = ConversationExtractionPayload(
-                messages=base_messages,
-                workspace_id=uuid4(),
-                api_key="sk-ant-test",  # pragma: allowlist secret
-            )
-            result = await service.execute(payload)
+        payload = ConversationExtractionPayload(
+            messages=base_messages,
+            workspace_id=uuid4(),
+        )
+        result = await service.execute(payload)
 
         assert result.nodes == []
 
@@ -451,7 +440,7 @@ class TestGraphExtractionServicePatterns:
 
     @pytest.mark.asyncio
     async def test_extracts_patterns_with_confidence(
-        self, service: GraphExtractionService, base_messages: list[dict[str, str]]
+        self, base_messages: list[dict[str, str]]
     ) -> None:
         llm_response = json.dumps(
             {
@@ -465,15 +454,14 @@ class TestGraphExtractionServicePatterns:
             }
         )
 
-        mock_anthropic_cls = _make_anthropic_mock(llm_response)
+        mock_gateway = _make_mock_gateway(llm_response)
+        service = GraphExtractionService(llm_gateway=mock_gateway)
 
-        with patch("anthropic.AsyncAnthropic", mock_anthropic_cls):
-            payload = ConversationExtractionPayload(
-                messages=base_messages,
-                workspace_id=uuid4(),
-                api_key="sk-ant-test",  # pragma: allowlist secret,
-            )
-            result = await service.execute(payload)
+        payload = ConversationExtractionPayload(
+            messages=base_messages,
+            workspace_id=uuid4(),
+        )
+        result = await service.execute(payload)
 
         pattern_nodes = [n for n in result.nodes if n.node_type == NodeType.LEARNED_PATTERN]
         assert len(pattern_nodes) == 2
@@ -483,13 +471,13 @@ class TestGraphExtractionServicePatterns:
         assert len(result.patterns) == 2
 
     @pytest.mark.asyncio
-    async def test_empty_messages_returns_empty_result(
-        self, service: GraphExtractionService
-    ) -> None:
+    async def test_empty_messages_returns_empty_result(self) -> None:
+        mock_gateway = _make_mock_gateway("")
+        service = GraphExtractionService(llm_gateway=mock_gateway)
+
         payload = ConversationExtractionPayload(
             messages=[],
             workspace_id=uuid4(),
-            api_key="sk-ant-test",  # pragma: allowlist secret,
         )
         result = await service.execute(payload)
         assert result.nodes == []

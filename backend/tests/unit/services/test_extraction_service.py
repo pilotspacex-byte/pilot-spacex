@@ -14,11 +14,12 @@ Feature 009: Intent-to-Issues extraction pipeline.
 from __future__ import annotations
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
 
+from pilot_space.ai.proxy.llm_gateway import LLMResponse
 from pilot_space.application.services.extraction.extract_issues_service import (
     ExtractIssuesPayload,
     IssueExtractionService,
@@ -26,6 +27,20 @@ from pilot_space.application.services.extraction.extract_issues_service import (
     _extract_text_from_tiptap,
     _parse_extraction_response,
 )
+
+
+def _make_mock_gateway(text: str) -> AsyncMock:
+    """Create a mock LLMGateway whose complete() returns an LLMResponse with the given text."""
+    gateway = AsyncMock()
+    gateway.complete.return_value = LLMResponse(
+        text=text,
+        input_tokens=100,
+        output_tokens=50,
+        model="anthropic/claude-sonnet-4",
+        raw=None,
+    )
+    return gateway
+
 
 # ---------------------------------------------------------------------------
 # Unit tests: _confidence_tag
@@ -242,20 +257,16 @@ class TestIssueExtractionService:
         self, service: IssueExtractionService, sample_payload: ExtractIssuesPayload
     ) -> None:
         """No API key returns empty result gracefully."""
-        with patch(
-            "pilot_space.application.services.extraction.extract_issues_service.resolve_workspace_llm_config",
-            new=AsyncMock(return_value=None),
-        ):
-            result = await service.extract(sample_payload)
-            assert result.total_count == 0
-            assert result.model == "noop"
+        result = await service.extract(sample_payload)
+        assert result.total_count == 0
+        assert result.model == "noop"
 
     @pytest.mark.asyncio
     async def test_extract_success(
-        self, service: IssueExtractionService, sample_payload: ExtractIssuesPayload
+        self, mock_session: AsyncMock, sample_payload: ExtractIssuesPayload
     ) -> None:
         """Successful extraction returns parsed issues."""
-        llm_response = json.dumps(
+        llm_response_text = json.dumps(
             [
                 {
                     "title": "Fix login page bug",
@@ -278,44 +289,27 @@ class TestIssueExtractionService:
             ]
         )
 
-        with (
-            patch(
-                "pilot_space.application.services.extraction.extract_issues_service.resolve_workspace_llm_config",
-                new=AsyncMock(
-                    return_value=MagicMock(
-                        provider="anthropic",
-                        api_key="sk-test-key",  # pragma: allowlist secret
-                        base_url=None,
-                        model_name=None,
-                    )
-                ),
-            ),
-            patch(
-                "pilot_space.application.services.extraction.extract_issues_service.ResilientExecutor"
-            ) as mock_executor_cls,
-        ):
-            mock_executor = MagicMock()
-            mock_executor.execute = AsyncMock(return_value=llm_response)
-            mock_executor_cls.return_value = mock_executor
+        mock_gateway = _make_mock_gateway(llm_response_text)
+        service = IssueExtractionService(session=mock_session, llm_gateway=mock_gateway)
 
-            result = await service.extract(sample_payload)
+        result = await service.extract(sample_payload)
 
-            assert result.total_count == 2
-            assert result.recommended_count == 2  # Both >= 0.7
-            assert result.model != "noop"
+        assert result.total_count == 2
+        assert result.recommended_count == 2  # Both >= 0.7
+        assert result.model != "noop"
 
-            issue1 = result.issues[0]
-            assert issue1.title == "Fix login page bug"
-            assert issue1.priority == 1
-            assert issue1.confidence_tag == "explicit"
-            assert "bug" in issue1.labels
+        issue1 = result.issues[0]
+        assert issue1.title == "Fix login page bug"
+        assert issue1.priority == 1
+        assert issue1.confidence_tag == "explicit"
+        assert "bug" in issue1.labels
 
-            issue2 = result.issues[1]
-            assert issue2.title == "Add API rate limiting"
-            assert issue2.confidence_tag == "explicit"
+        issue2 = result.issues[1]
+        assert issue2.title == "Add API rate limiting"
+        assert issue2.confidence_tag == "explicit"
 
     @pytest.mark.asyncio
-    async def test_extract_max_issues_respected(self, service: IssueExtractionService) -> None:
+    async def test_extract_max_issues_respected(self, mock_session: AsyncMock) -> None:
         """max_issues limit is enforced on results."""
         payload = ExtractIssuesPayload(
             workspace_id=uuid4(),
@@ -334,7 +328,7 @@ class TestIssueExtractionService:
         )
 
         # LLM returns more than max_issues
-        llm_response = json.dumps(
+        llm_response_text = json.dumps(
             [
                 {
                     "title": f"Issue {i}",
@@ -349,64 +343,31 @@ class TestIssueExtractionService:
             ]
         )
 
-        with (
-            patch(
-                "pilot_space.application.services.extraction.extract_issues_service.resolve_workspace_llm_config",
-                new=AsyncMock(
-                    return_value=MagicMock(
-                        provider="anthropic",
-                        api_key="sk-test-key",  # pragma: allowlist secret
-                        base_url=None,
-                        model_name=None,
-                    )
-                ),
-            ),
-            patch(
-                "pilot_space.application.services.extraction.extract_issues_service.ResilientExecutor"
-            ) as mock_executor_cls,
-        ):
-            mock_executor = MagicMock()
-            mock_executor.execute = AsyncMock(return_value=llm_response)
-            mock_executor_cls.return_value = mock_executor
+        mock_gateway = _make_mock_gateway(llm_response_text)
+        service = IssueExtractionService(session=mock_session, llm_gateway=mock_gateway)
 
-            result = await service.extract(payload)
-            assert result.total_count <= 2
+        result = await service.extract(payload)
+        assert result.total_count <= 2
 
     @pytest.mark.asyncio
     async def test_extract_llm_error_graceful(
-        self, service: IssueExtractionService, sample_payload: ExtractIssuesPayload
+        self, mock_session: AsyncMock, sample_payload: ExtractIssuesPayload
     ) -> None:
         """LLM errors are handled gracefully, returning empty."""
-        with (
-            patch(
-                "pilot_space.application.services.extraction.extract_issues_service.resolve_workspace_llm_config",
-                new=AsyncMock(
-                    return_value=MagicMock(
-                        provider="anthropic",
-                        api_key="sk-test-key",  # pragma: allowlist secret
-                        base_url=None,
-                        model_name=None,
-                    )
-                ),
-            ),
-            patch(
-                "pilot_space.application.services.extraction.extract_issues_service.ResilientExecutor"
-            ) as mock_executor_cls,
-        ):
-            mock_executor = MagicMock()
-            mock_executor.execute = AsyncMock(side_effect=Exception("LLM error"))
-            mock_executor_cls.return_value = mock_executor
+        mock_gateway = AsyncMock()
+        mock_gateway.complete.side_effect = Exception("LLM error")
+        service = IssueExtractionService(session=mock_session, llm_gateway=mock_gateway)
 
-            result = await service.extract(sample_payload)
-            assert result.total_count == 0
-            assert result.model == "noop"
+        result = await service.extract(sample_payload)
+        assert result.total_count == 0
+        assert result.model == "noop"
 
     @pytest.mark.asyncio
     async def test_extract_confidence_clamping(
-        self, service: IssueExtractionService, sample_payload: ExtractIssuesPayload
+        self, mock_session: AsyncMock, sample_payload: ExtractIssuesPayload
     ) -> None:
         """Confidence scores are clamped to 0-1 range."""
-        llm_response = json.dumps(
+        llm_response_text = json.dumps(
             [
                 {
                     "title": "Over confident",
@@ -429,34 +390,17 @@ class TestIssueExtractionService:
             ]
         )
 
-        with (
-            patch(
-                "pilot_space.application.services.extraction.extract_issues_service.resolve_workspace_llm_config",
-                new=AsyncMock(
-                    return_value=MagicMock(
-                        provider="anthropic",
-                        api_key="sk-test-key",  # pragma: allowlist secret
-                        base_url=None,
-                        model_name=None,
-                    )
-                ),
-            ),
-            patch(
-                "pilot_space.application.services.extraction.extract_issues_service.ResilientExecutor"
-            ) as mock_executor_cls,
-        ):
-            mock_executor = MagicMock()
-            mock_executor.execute = AsyncMock(return_value=llm_response)
-            mock_executor_cls.return_value = mock_executor
+        mock_gateway = _make_mock_gateway(llm_response_text)
+        service = IssueExtractionService(session=mock_session, llm_gateway=mock_gateway)
 
-            result = await service.extract(sample_payload)
-            assert result.issues[0].confidence_score == 1.0
-            assert result.issues[1].confidence_score == 0.0
-            # Priority clamped too
-            assert result.issues[1].priority == 0  # -1 clamped to 0
+        result = await service.extract(sample_payload)
+        assert result.issues[0].confidence_score == 1.0
+        assert result.issues[1].confidence_score == 0.0
+        # Priority clamped too
+        assert result.issues[1].priority == 0  # -1 clamped to 0
 
     @pytest.mark.asyncio
-    async def test_extract_with_selected_text(self, service: IssueExtractionService) -> None:
+    async def test_extract_with_selected_text(self, mock_session: AsyncMock) -> None:
         """Selected text is passed to the prompt."""
         payload = ExtractIssuesPayload(
             workspace_id=uuid4(),
@@ -474,7 +418,7 @@ class TestIssueExtractionService:
             selected_text="Fix the authentication flow",
         )
 
-        llm_response = json.dumps(
+        llm_response_text = json.dumps(
             [
                 {
                     "title": "Fix authentication flow",
@@ -488,26 +432,9 @@ class TestIssueExtractionService:
             ]
         )
 
-        with (
-            patch(
-                "pilot_space.application.services.extraction.extract_issues_service.resolve_workspace_llm_config",
-                new=AsyncMock(
-                    return_value=MagicMock(
-                        provider="anthropic",
-                        api_key="sk-test-key",  # pragma: allowlist secret
-                        base_url=None,
-                        model_name=None,
-                    )
-                ),
-            ),
-            patch(
-                "pilot_space.application.services.extraction.extract_issues_service.ResilientExecutor"
-            ) as mock_executor_cls,
-        ):
-            mock_executor = MagicMock()
-            mock_executor.execute = AsyncMock(return_value=llm_response)
-            mock_executor_cls.return_value = mock_executor
+        mock_gateway = _make_mock_gateway(llm_response_text)
+        service = IssueExtractionService(session=mock_session, llm_gateway=mock_gateway)
 
-            result = await service.extract(payload)
-            assert result.total_count == 1
-            assert result.issues[0].title == "Fix authentication flow"
+        result = await service.extract(payload)
+        assert result.total_count == 1
+        assert result.issues[0].title == "Fix authentication flow"

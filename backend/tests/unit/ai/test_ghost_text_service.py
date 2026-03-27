@@ -72,6 +72,7 @@ def mock_key_storage() -> AsyncMock:
     """SecureKeyStorage stub returning workspace key."""
     storage = AsyncMock()
     storage.get_api_key.return_value = TEST_API_KEY
+    storage.get_key_info.return_value = None
     return storage
 
 
@@ -473,7 +474,8 @@ class TestBYOKIntegration:
             context="ctx", prefix="pre", workspace_id=WORKSPACE_ID, user_id=TEST_USER_ID
         )
 
-        mock_client_pool.get_client.assert_called_once_with(TEST_API_KEY)
+        # base_url comes from key_info (None by default in mock)
+        mock_client_pool.get_client.assert_called_once_with(TEST_API_KEY, base_url=None)
 
     @pytest.mark.asyncio
     async def test_env_var_fallback_when_no_workspace_key(
@@ -484,6 +486,7 @@ class TestBYOKIntegration:
         mock_client_pool: MagicMock,
     ) -> None:
         mock_key_storage.get_api_key.return_value = None
+        mock_key_storage.get_key_info.return_value = None
         mock_executor.execute = AsyncMock(return_value=_anthropic_response("ok"))
 
         with patch("pilot_space.ai.services.ghost_text.get_settings") as mock_cfg:
@@ -496,7 +499,7 @@ class TestBYOKIntegration:
                 context="ctx", prefix="pre", workspace_id=WORKSPACE_ID, user_id=TEST_USER_ID
             )
 
-        mock_client_pool.get_client.assert_called_once_with("sk-ant-env-key")
+        mock_client_pool.get_client.assert_called_once_with("sk-ant-env-key", base_url=None)
 
     @pytest.mark.asyncio
     async def test_raises_402_when_no_key_available(
