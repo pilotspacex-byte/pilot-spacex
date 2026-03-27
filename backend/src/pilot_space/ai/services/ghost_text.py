@@ -15,8 +15,8 @@ from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from anthropic.types import TextBlock
-from fastapi import HTTPException
 
+from pilot_space.ai.exceptions import AINotConfiguredError
 from pilot_space.ai.prompts.ghost_text import (
     GHOST_TEXT_CODE_SYSTEM_PROMPT,
     GHOST_TEXT_HEADING_SYSTEM_PROMPT,
@@ -200,9 +200,9 @@ class GhostTextService:
                 else None
             )
         if not api_key:
-            raise HTTPException(
-                status_code=402,
-                detail="No Anthropic API key configured for this workspace",
+            raise AINotConfiguredError(
+                "No Anthropic API key configured for this workspace",
+                code="no_anthropic_key",
             )
 
         # Model from routing table (respects circuit breaker state)
@@ -228,7 +228,16 @@ class GhostTextService:
                 ),
                 timeout_sec=2.5,
             )
-        except Exception:
+        except Exception as exc:
+            # Surface billing/credit errors as AINotConfiguredError so callers
+            # get a clear 503 with actionable message instead of generic failure.
+            exc_msg = str(exc).lower()
+            if "credit balance" in exc_msg or "billing" in exc_msg:
+                raise AINotConfiguredError(
+                    "Anthropic API key has insufficient credits. "
+                    "Please check your billing at https://console.anthropic.com/settings/billing",
+                    code="insufficient_credits",
+                ) from exc
             logger.exception("Failed to generate ghost text completion")
             raise
 

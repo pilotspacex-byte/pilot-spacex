@@ -13,6 +13,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException
 
+from pilot_space.ai.exceptions import AIError
 from pilot_space.api.v1.schemas.ghost_text import GhostTextRequest, GhostTextResponse
 from pilot_space.dependencies import CurrentUserId, DbSession, GhostTextServiceDep, RedisDep
 from pilot_space.domain.exceptions import AppError, ForbiddenError, ServiceUnavailableError
@@ -121,7 +122,7 @@ async def generate_ghost_text(
             cached=result["cached"],
         )
 
-    except AppError:
+    except (AppError, AIError):
         raise
     except Exception as e:
         logger.exception("Ghost text generation failed: %s", e)
