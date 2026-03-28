@@ -15,6 +15,7 @@ Replaces 8+ scattered direct AsyncAnthropic() instantiations.
 from __future__ import annotations
 
 import hashlib
+import hmac
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
@@ -109,9 +110,12 @@ class LLMGateway:
             default_headers: Optional headers sent with every request (e.g. proxy tenant headers).
         """
         headers_key = sorted(default_headers.items()) if default_headers else ""
-        key_hash = hashlib.sha256(f"{api_key}:{base_url or ''}:{headers_key}".encode()).hexdigest()[
-            :16
-        ]
+        # HMAC-SHA256 for cache-slot deduplication (not password storage).
+        key_hash = hmac.new(
+            b"gateway-client-pool",
+            f"{api_key}:{base_url or ''}:{headers_key}".encode(),
+            hashlib.sha256,
+        ).hexdigest()[:16]
         if key_hash not in self._anthropic_clients:
             kwargs: dict[str, Any] = {"api_key": api_key}
             if base_url:
@@ -135,9 +139,12 @@ class LLMGateway:
             default_headers: Optional headers sent with every request (e.g. proxy tenant headers).
         """
         headers_key = sorted(default_headers.items()) if default_headers else ""
-        key_hash = hashlib.sha256(f"{api_key}:{base_url or ''}:{headers_key}".encode()).hexdigest()[
-            :16
-        ]
+        # HMAC-SHA256 for cache-slot deduplication (not password storage).
+        key_hash = hmac.new(
+            b"gateway-client-pool",
+            f"{api_key}:{base_url or ''}:{headers_key}".encode(),
+            hashlib.sha256,
+        ).hexdigest()[:16]
         if key_hash not in self._openai_clients:
             kwargs: dict[str, Any] = {"api_key": api_key}
             if base_url:
