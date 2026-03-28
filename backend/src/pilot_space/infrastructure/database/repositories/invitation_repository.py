@@ -189,9 +189,8 @@ class InvitationRepository(BaseRepository[WorkspaceInvitation]):
                     WorkspaceInvitation.__table__.c.workspace_id,
                     WorkspaceInvitation.__table__.c.email,
                 ],
-                index_where=(
-                    WorkspaceInvitation.__table__.c.status == "PENDING"
-                ) & (WorkspaceInvitation.__table__.c.is_deleted == False),  # noqa: E712
+                index_where=(WorkspaceInvitation.__table__.c.status == "PENDING")
+                & (WorkspaceInvitation.__table__.c.is_deleted == False),  # noqa: E712
                 set_={
                     "role": role,
                     "invited_by": invited_by,

@@ -234,10 +234,7 @@ class WorkspaceMemberService:
                 m
                 for m in members
                 if m.user
-                and (
-                    q in (m.user.full_name or "").lower()
-                    or q in (m.user.email or "").lower()
-                )
+                and (q in (m.user.full_name or "").lower() or q in (m.user.email or "").lower())
             ]
 
         if payload.role:
