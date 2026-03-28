@@ -13,8 +13,6 @@ from uuid import UUID
 
 from fastapi import APIRouter, Body, HTTPException, status
 
-from pilot_space.api.v1.schemas.issue import StateUpdateRequest
-
 from pilot_space.api.v1.dependencies import UpdateIssueServiceDep
 from pilot_space.api.v1.dependencies_pilot import (
     CLIRequesterContextDep,
@@ -22,6 +20,7 @@ from pilot_space.api.v1.dependencies_pilot import (
 )
 from pilot_space.api.v1.repository_deps import IssueRepositoryDep
 from pilot_space.api.v1.schemas.implement_context import ImplementContextResponse
+from pilot_space.api.v1.schemas.issue import StateUpdateRequest
 from pilot_space.application.services.issue import GetImplementContextPayload
 from pilot_space.dependencies.auth import SessionDep
 from pilot_space.infrastructure.database.rls import set_rls_context
