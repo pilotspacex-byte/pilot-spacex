@@ -74,7 +74,7 @@ def _register_proxy_exception_handlers(app: FastAPI) -> None:
     )
     from pilot_space.domain.exceptions import AppError
 
-    app.add_exception_handler(HTTPException, http_exception_handler)
+    app.add_exception_handler(HTTPException, http_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(AIError, ai_error_handler)
     app.add_exception_handler(AppError, app_error_handler)

@@ -337,26 +337,29 @@ class TestSecureKeyStorage:
         assert error is not None
 
     @pytest.mark.asyncio
-    @patch("google.generativeai.GenerativeModel")
-    @patch("google.generativeai.configure")
     async def test_validate_api_key_google_success(
         self,
-        mock_configure: MagicMock,
-        mock_model_class: MagicMock,
         key_storage: SecureKeyStorage,
     ) -> None:
         """Verify Google key validation."""
-        mock_model = AsyncMock()
-        mock_model.generate_content_async = AsyncMock()
-        mock_model_class.return_value = mock_model
+        import sys
 
-        is_valid, error = await key_storage.validate_api_key(
-            "google", "test-key"
-        )  # pragma: allowlist secret
+        mock_model = MagicMock()
+        mock_model.generate_content_async = AsyncMock()
+        mock_genai = MagicMock()
+        mock_genai.GenerativeModel.return_value = mock_model
+
+        with patch.dict(
+            sys.modules,
+            {"google.generativeai": mock_genai},
+        ):
+            is_valid, error = await key_storage.validate_api_key(
+                "google", "test-key"
+            )  # pragma: allowlist secret
 
         assert is_valid is True
         assert error is None
-        mock_configure.assert_called_once_with(api_key="test-key")  # pragma: allowlist secret
+        mock_genai.configure.assert_called_once_with(api_key="test-key")  # pragma: allowlist secret
 
     @pytest.mark.asyncio
     @patch("httpx.AsyncClient")

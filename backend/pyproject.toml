@@ -87,6 +87,7 @@ dev = [
     "respx>=0.21.0",
     "factory-boy>=3.3.0",
     "faker>=33.0.0",
+    "scim2-models>=0.6.4",
 
     # Linting & Formatting
     "ruff>=0.8.0",
@@ -170,4 +171,15 @@ environments = [
 dev = [
     "aiosqlite>=0.22.1",
     "faker>=40.1.2",
+    {include-group = "test"},
+]
+test = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
+    "pytest-xdist>=3.5.0",
+    "httpx>=0.28.0",
+    "respx>=0.21.0",
+    "factory-boy>=3.3.0",
+    "scim2-models>=0.6.4",
 ]
