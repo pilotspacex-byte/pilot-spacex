@@ -164,7 +164,6 @@ async def get_implement_context(
 # ============================================================================
 
 
-
 @router.patch(
     "/{issue_ref}/state",
     status_code=status.HTTP_204_NO_CONTENT,
