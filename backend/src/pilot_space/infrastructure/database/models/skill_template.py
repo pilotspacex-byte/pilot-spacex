@@ -89,6 +89,15 @@ class SkillTemplate(WorkspaceScopedModel):
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
+    marketplace_listing_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("skill_marketplace_listings.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    installed_version: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+    )
 
     __table_args__ = (
         # Partial unique index: one template per name per workspace.
@@ -119,6 +128,10 @@ class SkillTemplate(WorkspaceScopedModel):
         CheckConstraint(
             "length(name) <= 100",
             name="ck_skill_templates_name_length",
+        ),
+        Index(
+            "ix_skill_templates_marketplace_listing_id",
+            "marketplace_listing_id",
         ),
     )
 

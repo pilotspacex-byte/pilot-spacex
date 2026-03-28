@@ -104,7 +104,13 @@ from pilot_space.infrastructure.database.models.skill_execution import (
     SkillApprovalStatus,
     SkillExecution,
 )
+from pilot_space.infrastructure.database.models.skill_graph import SkillGraph
+from pilot_space.infrastructure.database.models.skill_marketplace_listing import (
+    SkillMarketplaceListing,
+)
+from pilot_space.infrastructure.database.models.skill_review import SkillReview
 from pilot_space.infrastructure.database.models.skill_template import SkillTemplate
+from pilot_space.infrastructure.database.models.skill_version import SkillVersion
 from pilot_space.infrastructure.database.models.state import (
     DEFAULT_STATES,
     State,
@@ -233,7 +239,11 @@ __all__ = [
     "SkillApprovalRole",
     "SkillApprovalStatus",
     "SkillExecution",
+    "SkillGraph",
+    "SkillMarketplaceListing",
+    "SkillReview",
     "SkillTemplate",
+    "SkillVersion",
     "SlugMixin",
     "SoftDeleteMixin",
     "State",
