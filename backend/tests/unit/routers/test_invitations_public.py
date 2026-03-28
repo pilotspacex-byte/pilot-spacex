@@ -94,7 +94,7 @@ class TestPreviewInvitation:
         assert response.workspace_slug == "test-workspace"
         # Local part is masked: j***@example.com
         assert response.invited_email_masked.startswith("j***@")
-        assert "example.com" in response.invited_email_masked
+        assert response.invited_email_masked.endswith("example.com")
 
     @pytest.mark.asyncio
     async def test_preview_returns_404_for_unknown_id(self) -> None:
