@@ -257,29 +257,25 @@ def get_cached_client(
     base_url: str | None,
 ) -> Any:
     """Get or create a cached AsyncAnthropic client from app state."""
-    import hashlib
-    import hmac
-
     import anthropic
 
-    # HMAC-SHA256 with a fixed key — used only for cache-slot deduplication,
-    # NOT for password storage.  CodeQL flags bare sha256(api_key) as weak
-    # password hashing; using hmac makes the intent explicit.
-    key_hash = hmac.new(
-        b"proxy-client-pool", f"{api_key}:{base_url or ''}".encode(), hashlib.sha256
-    ).hexdigest()[:16]
+    # Use a plain tuple as dict key — the dict lives in-memory only, so
+    # there is no need for cryptographic hashing.
+    cache_key = (api_key, base_url or "")
 
     proxy_clients_attr = "proxy_anthropic_clients"
     if not hasattr(request.app.state, proxy_clients_attr):
         setattr(request.app.state, proxy_clients_attr, {})
 
-    clients: dict[str, anthropic.AsyncAnthropic] = getattr(request.app.state, proxy_clients_attr)
-    if key_hash not in clients:
+    clients: dict[tuple[str, str], anthropic.AsyncAnthropic] = getattr(
+        request.app.state, proxy_clients_attr
+    )
+    if cache_key not in clients:
         kwargs: dict[str, Any] = {"api_key": api_key}
         if base_url:
             kwargs["base_url"] = base_url
-        clients[key_hash] = anthropic.AsyncAnthropic(**kwargs)
-    return clients[key_hash]
+        clients[cache_key] = anthropic.AsyncAnthropic(**kwargs)
+    return clients[cache_key]
 
 
 def get_cached_openai_client(
@@ -288,27 +284,24 @@ def get_cached_openai_client(
     base_url: str | None,
 ) -> Any:
     """Get or create a cached AsyncOpenAI client from app state."""
-    import hashlib
-    import hmac
-
     import openai
 
-    # HMAC-SHA256 for cache-slot deduplication (not password storage).
-    key_hash = hmac.new(
-        b"proxy-client-pool", f"{api_key}:{base_url or ''}".encode(), hashlib.sha256
-    ).hexdigest()[:16]
+    # Use a plain tuple as dict key — no crypto needed for in-memory cache.
+    cache_key = (api_key, base_url or "")
 
     proxy_clients_attr = "proxy_openai_clients"
     if not hasattr(request.app.state, proxy_clients_attr):
         setattr(request.app.state, proxy_clients_attr, {})
 
-    clients: dict[str, openai.AsyncOpenAI] = getattr(request.app.state, proxy_clients_attr)
-    if key_hash not in clients:
+    clients: dict[tuple[str, str], openai.AsyncOpenAI] = getattr(
+        request.app.state, proxy_clients_attr
+    )
+    if cache_key not in clients:
         kwargs: dict[str, Any] = {"api_key": api_key}
         if base_url:
             kwargs["base_url"] = base_url
-        clients[key_hash] = openai.AsyncOpenAI(**kwargs)
-    return clients[key_hash]
+        clients[cache_key] = openai.AsyncOpenAI(**kwargs)
+    return clients[cache_key]
 
 
 # ---------------------------------------------------------------------------

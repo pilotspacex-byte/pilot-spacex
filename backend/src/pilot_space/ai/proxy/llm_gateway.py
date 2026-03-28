@@ -14,8 +14,6 @@ Replaces 8+ scattered direct AsyncAnthropic() instantiations.
 
 from __future__ import annotations
 
-import hashlib
-import hmac
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
@@ -92,9 +90,9 @@ class LLMGateway:
         self._executor = executor
         self._cost_tracker = cost_tracker
         self._key_storage = key_storage
-        # Per-API-key client pools (same pattern as AnthropicClientPool)
-        self._anthropic_clients: dict[str, anthropic.AsyncAnthropic] = {}
-        self._openai_clients: dict[str, openai.AsyncOpenAI] = {}
+        # Per-API-key client pools keyed by (key, url, headers) tuple.
+        self._anthropic_clients: dict[tuple[str, str, str], anthropic.AsyncAnthropic] = {}
+        self._openai_clients: dict[tuple[str, str, str], openai.AsyncOpenAI] = {}
 
     def _get_anthropic_client(
         self,
@@ -109,21 +107,16 @@ class LLMGateway:
             base_url: Optional custom base URL (for proxies / Ollama).
             default_headers: Optional headers sent with every request (e.g. proxy tenant headers).
         """
-        headers_key = sorted(default_headers.items()) if default_headers else ""
-        # HMAC-SHA256 for cache-slot deduplication (not password storage).
-        key_hash = hmac.new(
-            b"gateway-client-pool",
-            f"{api_key}:{base_url or ''}:{headers_key}".encode(),
-            hashlib.sha256,
-        ).hexdigest()[:16]
-        if key_hash not in self._anthropic_clients:
+        headers_part = str(sorted(default_headers.items())) if default_headers else ""
+        cache_key = (api_key, base_url or "", headers_part)
+        if cache_key not in self._anthropic_clients:
             kwargs: dict[str, Any] = {"api_key": api_key}
             if base_url:
                 kwargs["base_url"] = base_url
             if default_headers:
                 kwargs["default_headers"] = default_headers
-            self._anthropic_clients[key_hash] = anthropic.AsyncAnthropic(**kwargs)
-        return self._anthropic_clients[key_hash]
+            self._anthropic_clients[cache_key] = anthropic.AsyncAnthropic(**kwargs)
+        return self._anthropic_clients[cache_key]
 
     def _get_openai_client(
         self,
@@ -138,21 +131,16 @@ class LLMGateway:
             base_url: Optional custom base URL (for proxies / Ollama).
             default_headers: Optional headers sent with every request (e.g. proxy tenant headers).
         """
-        headers_key = sorted(default_headers.items()) if default_headers else ""
-        # HMAC-SHA256 for cache-slot deduplication (not password storage).
-        key_hash = hmac.new(
-            b"gateway-client-pool",
-            f"{api_key}:{base_url or ''}:{headers_key}".encode(),
-            hashlib.sha256,
-        ).hexdigest()[:16]
-        if key_hash not in self._openai_clients:
+        headers_part = str(sorted(default_headers.items())) if default_headers else ""
+        cache_key = (api_key, base_url or "", headers_part)
+        if cache_key not in self._openai_clients:
             kwargs: dict[str, Any] = {"api_key": api_key}
             if base_url:
                 kwargs["base_url"] = base_url
             if default_headers:
                 kwargs["default_headers"] = default_headers
-            self._openai_clients[key_hash] = openai.AsyncOpenAI(**kwargs)
-        return self._openai_clients[key_hash]
+            self._openai_clients[cache_key] = openai.AsyncOpenAI(**kwargs)
+        return self._openai_clients[cache_key]
 
     @observe(name="llm_gateway.complete")  # type: ignore[misc]
     async def complete(
