@@ -16,6 +16,13 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
+from pilot_space.domain.exceptions import (
+    AppError,
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    ValidationError,
+)
 from pilot_space.infrastructure.database.models.activity import Activity, ActivityType
 from pilot_space.infrastructure.database.models.cycle import Cycle, CycleStatus
 from pilot_space.infrastructure.database.models.integration import IntegrationLink
@@ -42,62 +49,16 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-# ===== Custom Exceptions =====
+# ===== Exception aliases for backward compatibility =====
+# These names are kept so routers and tests can import them, but they now
+# extend the shared domain hierarchy so the global app_error_handler catches them.
 
-
-class WorkspaceMemberError(Exception):
-    """Base for all workspace-member domain errors."""
-
-    error_code: str = "workspace_member_error"
-    http_status: int = 400
-
-    def __init__(
-        self,
-        message: str,
-        *,
-        error_code: str | None = None,
-        details: dict[str, Any] | None = None,
-    ) -> None:
-        super().__init__(message)
-        self.message = message
-        if error_code:
-            self.error_code = error_code
-        self.details = details or {}
-
-
-class WorkspaceNotFoundError(WorkspaceMemberError):
-    """Raised when the workspace does not exist."""
-
-    error_code = "workspace_not_found"
-    http_status = 404
-
-
-class WorkspaceMemberNotFoundError(WorkspaceMemberError):
-    """Raised when the target member is not in the workspace."""
-
-    error_code = "workspace_member_not_found"
-    http_status = 404
-
-
-class WorkspaceMemberForbiddenError(WorkspaceMemberError):
-    """Raised when the actor lacks required permissions."""
-
-    error_code = "workspace_member_forbidden"
-    http_status = 403
-
-
-class WorkspaceMemberConflictError(WorkspaceMemberError):
-    """Raised on state/role conflicts."""
-
-    error_code = "workspace_member_conflict"
-    http_status = 409
-
-
-class WorkspaceMemberValidationError(WorkspaceMemberError):
-    """Raised on input validation failures."""
-
-    error_code = "workspace_member_validation_error"
-    http_status = 422
+WorkspaceMemberError = AppError
+WorkspaceNotFoundError = NotFoundError
+WorkspaceMemberNotFoundError = NotFoundError
+WorkspaceMemberForbiddenError = ForbiddenError
+WorkspaceMemberConflictError = ConflictError
+WorkspaceMemberValidationError = ValidationError
 
 
 # ===== Payloads & Results =====
@@ -272,8 +233,11 @@ class WorkspaceMemberService:
             members = [
                 m
                 for m in members
-                if q in (m.user.full_name or "").lower() or q in (m.user.email or "").lower()
                 if m.user
+                and (
+                    q in (m.user.full_name or "").lower()
+                    or q in (m.user.email or "").lower()
+                )
             ]
 
         if payload.role:

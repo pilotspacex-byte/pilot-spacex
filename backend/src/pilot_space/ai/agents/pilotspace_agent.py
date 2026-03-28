@@ -864,8 +864,10 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         context: AgentContext,
     ) -> AsyncIterator[str]:
         if not (self._space_manager and context.workspace_id and context.user_id):
+            from pilot_space.ai.exceptions import AIConfigurationError
+
             msg = "SpaceManager, workspace_id, and user_id are required."
-            raise ValueError(msg)
+            raise AIConfigurationError(msg)
         try:
             self._resolved_model = input_data.resolved_model  # AIPR-04
             provider_config = await self._get_provider_config(context.workspace_id)

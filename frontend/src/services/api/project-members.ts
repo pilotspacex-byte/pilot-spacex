@@ -263,6 +263,7 @@ export function useBulkUpdateAssignments(workspaceId: string) {
       projectMembersApi.bulkUpdateAssignments(workspaceId, userId, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: projectMemberKeys.all });
+      queryClient.invalidateQueries({ queryKey: projectMemberKeys.myProjects(workspaceId) });
       queryClient.invalidateQueries({ queryKey: ['workspace-members', workspaceId] });
     },
   });

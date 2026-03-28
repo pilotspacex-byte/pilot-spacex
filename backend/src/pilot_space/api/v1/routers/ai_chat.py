@@ -689,7 +689,7 @@ async def _execute_agent_stream(
 
     ws_id = input_data.get("workspace_id")
     agent_context = AgentContext(
-        workspace_id=(UUID(ws_id) if ws_id else UUID("00000000-0000-0000-0000-000000000000")),
+        workspace_id=(UUID(ws_id) if ws_id else None),
         user_id=UUID(input_data["user_id"]),
         metadata={
             "active_project_id": input_data.get("active_project_id"),

@@ -1101,14 +1101,13 @@ ProjectMemberServiceDep = Annotated[ProjectMemberService, Depends(_get_project_m
 
 from uuid import UUID as _UUID  # noqa: E402
 
-from fastapi import (  # noqa: E402
-    HTTPException as _HTTPException,
-    status as _status,
-)
-
 from pilot_space.dependencies.auth import (  # noqa: E402
     CurrentUserId as _CurrentUserId,
     SessionDep as _SessionDep,
+)
+from pilot_space.domain.exceptions import (  # noqa: E402
+    ForbiddenError as _ForbiddenError,
+    NotFoundError as _NotFoundError,
 )
 from pilot_space.infrastructure.database.models.workspace_member import (  # noqa: E402
     WorkspaceRole as _WorkspaceRole,
@@ -1131,8 +1130,27 @@ async def require_project_membership(
 ) -> None:
     """FastAPI dependency — ensure current user is a project member OR admin/owner.
 
-    Raises HTTP 403 with code 'project_access_denied' when not authorized.
+    Validates the project belongs to the workspace before performing membership checks
+    to prevent cross-workspace authorization bypass.
+
+    Raises ForbiddenError (403) when not authorized.
+    Raises NotFoundError (404) when the project does not belong to this workspace.
     """
+    from sqlalchemy import select
+
+    from pilot_space.infrastructure.database.models.project import Project
+
+    # Validate that the project actually belongs to this workspace (prevents cross-workspace bypass)
+    result = await session.execute(
+        select(Project.id).where(
+            Project.id == project_id,
+            Project.workspace_id == workspace_id,
+            Project.is_deleted == False,  # noqa: E712
+        )
+    )
+    if result.scalar_one_or_none() is None:
+        raise _NotFoundError("Project not found in this workspace")
+
     # Admins and Owners bypass project-level membership check
     wm = await workspace_member_repo.get_by_user_workspace(current_user_id, workspace_id)
     if wm and wm.role in (_WorkspaceRole.ADMIN, _WorkspaceRole.OWNER):
@@ -1142,12 +1160,9 @@ async def require_project_membership(
     repo = project_member_svc._repo  # type: ignore[attr-defined]  # noqa: SLF001
     membership = await repo.get_active_membership(project_id, current_user_id)
     if not membership:
-        raise _HTTPException(
-            status_code=_status.HTTP_403_FORBIDDEN,
-            detail={
-                "code": "project_access_denied",
-                "message": "You do not have access to this project.",
-            },
+        raise _ForbiddenError(
+            "You do not have access to this project.",
+            error_code="project_access_denied",
         )
 
 
