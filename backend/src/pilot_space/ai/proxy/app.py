@@ -74,7 +74,7 @@ def _register_proxy_exception_handlers(app: FastAPI) -> None:
     )
     from pilot_space.domain.exceptions import AppError
 
-    app.add_exception_handler(HTTPException, http_exception_handler)
+    app.add_exception_handler(HTTPException, http_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(AIError, ai_error_handler)
     app.add_exception_handler(AppError, app_error_handler)
@@ -135,7 +135,7 @@ ProxyDbSession = Annotated[AsyncSession, Depends(get_session)]
 # ---------------------------------------------------------------------------
 
 
-async def _validate_tenant(
+async def validate_tenant(
     request: Request,
     workspace_id: UUID,
     user_id: UUID,
@@ -251,7 +251,7 @@ async def _validate_tenant(
 # ---------------------------------------------------------------------------
 
 
-def _get_cached_client(
+def get_cached_client(
     request: Request,
     api_key: str,
     base_url: str | None,
@@ -276,7 +276,7 @@ def _get_cached_client(
     return clients[key_hash]
 
 
-def _get_cached_openai_client(
+def get_cached_openai_client(
     request: Request,
     api_key: str,
     base_url: str | None,
@@ -347,12 +347,12 @@ async def proxy_messages(
     user_id = UUID(x_user_id) if x_user_id else _SYSTEM_USER_ID
 
     # --- Tenant validation ---
-    executor, cost_tracker, _key_storage, base_url, max_tokens = await _validate_tenant(
+    executor, cost_tracker, _key_storage, base_url, max_tokens = await validate_tenant(
         request, workspace_id, user_id, model, max_tokens
     )
 
     # --- Get pooled client ---
-    client = _get_cached_client(request, api_key, base_url)
+    client = get_cached_client(request, api_key, base_url)
 
     # --- Build Anthropic Messages API kwargs ---
     create_kwargs: dict[str, Any] = {
@@ -472,7 +472,7 @@ async def proxy_embeddings(
     dimensions: int | None = body.get("dimensions")
 
     # --- Tenant validation ---
-    executor, cost_tracker, key_storage, base_url, _capped = await _validate_tenant(
+    executor, cost_tracker, key_storage, base_url, _capped = await validate_tenant(
         request, workspace_id, user_id, model, 0
     )
 
@@ -487,7 +487,7 @@ async def proxy_embeddings(
         openai_key = api_key  # Use the key from the request header
 
     # --- Get pooled OpenAI client ---
-    client = _get_cached_openai_client(request, openai_key, base_url)
+    client = get_cached_openai_client(request, openai_key, base_url)
 
     # --- Build embeddings kwargs ---
     embed_kwargs: dict[str, Any] = {

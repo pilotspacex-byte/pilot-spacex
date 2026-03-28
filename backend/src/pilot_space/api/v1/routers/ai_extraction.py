@@ -39,7 +39,6 @@ logger = get_logger(__name__)
 router = APIRouter(tags=["AI Extraction"])
 
 
-
 # DI bridge: @inject makes Provide[] resolvable; FastAPI sees a plain callable.
 @inject
 def _get_llm_gateway(
@@ -49,7 +48,6 @@ def _get_llm_gateway(
 
 
 LLMGatewayDep = Annotated[LLMGateway, Depends(_get_llm_gateway)]
-
 
 
 @router.post(

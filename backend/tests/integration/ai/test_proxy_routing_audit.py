@@ -59,12 +59,8 @@ class TestProxyEnabledChecks:
     def test_llm_gateway_complete_has_proxy_check(self) -> None:
         """LLMGateway.complete() must check ai_proxy_enabled."""
         source = _LLM_GATEWAY.read_text(encoding="utf-8")
-        assert "ai_proxy_enabled" in source, (
-            "LLMGateway missing ai_proxy_enabled check"
-        )
-        assert "ai_proxy_base_url" in source, (
-            "LLMGateway missing ai_proxy_base_url usage"
-        )
+        assert "ai_proxy_enabled" in source, "LLMGateway missing ai_proxy_enabled check"
+        assert "ai_proxy_base_url" in source, "LLMGateway missing ai_proxy_base_url usage"
 
     def test_llm_gateway_embed_has_proxy_check(self) -> None:
         """LLMGateway.embed() must check ai_proxy_enabled."""
@@ -88,39 +84,25 @@ class TestProxyEnabledChecks:
     def test_ghost_text_has_proxy_check(self) -> None:
         """GhostTextService.generate_completion() must check ai_proxy_enabled."""
         source = _GHOST_TEXT.read_text(encoding="utf-8")
-        assert "ai_proxy_enabled" in source, (
-            "GhostTextService missing ai_proxy_enabled check"
-        )
-        assert "ai_proxy_base_url" in source, (
-            "GhostTextService missing ai_proxy_base_url usage"
-        )
+        assert "ai_proxy_enabled" in source, "GhostTextService missing ai_proxy_enabled check"
+        assert "ai_proxy_base_url" in source, "GhostTextService missing ai_proxy_base_url usage"
 
     def test_pr_review_subagent_has_proxy_check(self) -> None:
         """PRReviewSubagent must check ai_proxy_enabled."""
         source = _PR_REVIEW.read_text(encoding="utf-8")
-        assert "ai_proxy_enabled" in source, (
-            "PRReviewSubagent missing ai_proxy_enabled check"
-        )
-        assert "ai_proxy_base_url" in source, (
-            "PRReviewSubagent missing ai_proxy_base_url usage"
-        )
+        assert "ai_proxy_enabled" in source, "PRReviewSubagent missing ai_proxy_enabled check"
+        assert "ai_proxy_base_url" in source, "PRReviewSubagent missing ai_proxy_base_url usage"
 
     def test_doc_generator_subagent_has_proxy_check(self) -> None:
         """DocGeneratorSubagent must check ai_proxy_enabled."""
         source = _DOC_GENERATOR.read_text(encoding="utf-8")
-        assert "ai_proxy_enabled" in source, (
-            "DocGeneratorSubagent missing ai_proxy_enabled check"
-        )
-        assert "ai_proxy_base_url" in source, (
-            "DocGeneratorSubagent missing ai_proxy_base_url usage"
-        )
+        assert "ai_proxy_enabled" in source, "DocGeneratorSubagent missing ai_proxy_enabled check"
+        assert "ai_proxy_base_url" in source, "DocGeneratorSubagent missing ai_proxy_base_url usage"
 
     def test_pilotspace_agent_has_proxy_check(self) -> None:
         """PilotSpaceAgent must check ai_proxy_enabled."""
         source = _PILOTSPACE_AGENT.read_text(encoding="utf-8")
-        assert "ai_proxy_enabled" in source, (
-            "PilotSpaceAgent missing ai_proxy_enabled check"
-        )
+        assert "ai_proxy_enabled" in source, "PilotSpaceAgent missing ai_proxy_enabled check"
         assert "ANTHROPIC_BASE_URL" in source, (
             "PilotSpaceAgent missing ANTHROPIC_BASE_URL env override"
         )
@@ -133,8 +115,7 @@ class TestProxyEnabledChecks:
             if "ai_proxy_enabled" not in source:
                 missing.append(name)
         assert not missing, (
-            f"{len(missing)} LLM call path(s) missing ai_proxy_enabled: "
-            + ", ".join(missing)
+            f"{len(missing)} LLM call path(s) missing ai_proxy_enabled: " + ", ".join(missing)
         )
 
 
@@ -239,12 +220,9 @@ class TestCostTrackingGuards:
     def test_llm_gateway_skips_cost_when_proxied(self) -> None:
         """LLMGateway must guard cost tracking with _is_proxied."""
         source = _LLM_GATEWAY.read_text(encoding="utf-8")
-        assert "_is_proxied" in source, (
-            "LLMGateway must track _is_proxied state for cost guard"
-        )
+        assert "_is_proxied" in source, "LLMGateway must track _is_proxied state for cost guard"
         assert "if not _is_proxied" in source, (
-            "LLMGateway must skip cost tracking when proxied: "
-            "'if not _is_proxied' guard missing"
+            "LLMGateway must skip cost tracking when proxied: 'if not _is_proxied' guard missing"
         )
 
     def test_ghost_text_skips_cost_when_proxied(self) -> None:

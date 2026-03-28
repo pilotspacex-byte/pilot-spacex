@@ -14,21 +14,21 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from pilot_space.ai.proxy.app import (
-    _get_cached_client,
-    _get_cached_openai_client,
-    _validate_tenant,
+    get_cached_client,
+    get_cached_openai_client,
     proxy_embeddings,
     proxy_messages,
+    validate_tenant,
 )
 
 # Kept for any code that still imports ``from ...ai_proxy import router``
 router = APIRouter(tags=["ai-proxy"])
 
 __all__ = [
-    "_get_cached_client",
-    "_get_cached_openai_client",
-    "_validate_tenant",
+    "get_cached_client",
+    "get_cached_openai_client",
     "proxy_embeddings",
     "proxy_messages",
     "router",
+    "validate_tenant",
 ]

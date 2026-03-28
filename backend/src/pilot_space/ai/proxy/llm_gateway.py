@@ -109,9 +109,9 @@ class LLMGateway:
             default_headers: Optional headers sent with every request (e.g. proxy tenant headers).
         """
         headers_key = sorted(default_headers.items()) if default_headers else ""
-        key_hash = hashlib.sha256(
-            f"{api_key}:{base_url or ''}:{headers_key}".encode()
-        ).hexdigest()[:16]
+        key_hash = hashlib.sha256(f"{api_key}:{base_url or ''}:{headers_key}".encode()).hexdigest()[
+            :16
+        ]
         if key_hash not in self._anthropic_clients:
             kwargs: dict[str, Any] = {"api_key": api_key}
             if base_url:
@@ -135,9 +135,9 @@ class LLMGateway:
             default_headers: Optional headers sent with every request (e.g. proxy tenant headers).
         """
         headers_key = sorted(default_headers.items()) if default_headers else ""
-        key_hash = hashlib.sha256(
-            f"{api_key}:{base_url or ''}:{headers_key}".encode()
-        ).hexdigest()[:16]
+        key_hash = hashlib.sha256(f"{api_key}:{base_url or ''}:{headers_key}".encode()).hexdigest()[
+            :16
+        ]
         if key_hash not in self._openai_clients:
             kwargs: dict[str, Any] = {"api_key": api_key}
             if base_url:

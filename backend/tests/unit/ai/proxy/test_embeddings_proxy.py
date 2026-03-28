@@ -66,7 +66,10 @@ def _make_embedding_response(
     if embeddings is None:
         embeddings = [[0.1, 0.2, 0.3]]
     return SimpleNamespace(
-        data=[SimpleNamespace(embedding=e, index=i, object="embedding") for i, e in enumerate(embeddings)],
+        data=[
+            SimpleNamespace(embedding=e, index=i, object="embedding")
+            for i, e in enumerate(embeddings)
+        ],
         usage=SimpleNamespace(total_tokens=total_tokens, prompt_tokens=total_tokens),
         model=model,
         object="list",
@@ -92,8 +95,8 @@ def _mock_workspace(
 # -- Test 1: Valid embeddings request returns 200 with OpenAI format -----------
 
 
-@patch(f"{_PROXY_MOD}._get_cached_openai_client")
-@patch(f"{_PROXY_MOD}._validate_tenant")
+@patch(f"{_PROXY_MOD}.get_cached_openai_client")
+@patch(f"{_PROXY_MOD}.validate_tenant")
 @patch(f"{_PROXY_MOD}.get_session")
 async def test_embeddings_returns_200_with_valid_request(
     mock_get_session: MagicMock,
@@ -101,6 +104,7 @@ async def test_embeddings_returns_200_with_valid_request(
     mock_get_client: MagicMock,
 ) -> None:
     """POST /{workspace_id}/v1/embeddings with valid path param returns 200."""
+
     # Mock session dependency to yield a dummy session
     async def _fake_session():  # type: ignore[no-untyped-def]
         yield MagicMock()
@@ -109,14 +113,14 @@ async def test_embeddings_returns_200_with_valid_request(
 
     app = _make_mock_app()
 
-    # Mock _validate_tenant to return valid tenant
+    # Mock validate_tenant to return valid tenant
     container = proxy_app.state.container
     mock_validate.return_value = (
         container.resilient_executor(),
         container.cost_tracker(),
         container.secure_key_storage(),
         None,  # base_url
-        0,     # capped_max_tokens (not used for embeddings)
+        0,  # capped_max_tokens (not used for embeddings)
     )
 
     # Mock OpenAI client
@@ -159,6 +163,7 @@ async def test_embeddings_returns_422_with_invalid_workspace_id(
     mock_get_session: MagicMock,
 ) -> None:
     """POST /{workspace_id}/v1/embeddings with invalid UUID returns 422."""
+
     async def _fake_session():  # type: ignore[no-untyped-def]
         yield MagicMock()
 
@@ -187,8 +192,8 @@ async def test_embeddings_returns_422_with_invalid_workspace_id(
 # -- Test 3: Tracks cost via CostTracker --------------------------------------
 
 
-@patch(f"{_PROXY_MOD}._get_cached_openai_client")
-@patch(f"{_PROXY_MOD}._validate_tenant")
+@patch(f"{_PROXY_MOD}.get_cached_openai_client")
+@patch(f"{_PROXY_MOD}.validate_tenant")
 @patch(f"{_PROXY_MOD}.track_llm_cost")
 @patch(f"{_PROXY_MOD}.get_session")
 async def test_embeddings_tracks_cost(
@@ -198,6 +203,7 @@ async def test_embeddings_tracks_cost(
     mock_get_client: MagicMock,
 ) -> None:
     """POST /v1/embeddings tracks cost via CostTracker."""
+
     async def _fake_session():  # type: ignore[no-untyped-def]
         yield MagicMock()
 
@@ -244,18 +250,19 @@ async def test_embeddings_tracks_cost(
     assert call_kwargs["agent_name"] == "ai_proxy"
 
 
-# -- Test 4: Validates tenant (calls _validate_tenant) -------------------------
+# -- Test 4: Validates tenant (calls validate_tenant) -------------------------
 
 
-@patch(f"{_PROXY_MOD}._get_cached_openai_client")
-@patch(f"{_PROXY_MOD}._validate_tenant")
+@patch(f"{_PROXY_MOD}.get_cached_openai_client")
+@patch(f"{_PROXY_MOD}.validate_tenant")
 @patch(f"{_PROXY_MOD}.get_session")
 async def test_embeddings_validates_tenant(
     mock_get_session: MagicMock,
     mock_validate: AsyncMock,
     mock_get_client: MagicMock,
 ) -> None:
-    """POST /v1/embeddings calls _validate_tenant for workspace checks."""
+    """POST /v1/embeddings calls validate_tenant for workspace checks."""
+
     async def _fake_session():  # type: ignore[no-untyped-def]
         yield MagicMock()
 
@@ -273,9 +280,7 @@ async def test_embeddings_validates_tenant(
     )
 
     mock_client = MagicMock()
-    mock_client.embeddings.create = AsyncMock(
-        return_value=_make_embedding_response()
-    )
+    mock_client.embeddings.create = AsyncMock(return_value=_make_embedding_response())
     mock_get_client.return_value = mock_client
 
     async with AsyncClient(

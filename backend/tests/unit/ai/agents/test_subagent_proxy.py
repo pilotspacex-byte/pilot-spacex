@@ -106,11 +106,17 @@ async def test_pr_review_proxy_enabled_uses_proxy_base_url() -> None:
             return_value=_make_settings(proxy_enabled=True),
         ),
         patch("pilot_space.ai.agents.subagents.pr_review_subagent.build_sdk_env") as mock_build,
-        patch("pilot_space.ai.agents.subagents.pr_review_subagent.ClaudeSDKClient") as mock_client_cls,
+        patch(
+            "pilot_space.ai.agents.subagents.pr_review_subagent.ClaudeSDKClient"
+        ) as mock_client_cls,
     ):
         mock_build.return_value = {"ANTHROPIC_API_KEY": TEST_API_KEY, "PATH": "", "HOME": ""}
         mock_client = AsyncMock()
-        mock_client.receive_response = AsyncMock(return_value=AsyncMock(__aiter__=lambda s: s, __anext__=AsyncMock(side_effect=StopAsyncIteration)))
+        mock_client.receive_response = AsyncMock(
+            return_value=AsyncMock(
+                __aiter__=lambda s: s, __anext__=AsyncMock(side_effect=StopAsyncIteration)
+            )
+        )
         mock_client_cls.return_value = mock_client
 
         async for _ in subagent.stream(input_data, context):
@@ -133,11 +139,17 @@ async def test_pr_review_proxy_disabled_uses_byok_base_url() -> None:
             return_value=_make_settings(proxy_enabled=False),
         ),
         patch("pilot_space.ai.agents.subagents.pr_review_subagent.build_sdk_env") as mock_build,
-        patch("pilot_space.ai.agents.subagents.pr_review_subagent.ClaudeSDKClient") as mock_client_cls,
+        patch(
+            "pilot_space.ai.agents.subagents.pr_review_subagent.ClaudeSDKClient"
+        ) as mock_client_cls,
     ):
         mock_build.return_value = {"ANTHROPIC_API_KEY": TEST_API_KEY, "PATH": "", "HOME": ""}
         mock_client = AsyncMock()
-        mock_client.receive_response = AsyncMock(return_value=AsyncMock(__aiter__=lambda s: s, __anext__=AsyncMock(side_effect=StopAsyncIteration)))
+        mock_client.receive_response = AsyncMock(
+            return_value=AsyncMock(
+                __aiter__=lambda s: s, __anext__=AsyncMock(side_effect=StopAsyncIteration)
+            )
+        )
         mock_client_cls.return_value = mock_client
 
         async for _ in subagent.stream(input_data, context):
@@ -164,11 +176,17 @@ async def test_doc_generator_proxy_enabled_uses_proxy_base_url() -> None:
             return_value=_make_settings(proxy_enabled=True),
         ),
         patch("pilot_space.ai.agents.subagents.doc_generator_subagent.build_sdk_env") as mock_build,
-        patch("pilot_space.ai.agents.subagents.doc_generator_subagent.ClaudeSDKClient") as mock_client_cls,
+        patch(
+            "pilot_space.ai.agents.subagents.doc_generator_subagent.ClaudeSDKClient"
+        ) as mock_client_cls,
     ):
         mock_build.return_value = {"ANTHROPIC_API_KEY": TEST_API_KEY, "PATH": "", "HOME": ""}
         mock_client = AsyncMock()
-        mock_client.receive_response = AsyncMock(return_value=AsyncMock(__aiter__=lambda s: s, __anext__=AsyncMock(side_effect=StopAsyncIteration)))
+        mock_client.receive_response = AsyncMock(
+            return_value=AsyncMock(
+                __aiter__=lambda s: s, __anext__=AsyncMock(side_effect=StopAsyncIteration)
+            )
+        )
         mock_client_cls.return_value = mock_client
 
         async for _ in subagent.stream(input_data, context):
@@ -191,11 +209,17 @@ async def test_doc_generator_proxy_disabled_uses_byok_base_url() -> None:
             return_value=_make_settings(proxy_enabled=False),
         ),
         patch("pilot_space.ai.agents.subagents.doc_generator_subagent.build_sdk_env") as mock_build,
-        patch("pilot_space.ai.agents.subagents.doc_generator_subagent.ClaudeSDKClient") as mock_client_cls,
+        patch(
+            "pilot_space.ai.agents.subagents.doc_generator_subagent.ClaudeSDKClient"
+        ) as mock_client_cls,
     ):
         mock_build.return_value = {"ANTHROPIC_API_KEY": TEST_API_KEY, "PATH": "", "HOME": ""}
         mock_client = AsyncMock()
-        mock_client.receive_response = AsyncMock(return_value=AsyncMock(__aiter__=lambda s: s, __anext__=AsyncMock(side_effect=StopAsyncIteration)))
+        mock_client.receive_response = AsyncMock(
+            return_value=AsyncMock(
+                __aiter__=lambda s: s, __anext__=AsyncMock(side_effect=StopAsyncIteration)
+            )
+        )
         mock_client_cls.return_value = mock_client
 
         async for _ in subagent.stream(input_data, context):

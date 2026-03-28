@@ -47,7 +47,9 @@ def _make_settings(proxy_enabled: bool = False) -> MagicMock:
     settings.ai_proxy_enabled = proxy_enabled
     settings.ai_proxy_base_url = PROXY_BASE_URL
     settings.anthropic_api_key = MagicMock()
-    settings.anthropic_api_key.get_secret_value.return_value = "sk-env-key"  # pragma: allowlist secret
+    settings.anthropic_api_key.get_secret_value.return_value = (
+        "sk-env-key"  # pragma: allowlist secret
+    )
     return settings
 
 
