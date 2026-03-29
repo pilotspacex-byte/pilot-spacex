@@ -10,6 +10,7 @@
 
 import { makeAutoObservable } from 'mobx';
 
+import type { ValidationError } from '@/features/skills/utils/graph-validation-engine';
 export type { ValidationError } from '@/features/skills/utils/graph-validation-engine';
 
 export class GraphWorkflowStore {

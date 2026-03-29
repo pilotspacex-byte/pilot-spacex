@@ -12,7 +12,7 @@
  *   GraphWorkflowInner (inner) — plain React component, NOT observer
  */
 
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -20,12 +20,14 @@ import {
   Controls,
   Background,
   BackgroundVariant,
+  Panel,
   addEdge,
   useReactFlow,
   type Node,
   type Connection,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { LayoutGrid } from 'lucide-react';
 
 import {
   WorkflowNodeType,
@@ -33,12 +35,15 @@ import {
   createWorkflowNode,
   type WorkflowNodeData,
 } from '@/features/skills/utils/graph-node-types';
+import { validateGraph } from '@/features/skills/utils/graph-validation-engine';
 import { GraphWorkflowStore } from '@/features/skills/stores/GraphWorkflowStore';
 import { GraphWorkflowContext } from '@/features/skills/contexts/graph-workflow-context';
 import { workflowNodeTypes } from '@/features/skills/components/graph-node-component';
 import { workflowEdgeTypes } from '@/features/skills/components/graph-edge-component';
 import { GraphConfigPanel } from '@/features/skills/components/graph-config-panel';
+import { GraphValidationBadge } from '@/features/skills/components/graph-validation-badge';
 import { useGraphWorkflow } from '@/features/skills/hooks/use-graph-workflow';
+import { useDagreLayout } from '@/features/skills/hooks/use-dagre-layout';
 
 // ── Inner Component (NOT observer) ──────────────────────────────────────────
 
@@ -58,6 +63,20 @@ function GraphWorkflowInner({ store }: { store: GraphWorkflowStore }) {
   } = useGraphWorkflow();
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const { applyLayout } = useDagreLayout();
+
+  // ── Validation: run on node/edge changes with 500ms debounce ───────────
+
+  const validationTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => {
+    clearTimeout(validationTimerRef.current);
+    validationTimerRef.current = setTimeout(() => {
+      const errors = validateGraph(nodes, edges);
+      store.setValidationErrors(errors);
+    }, 500);
+    return () => clearTimeout(validationTimerRef.current);
+  }, [nodes, edges, store]);
 
   // ── Connect handler with conditional edge detection ─────────────────────
 
@@ -176,6 +195,12 @@ function GraphWorkflowInner({ store }: { store: GraphWorkflowStore }) {
         return;
       }
 
+      if (isCtrlOrMeta && event.key === 'a') {
+        event.preventDefault();
+        setNodes((nds) => nds.map((n) => ({ ...n, selected: true })));
+        return;
+      }
+
       if (event.key === 'Delete' || event.key === 'Backspace') {
         // Only delete if not typing in an input
         const target = event.target as HTMLElement;
@@ -184,7 +209,7 @@ function GraphWorkflowInner({ store }: { store: GraphWorkflowStore }) {
         deleteSelected();
       }
     },
-    [undo, redo, deleteSelected]
+    [undo, redo, deleteSelected, setNodes]
   );
 
   // ── Update node data (for config panel) ──────────────────────────────────
@@ -252,6 +277,23 @@ function GraphWorkflowInner({ store }: { store: GraphWorkflowStore }) {
           maskColor="rgba(26, 26, 46, 0.7)"
         />
         <Controls position="bottom-left" className="!bottom-4 !left-4" />
+        <Panel position="top-left">
+          <button
+            type="button"
+            onClick={() => {
+              applyLayout('TB');
+              store.markDirty();
+              requestAnimationFrame(() => pushHistory());
+            }}
+            className="flex items-center gap-1.5 rounded-md bg-[#1e1e2e]/90 px-2.5 py-1.5 text-xs text-zinc-300 backdrop-blur-sm border border-[#2a2a3e] hover:bg-[#2a2a3e] transition-colors"
+          >
+            <LayoutGrid className="h-3.5 w-3.5" />
+            Auto Layout
+          </button>
+        </Panel>
+        <Panel position="top-right">
+          <GraphValidationBadge />
+        </Panel>
       </ReactFlow>
       </div>
       <GraphConfigPanel nodes={nodes} onUpdateNode={updateNodeData} />

@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Node, Edge } from '@xyflow/react';
 import { WorkflowNodeType, type WorkflowNodeData } from '../graph-node-types';
-import { validateGraph, type ValidationError } from '../graph-validation-engine';
+import { validateGraph } from '../graph-validation-engine';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
