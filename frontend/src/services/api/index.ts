@@ -76,17 +76,3 @@ export {
   type BackendNotificationPriority,
   type BackendNotificationType,
 } from './notifications';
-export {
-  roleSkillsApi,
-  type SDLCRoleType,
-  type RoleTemplate,
-  type RoleTemplatesResponse,
-  type RoleSkill,
-  type RoleSkillsResponse,
-  type CreateRoleSkillPayload,
-  type UpdateRoleSkillPayload,
-  type GenerateSkillPayload,
-  type GenerateSkillResponse,
-  type RegenerateSkillResponse,
-  type RegenerateSkillPayload,
-} from './role-skills';

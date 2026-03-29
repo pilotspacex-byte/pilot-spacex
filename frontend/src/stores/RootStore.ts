@@ -10,7 +10,6 @@ import { IssueStore } from './features/issues/IssueStore';
 import { CycleStore } from './features/cycles/CycleStore';
 import { AIStore, getAIStore } from './ai';
 import { OnboardingStore } from './OnboardingStore';
-import { RoleSkillStore } from './RoleSkillStore';
 import { TaskStore } from '@/stores/TaskStore';
 import { IssueViewStore } from './features/issues/IssueViewStore';
 import { ArtifactStore } from './features/artifacts/ArtifactStore';
@@ -26,7 +25,6 @@ export class RootStore {
   cycles: CycleStore;
   ai: AIStore;
   onboarding: OnboardingStore;
-  roleSkill: RoleSkillStore;
   tasks: TaskStore;
   issueView: IssueViewStore;
   artifacts: ArtifactStore;
@@ -41,7 +39,6 @@ export class RootStore {
     this.cycles = new CycleStore();
     this.ai = getAIStore();
     this.onboarding = new OnboardingStore();
-    this.roleSkill = new RoleSkillStore();
     this.tasks = new TaskStore();
     this.issueView = new IssueViewStore();
     this.artifacts = new ArtifactStore();
@@ -60,7 +57,6 @@ export class RootStore {
     this.ui.reset();
     this.ai.reset();
     this.onboarding.reset();
-    this.roleSkill.reset();
     this.tasks.reset();
     this.issueView.reset();
     this.artifacts.reset();
@@ -123,11 +119,6 @@ export function useOnboardingStore(): OnboardingStore {
   return useStores().onboarding;
 }
 
-/** Hook to access the RoleSkillStore from context. */
-export function useRoleSkillStore(): RoleSkillStore {
-  return useStores().roleSkill;
-}
-
 /** Hook to access the TaskStore from context. */
 export function useTaskStore(): TaskStore {
   return useStores().tasks;
@@ -160,7 +151,6 @@ export function useStore() {
     aiStore: store.ai,
     ai: store.ai, // Alias for consistency with task specs
     onboardingStore: store.onboarding,
-    roleSkillStore: store.roleSkill,
     taskStore: store.tasks,
     issueViewStore: store.issueView,
   };
