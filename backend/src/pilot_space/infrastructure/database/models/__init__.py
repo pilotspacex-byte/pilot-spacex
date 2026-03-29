@@ -124,10 +124,6 @@ from pilot_space.infrastructure.database.models.threaded_discussion import (
 )
 from pilot_space.infrastructure.database.models.transcript_cache import TranscriptCache
 from pilot_space.infrastructure.database.models.user import User
-from pilot_space.infrastructure.database.models.user_role_skill import (
-    RoleTemplate,
-    UserRoleSkill,
-)
 from pilot_space.infrastructure.database.models.user_skill import UserSkill
 from pilot_space.infrastructure.database.models.work_intent import (
     IntentArtifact,
@@ -159,7 +155,6 @@ from pilot_space.infrastructure.database.models.workspace_member import (
     WorkspaceRole,
 )
 from pilot_space.infrastructure.database.models.workspace_plugin import WorkspacePlugin
-from pilot_space.infrastructure.database.models.workspace_role_skill import WorkspaceRoleSkill
 from pilot_space.infrastructure.database.models.workspace_session import WorkspaceSession
 
 __all__ = [
@@ -234,7 +229,6 @@ __all__ = [
     "PMBlockInsight",
     "PilotAPIKey",
     "Project",
-    "RoleTemplate",
     "SkillActionButton",
     "SkillApprovalRole",
     "SkillApprovalStatus",
@@ -256,7 +250,6 @@ __all__ = [
     "ToolCallStatus",
     "TranscriptCache",
     "User",
-    "UserRoleSkill",
     "UserSkill",
     "VersionTrigger",
     "WorkIntent",
@@ -272,7 +265,6 @@ __all__ = [
     "WorkspaceOnboarding",
     "WorkspacePlugin",
     "WorkspaceRole",
-    "WorkspaceRoleSkill",
     "WorkspaceScopedMixin",
     "WorkspaceScopedModel",
     "WorkspaceSession",

@@ -89,10 +89,6 @@ from pilot_space.infrastructure.database.repositories.pilot_api_key_repository i
 from pilot_space.infrastructure.database.repositories.project_repository import (
     ProjectRepository,
 )
-from pilot_space.infrastructure.database.repositories.role_skill_repository import (
-    RoleSkillRepository,
-    RoleTemplateRepository,
-)
 from pilot_space.infrastructure.database.repositories.skill_execution_repository import (
     SkillExecutionRepository,
 )
@@ -143,8 +139,6 @@ __all__ = [
     "NoteTemplateRepository",
     "PilotAPIKeyRepository",
     "ProjectRepository",
-    "RoleSkillRepository",
-    "RoleTemplateRepository",
     "SkillExecutionRepository",
     "TaskRepository",
     "TemplateRepository",
