@@ -17,12 +17,14 @@ from uuid import UUID
 from fastapi import APIRouter, status
 
 from pilot_space.api.middleware.request_context import WorkspaceId
-from pilot_space.api.v1.dependencies import SkillGraphServiceDep
+from pilot_space.api.v1.dependencies import GraphCompilerServiceDep, SkillGraphServiceDep
 from pilot_space.api.v1.schemas.skill_graph import (
+    SkillGraphCompileResponse,
     SkillGraphCreate,
     SkillGraphResponse,
     SkillGraphUpdate,
 )
+from pilot_space.application.services.skill.graph_compiler_service import GraphCompilePayload
 from pilot_space.dependencies import CurrentUserId, DbSession
 from pilot_space.infrastructure.database.rls import set_rls_context
 
@@ -127,6 +129,41 @@ async def upsert_by_template(
     await set_rls_context(session, current_user_id, workspace_id)
     graph = await service.upsert_by_template(workspace_id, skill_template_id, payload)
     return SkillGraphResponse.model_validate(graph)
+
+
+@router.post(
+    "/{graph_id}/compile",
+    response_model=SkillGraphCompileResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Compile a skill graph to SKILL.md",
+)
+async def compile_skill_graph(
+    workspace_id: WorkspaceId,
+    graph_id: UUID,
+    session: DbSession,
+    current_user_id: CurrentUserId,
+    service: GraphCompilerServiceDep,
+) -> SkillGraphCompileResponse:
+    """Compile graph JSON into deterministic SKILL.md content.
+
+    Traverses the graph in topological order and generates structured
+    markdown. Persists result to skill_templates.skill_content.
+    """
+    await set_rls_context(session, current_user_id, workspace_id)
+    result = await service.compile(
+        GraphCompilePayload(
+            graph_id=graph_id,
+            workspace_id=workspace_id,
+            user_id=current_user_id,
+        )
+    )
+    return SkillGraphCompileResponse(
+        skill_content=result.skill_content,
+        node_order=result.node_order,
+        compiled_at=result.compiled_at,
+        graph_id=graph_id,
+        template_id=result.skill_template_id,
+    )
 
 
 __all__ = ["router"]

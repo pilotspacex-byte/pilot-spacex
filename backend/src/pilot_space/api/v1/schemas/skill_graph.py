@@ -45,4 +45,19 @@ class SkillGraphResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-__all__ = ["SkillGraphCreate", "SkillGraphResponse", "SkillGraphUpdate"]
+class SkillGraphCompileResponse(BaseModel):
+    """Response schema for graph compilation result."""
+
+    skill_content: str
+    node_order: list[str]
+    compiled_at: datetime
+    graph_id: UUID
+    template_id: UUID
+
+
+__all__ = [
+    "SkillGraphCompileResponse",
+    "SkillGraphCreate",
+    "SkillGraphResponse",
+    "SkillGraphUpdate",
+]

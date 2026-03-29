@@ -10,8 +10,8 @@ Phase 053: Graph-to-Skill Compiler
 from __future__ import annotations
 
 from collections import defaultdict, deque
-from dataclasses import dataclass
-from datetime import datetime, timezone
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
@@ -54,6 +54,7 @@ class GraphCompileResult:
     skill_content: str
     node_order: list[str]
     compiled_at: datetime
+    skill_template_id: UUID = field(default_factory=lambda: UUID(int=0))
 
 
 class GraphCompilerService:
@@ -105,7 +106,7 @@ class GraphCompilerService:
         skill_content = self._generate_skill_content(sorted_nodes, edges, graph_json)
 
         # Persist compiled content to skill_template
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         await self._session.execute(
             update(SkillTemplate)
             .where(SkillTemplate.id == graph.skill_template_id)
@@ -130,6 +131,7 @@ class GraphCompilerService:
             skill_content=skill_content,
             node_order=node_order,
             compiled_at=now,
+            skill_template_id=graph.skill_template_id,
         )
 
     @staticmethod
@@ -161,7 +163,7 @@ class GraphCompilerService:
 
         # Build adjacency list and in-degree, excluding loop edges
         adj: dict[str, list[str]] = defaultdict(list)
-        in_degree: dict[str, int] = {nid: 0 for nid in node_ids}
+        in_degree: dict[str, int] = dict.fromkeys(node_ids, 0)
 
         for edge in edges:
             edge_type = edge.get("type", "sequential")
@@ -199,8 +201,8 @@ class GraphCompilerService:
     @staticmethod
     def _generate_skill_content(
         sorted_nodes: list[dict[str, Any]],
-        edges: list[dict[str, Any]],
-        graph_json: dict[str, Any],
+        _edges: list[dict[str, Any]],
+        _graph_json: dict[str, Any],
     ) -> str:
         """Generate SKILL.md content from topologically sorted nodes.
 

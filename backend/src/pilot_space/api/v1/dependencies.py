@@ -663,6 +663,21 @@ def _get_skill_graph_service(
 
 SkillGraphServiceDep = Annotated[SkillGraphService, Depends(_get_skill_graph_service)]
 
+
+# -- Graph Compiler Service (P53-01) --
+
+from pilot_space.application.services.skill.graph_compiler_service import GraphCompilerService
+
+
+@inject
+def _get_graph_compiler_service(
+    svc: GraphCompilerService = Depends(Provide[Container.graph_compiler_service]),
+) -> GraphCompilerService:
+    return svc
+
+
+GraphCompilerServiceDep = Annotated[GraphCompilerService, Depends(_get_graph_compiler_service)]
+
 # ===== Homepage Service Dependencies =====
 
 
@@ -1084,6 +1099,7 @@ __all__ = [  # noqa: RUF022
     "PluginLifecycleServiceDep",
     "SkillGeneratorServiceDep",
     "SkillGraphServiceDep",
+    "GraphCompilerServiceDep",
 ]
 
 
