@@ -41,7 +41,12 @@ export type SSEEventType =
   | 'intent_executing'
   | 'intent_completed'
   | 'queue_update'
-  | 'skill_completed';
+  | 'skill_completed'
+  // Phase 051: Conversational Skill Generator events
+  | 'skill_draft'
+  | 'skill_preview'
+  | 'skill_saved'
+  | 'graph_update';
 
 /**
  * Base SSE event structure.
@@ -637,6 +642,15 @@ export type {
   QueueUpdateEvent,
 } from './events-workforce';
 
+// Phase 051: Skill Generator events extracted to events-skill-gen.ts.
+// Re-exported here for backward compatibility.
+export type {
+  SkillDraftEvent,
+  SkillPreviewEvent,
+  SkillSavedEvent,
+  GraphUpdateEvent,
+} from './events-skill-gen';
+
 // Type guards extracted to ./event-guards.ts to keep this file under 700 lines.
 // Re-export for backward compatibility.
 export {
@@ -665,4 +679,8 @@ export {
   isIntentCompletedEvent,
   isSkillCompletedEvent,
   isQueueUpdateEvent,
+  isSkillDraftEvent,
+  isSkillPreviewEvent,
+  isSkillSavedEvent,
+  isGraphUpdateEvent,
 } from './event-guards';

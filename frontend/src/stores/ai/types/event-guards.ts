@@ -33,6 +33,12 @@ import type {
   SkillCompletedEvent,
   QueueUpdateEvent,
 } from './events';
+import type {
+  SkillDraftEvent,
+  SkillPreviewEvent,
+  SkillSavedEvent,
+  GraphUpdateEvent,
+} from './events-skill-gen';
 
 /**
  * Type guard to narrow SSEEvent to specific event type.
@@ -233,6 +239,24 @@ export function isQueueUpdateEvent(event: SSEEvent): event is QueueUpdateEvent {
   return event.type === 'queue_update';
 }
 
+// Phase 051: Skill Generator event guards
+
+export function isSkillDraftEvent(event: SSEEvent): event is SkillDraftEvent {
+  return event.type === 'skill_draft';
+}
+
+export function isSkillPreviewEvent(event: SSEEvent): event is SkillPreviewEvent {
+  return event.type === 'skill_preview';
+}
+
+export function isSkillSavedEvent(event: SSEEvent): event is SkillSavedEvent {
+  return event.type === 'skill_saved';
+}
+
+export function isGraphUpdateEvent(event: SSEEvent): event is GraphUpdateEvent {
+  return event.type === 'graph_update';
+}
+
 const KNOWN_EVENT_TYPES = new Set([
   'message_start',
   'content_block_start',
@@ -259,6 +283,10 @@ const KNOWN_EVENT_TYPES = new Set([
   'intent_completed',
   'skill_completed',
   'queue_update',
+  'skill_draft',
+  'skill_preview',
+  'skill_saved',
+  'graph_update',
 ]);
 
 /**
