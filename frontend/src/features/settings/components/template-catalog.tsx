@@ -23,6 +23,7 @@ interface TemplateCatalogProps {
   onEditTemplate?: (template: SkillTemplate) => void;
   onToggleTemplateActive?: (template: SkillTemplate) => void;
   onDeleteTemplate?: (template: SkillTemplate) => void;
+  onPublishTemplate?: (template: SkillTemplate) => void;
 }
 
 /** Extract unique role types from templates for filter chips. */
@@ -56,6 +57,7 @@ export function TemplateCatalog({
   onEditTemplate,
   onToggleTemplateActive,
   onDeleteTemplate,
+  onPublishTemplate,
 }: TemplateCatalogProps) {
   const { data: templates, isLoading, isError, error } = useSkillTemplates(workspaceSlug);
   const [activeFilter, setActiveFilter] = React.useState<string | null>(null);
@@ -156,6 +158,7 @@ export function TemplateCatalog({
                 onEdit={onEditTemplate}
                 onToggleActive={onToggleTemplateActive}
                 onDelete={onDeleteTemplate}
+                onPublish={onPublishTemplate}
                 isAdmin={isAdmin}
               />
             </div>

@@ -23,6 +23,7 @@ import {
   Target,
   TestTube,
   Trash2,
+  Upload,
   Wand2,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -42,6 +43,7 @@ interface TemplateCardProps {
   onEdit?: (template: SkillTemplate) => void;
   onToggleActive?: (template: SkillTemplate) => void;
   onDelete?: (template: SkillTemplate) => void;
+  onPublish?: (template: SkillTemplate) => void;
   isAdmin: boolean;
 }
 
@@ -90,6 +92,7 @@ export function TemplateCard({
   onEdit,
   onToggleActive,
   onDelete,
+  onPublish,
   isAdmin,
 }: TemplateCardProps) {
   const isBuiltIn = template.source === 'built_in';
@@ -159,6 +162,12 @@ export function TemplateCard({
                     <DropdownMenuItem onClick={() => onEdit(template)}>
                       <Pencil className="mr-2 h-3.5 w-3.5" />
                       Edit
+                    </DropdownMenuItem>
+                  )}
+                  {!isBuiltIn && onPublish && (
+                    <DropdownMenuItem onClick={() => onPublish(template)}>
+                      <Upload className="mr-2 h-3.5 w-3.5" />
+                      Publish to Marketplace
                     </DropdownMenuItem>
                   )}
                   {onToggleActive && (

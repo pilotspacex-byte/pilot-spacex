@@ -9,7 +9,9 @@
 import { useCallback, useState } from 'react';
 
 import { observer } from 'mobx-react-lite';
-import { useParams } from 'next/navigation';
+import { Plus } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -49,6 +51,7 @@ const TAB_SORT_MAP: Record<TabValue, MarketplaceSearchParams['sort']> = {
 export const MarketplaceBrowsePage = observer(function MarketplaceBrowsePage() {
   const { workspaceStore } = useStore();
   const params = useParams();
+  const router = useRouter();
   const workspaceSlug = params?.workspaceSlug as string;
   const currentWorkspace = workspaceStore.getWorkspaceBySlug(workspaceSlug);
   const workspaceId = currentWorkspace?.id || workspaceSlug;
@@ -112,11 +115,23 @@ export const MarketplaceBrowsePage = observer(function MarketplaceBrowsePage() {
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">Marketplace</h1>
-        <p className="text-muted-foreground mt-2">
-          Discover and install skills for your workspace
-        </p>
+      <div className="mb-8 flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Marketplace</h1>
+          <p className="text-muted-foreground mt-2">
+            Discover and install skills for your workspace
+          </p>
+        </div>
+        <Button
+          onClick={() => {
+            router.push(`/${workspaceSlug}/skills`);
+            toast.info('Create a skill first, then publish it from the Skills page.');
+          }}
+          data-testid="create-publish-btn"
+        >
+          <Plus className="mr-1.5 h-4 w-4" />
+          Create &amp; Publish
+        </Button>
       </div>
 
       {/* Search bar */}

@@ -11,7 +11,7 @@
 import * as React from 'react';
 import { observer } from 'mobx-react-lite';
 import { useParams, useRouter } from 'next/navigation';
-import { AlertCircle, Layers, Lock, MousePointerClick, Network, Package, Plus, Wand2 } from 'lucide-react';
+import { AlertCircle, Layers, Lock, MousePointerClick, Network, Package, Plus, Store, Wand2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,7 @@ import { PluginsTabContent } from '../components/plugins-tab-content';
 import { ActionButtonsTabContent } from '../components/action-buttons-tab-content';
 import { SkillAddModal } from '../components/skill-add-modal';
 import { ConfirmActionDialog } from '../components/confirm-action-dialog';
+import { PublishModal } from '@/features/skills/components/marketplace/PublishModal';
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -113,6 +114,10 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
   // Confirm dialogs
   const [skillToDelete, setSkillToDelete] = React.useState<UserSkill | null>(null);
   const [templateToDelete, setTemplateToDelete] = React.useState<SkillTemplate | null>(null);
+
+  // Publish modal state
+  const [publishingTemplateId, setPublishingTemplateId] = React.useState<string | null>(null);
+  const [publishingTemplateName, setPublishingTemplateName] = React.useState('');
 
   // Reconcile skillToView with latest data after mutations
   React.useEffect(() => {
@@ -205,6 +210,11 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
     setTemplateToDelete(template);
   };
 
+  const handlePublishTemplate = (template: SkillTemplate) => {
+    setPublishingTemplateId(template.id);
+    setPublishingTemplateName(template.name);
+  };
+
   const handleDeleteTemplateConfirm = () => {
     if (!templateToDelete) return;
     deleteTemplate.mutate(templateToDelete.id, {
@@ -280,6 +290,15 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
           </TabsList>
           {activeTab === 'skills' && (
             <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => router.push(`/${workspaceSlug}/marketplace`)}
+                data-testid="marketplace-btn"
+              >
+                <Store className="mr-1.5 h-4 w-4" />
+                Marketplace
+              </Button>
               {isAdmin && (
                 <Button
                   size="sm"
@@ -371,6 +390,7 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
                 onEditTemplate={isAdmin ? handleEditTemplate : undefined}
                 onToggleTemplateActive={isAdmin ? handleToggleTemplateActive : undefined}
                 onDeleteTemplate={isAdmin ? handleDeleteTemplate : undefined}
+                onPublishTemplate={isAdmin ? handlePublishTemplate : undefined}
               />
             </section>
           </div>
@@ -434,6 +454,22 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
               description="This will permanently delete this skill. The AI assistant will no longer use this skill in your conversations."
               confirmLabel="Remove Skill"
               variant="destructive"
+            />
+          )}
+
+          {/* Publish to Marketplace Modal (admin only) */}
+          {isAdmin && publishingTemplateId && (
+            <PublishModal
+              open={!!publishingTemplateId}
+              onOpenChange={(v) => {
+                if (!v) {
+                  setPublishingTemplateId(null);
+                  setPublishingTemplateName('');
+                }
+              }}
+              skillTemplateId={publishingTemplateId}
+              skillTemplateName={publishingTemplateName}
+              workspaceId={workspaceId}
             />
           )}
 
