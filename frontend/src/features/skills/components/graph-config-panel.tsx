@@ -30,7 +30,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import type { Node } from '@xyflow/react';
 
-import { WorkflowNodeType, type WorkflowNodeData } from '@/features/skills/utils/graph-node-types';
+import { WorkflowNodeType, WORKFLOW_NODE_SPECS, type WorkflowNodeData } from '@/features/skills/utils/graph-node-types';
 import { useGraphWorkflowContext } from '@/features/skills/contexts/graph-workflow-context';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
