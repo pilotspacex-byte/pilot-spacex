@@ -8,7 +8,7 @@
 
 import { useState } from 'react';
 import { observer } from 'mobx-react-lite';
-import { Loader2, User, Users } from 'lucide-react';
+import { Loader2, Shield, User, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -27,9 +27,10 @@ import { saveGeneratedSkill } from '@/services/api/skills';
 type SaveType = 'personal' | 'workspace';
 
 export const SkillSaveDialog = observer(function SkillSaveDialog() {
-  const { aiStore } = useStore();
+  const { aiStore, workspaceStore } = useStore();
   const skillStore = aiStore.pilotSpace.skillGeneratorStore;
   const workspaceId = aiStore.pilotSpace.workspaceId;
+  const isAdmin = workspaceStore.isAdmin;
   const draft = skillStore.currentDraft;
   const queryClient = useQueryClient();
 
@@ -115,12 +116,18 @@ export const SkillSaveDialog = observer(function SkillSaveDialog() {
           {/* Workspace option */}
           <button
             type="button"
-            onClick={() => setSaveType('workspace')}
+            disabled={!isAdmin}
+            onClick={() => {
+              if (isAdmin) setSaveType('workspace');
+            }}
             className={cn(
               'flex items-start gap-3 rounded-lg border p-3 text-left transition-colors',
-              saveType === 'workspace'
+              !isAdmin && 'opacity-50 cursor-not-allowed',
+              isAdmin && saveType === 'workspace'
                 ? 'border-primary bg-primary/5'
-                : 'border-border hover:border-primary/40',
+                : isAdmin
+                  ? 'border-border hover:border-primary/40'
+                  : 'border-border',
             )}
             data-testid="save-option-workspace"
           >
@@ -132,6 +139,12 @@ export const SkillSaveDialog = observer(function SkillSaveDialog() {
               <p className="text-xs text-muted-foreground">
                 Available to all workspace members
               </p>
+              {!isAdmin && (
+                <span className="inline-flex items-center gap-1 mt-1 text-xs text-amber-600 dark:text-amber-400">
+                  <Shield className="h-3 w-3" />
+                  Requires admin approval
+                </span>
+              )}
             </div>
           </button>
         </div>
