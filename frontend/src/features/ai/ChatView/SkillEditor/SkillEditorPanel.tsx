@@ -55,7 +55,7 @@ export const SkillEditorPanel = observer(function SkillEditorPanel() {
   const handleCompile = useCallback(() => {
     const graphId = graphQuery.data?.id;
     if (!graphId) { toast.error('Save graph before compiling'); return; }
-    compileMutation.mutate(graphId, {
+    compileMutation.mutate({ graphId }, {
       onSuccess: (result) => {
         skillStore.updateDraftContent(result.skill_content);
         toast.success('Skill compiled successfully');
@@ -67,11 +67,11 @@ export const SkillEditorPanel = observer(function SkillEditorPanel() {
   const handlePreview = useCallback(() => {
     const graphId = graphQuery.data?.id;
     if (!graphId) return;
-    previewMutation.mutate(graphId);
+    previewMutation.mutate({ graphId });
   }, [graphQuery.data?.id, previewMutation]);
 
   const handleImport = useCallback((skillContent: string) => {
-    decompileMutation.mutate(skillContent, {
+    decompileMutation.mutate({ skill_content: skillContent }, {
       onSuccess: (result) => {
         toast.success(`Imported ${result.node_count} nodes`);
       },

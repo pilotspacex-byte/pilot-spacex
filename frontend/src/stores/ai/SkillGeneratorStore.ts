@@ -103,6 +103,11 @@ export class SkillGeneratorStore {
   closeSaveDialog(): void {
     this.isSaveDialogOpen = false;
   }
+  updateDraftContent(content: string): void {
+    if (this.currentDraft) {
+      this.currentDraft.skillContent = content;
+    }
+  }
   dismissPreview(): void {
     this.isPreviewVisible = false;
   }
