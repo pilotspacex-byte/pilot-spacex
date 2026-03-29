@@ -37,6 +37,7 @@ import { GraphWorkflowStore } from '@/features/skills/stores/GraphWorkflowStore'
 import { GraphWorkflowContext } from '@/features/skills/contexts/graph-workflow-context';
 import { workflowNodeTypes } from '@/features/skills/components/graph-node-component';
 import { workflowEdgeTypes } from '@/features/skills/components/graph-edge-component';
+import { GraphConfigPanel } from '@/features/skills/components/graph-config-panel';
 import { useGraphWorkflow } from '@/features/skills/hooks/use-graph-workflow';
 
 // ── Inner Component (NOT observer) ──────────────────────────────────────────
@@ -186,6 +187,22 @@ function GraphWorkflowInner({ store }: { store: GraphWorkflowStore }) {
     [undo, redo, deleteSelected]
   );
 
+  // ── Update node data (for config panel) ──────────────────────────────────
+
+  const updateNodeData = useCallback(
+    (id: string, partialData: Partial<WorkflowNodeData>) => {
+      setNodes((nds) =>
+        nds.map((node) =>
+          node.id === id
+            ? { ...node, data: { ...node.data, ...partialData } }
+            : node
+        )
+      );
+      store.markDirty();
+    },
+    [setNodes, store]
+  );
+
   // ── MiniMap node color ──────────────────────────────────────────────────
 
   const minimapNodeColor = useCallback((node: Node) => {
@@ -194,14 +211,15 @@ function GraphWorkflowInner({ store }: { store: GraphWorkflowStore }) {
   }, []);
 
   return (
-    <div
-      ref={containerRef}
-      className="flex-1 h-full"
-      onKeyDown={onKeyDown}
-      tabIndex={0}
-      style={{ outline: 'none' }}
-    >
-      <ReactFlow
+    <div className="flex h-full">
+      <div
+        ref={containerRef}
+        className="flex-1 h-full relative"
+        onKeyDown={onKeyDown}
+        tabIndex={0}
+        style={{ outline: 'none' }}
+      >
+        <ReactFlow
         nodes={nodes}
         edges={edges}
         nodeTypes={workflowNodeTypes}
@@ -235,6 +253,8 @@ function GraphWorkflowInner({ store }: { store: GraphWorkflowStore }) {
         />
         <Controls position="bottom-left" className="!bottom-4 !left-4" />
       </ReactFlow>
+      </div>
+      <GraphConfigPanel nodes={nodes} onUpdateNode={updateNodeData} />
     </div>
   );
 }
