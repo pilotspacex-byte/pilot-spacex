@@ -112,6 +112,7 @@ from pilot_space.application.services.rate_limit import RateLimitService
 from pilot_space.application.services.rbac_service import RbacService
 from pilot_space.application.services.related_issues import RelatedIssuesSuggestionService
 from pilot_space.application.services.role_skill import GenerateRoleSkillService
+from pilot_space.application.services.skill.graph_compiler_service import GraphCompilerService
 from pilot_space.application.services.skill.skill_generator_service import SkillGeneratorService
 from pilot_space.application.services.scim_service import ScimService
 from pilot_space.application.services.sprint_board import SprintBoardService
@@ -846,6 +847,13 @@ class Container(SkillContainer, PluginContainer):
     # Conversational skill generator (Phase 051)
     skill_generator_service = providers.Factory(
         SkillGeneratorService,
+        session=providers.Callable(get_current_session),
+        llm_gateway=llm_gateway,
+    )
+
+    # Override SkillContainer's graph_compiler_service to inject llm_gateway (Phase 053)
+    graph_compiler_service = providers.Factory(
+        GraphCompilerService,
         session=providers.Callable(get_current_session),
         llm_gateway=llm_gateway,
     )

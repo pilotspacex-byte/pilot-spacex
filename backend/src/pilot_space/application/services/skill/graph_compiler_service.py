@@ -1,8 +1,9 @@
 """GraphCompilerService: compile graph JSON to deterministic SKILL.md content.
 
 Traverses graph nodes in topological order (Kahn's algorithm) and generates
-a structured SKILL.md document. Persists compiled content to skill_templates
-and updates last_compiled_at on skill_graphs.
+a structured SKILL.md document. Optionally uses LLMGateway for AI-polished
+output. Persists compiled content to skill_templates and updates
+last_compiled_at on skill_graphs.
 
 Phase 053: Graph-to-Skill Compiler
 """
@@ -17,6 +18,11 @@ from uuid import UUID
 
 from sqlalchemy import select, update
 
+from pilot_space.ai.prompts.graph_compiler import (
+    format_graph_for_llm,
+    get_graph_compile_system_prompt,
+)
+from pilot_space.ai.providers.provider_selector import TaskType
 from pilot_space.domain.exceptions import AppError, NotFoundError, ValidationError
 from pilot_space.infrastructure.database.models.skill_graph import SkillGraph
 from pilot_space.infrastructure.database.models.skill_template import SkillTemplate
@@ -24,6 +30,8 @@ from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
+
+    from pilot_space.ai.proxy.llm_gateway import LLMGateway
 
 logger = get_logger(__name__)
 
@@ -61,17 +69,28 @@ class GraphCompilerService:
     """Compiles graph JSON to deterministic SKILL.md content.
 
     Uses Kahn's algorithm for topological traversal, producing a structured
-    markdown document with sections for each graph node.
+    markdown document with sections for each graph node. When an LLMGateway
+    is available, the mechanical output is polished by AI into coherent,
+    human-readable text.
 
     Args:
         session: Request-scoped async database session.
+        llm_gateway: Optional LLM gateway for AI-polished compilation.
     """
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        llm_gateway: LLMGateway | None = None,
+    ) -> None:
         self._session = session
+        self._llm_gateway = llm_gateway
 
     async def compile(self, payload: GraphCompilePayload) -> GraphCompileResult:
         """Compile a skill graph to SKILL.md content.
+
+        When an LLMGateway is available, uses AI synthesis for polished output.
+        Falls back to mechanical compilation when LLM is unavailable or fails.
 
         Loads the graph, performs topological sort, generates SKILL.md,
         and persists the result to skill_templates.skill_content.
@@ -102,8 +121,20 @@ class GraphCompilerService:
         sorted_nodes = self._topological_sort(nodes, edges)
         node_order = [n["id"] for n in sorted_nodes]
 
-        # Generate SKILL.md
-        skill_content = self._generate_skill_content(sorted_nodes, edges, graph_json)
+        # Generate SKILL.md — AI-polished when gateway available, mechanical otherwise
+        mechanical_content = self._generate_skill_content(sorted_nodes, edges, graph_json)
+
+        if self._llm_gateway is not None:
+            skill_content = await self._synthesize_with_ai(
+                sorted_nodes=sorted_nodes,
+                edges=edges,
+                mechanical_fallback=mechanical_content,
+                template_name=getattr(graph, "skill_template_id", "Untitled"),
+                workspace_id=payload.workspace_id,
+                user_id=payload.user_id,
+            )
+        else:
+            skill_content = mechanical_content
 
         # Persist compiled content to skill_template
         now = datetime.now(UTC)
@@ -122,9 +153,10 @@ class GraphCompilerService:
         await self._session.flush()
 
         logger.info(
-            "[GraphCompiler] Compiled graph=%s nodes=%d",
+            "[GraphCompiler] Compiled graph=%s nodes=%d ai=%s",
             payload.graph_id,
             len(sorted_nodes),
+            self._llm_gateway is not None,
         )
 
         return GraphCompileResult(
@@ -133,6 +165,62 @@ class GraphCompilerService:
             compiled_at=now,
             skill_template_id=graph.skill_template_id,
         )
+
+    async def _synthesize_with_ai(
+        self,
+        *,
+        sorted_nodes: list[dict[str, Any]],
+        edges: list[dict[str, Any]],
+        mechanical_fallback: str,
+        template_name: str,
+        workspace_id: UUID,
+        user_id: UUID,
+    ) -> str:
+        """Use LLM to synthesize polished SKILL.md from graph data.
+
+        Falls back to mechanical output if the LLM call fails.
+
+        Args:
+            sorted_nodes: Nodes in topological order.
+            edges: Graph edges.
+            mechanical_fallback: Pre-generated mechanical SKILL.md content.
+            template_name: Skill template name for context.
+            workspace_id: Workspace UUID for LLM routing.
+            user_id: User UUID for cost tracking.
+
+        Returns:
+            AI-polished or mechanical SKILL.md content.
+        """
+        assert self._llm_gateway is not None  # noqa: S101
+
+        system_prompt = get_graph_compile_system_prompt()
+        user_message = format_graph_for_llm(sorted_nodes, edges, str(template_name))
+
+        try:
+            response = await self._llm_gateway.complete(
+                workspace_id=workspace_id,
+                user_id=user_id,
+                task_type=TaskType.ROLE_SKILL_GENERATION,
+                messages=[{"role": "user", "content": user_message}],
+                system=system_prompt,
+                max_tokens=2048,
+                temperature=0.7,
+                agent_name="graph_compiler",
+            )
+            ai_content = response.text.strip()
+            if ai_content:
+                logger.info(
+                    "[GraphCompiler] AI synthesis succeeded, len=%d",
+                    len(ai_content),
+                )
+                return ai_content
+        except Exception:
+            logger.warning(
+                "[GraphCompiler] AI synthesis failed, using mechanical fallback",
+                exc_info=True,
+            )
+
+        return mechanical_fallback
 
     @staticmethod
     def _topological_sort(
