@@ -19,6 +19,9 @@ import { useStore } from '@/stores/RootStore';
 import {
   useSkillGraphMutation,
   useSkillGraphByTemplate,
+  useCompileSkillGraph,
+  usePreviewSkillGraph,
+  useDecompileSkillGraph,
 } from '@/features/skills/hooks/use-skill-graph-queries';
 import { SkillMarkdownPreview } from './SkillMarkdownPreview';
 
@@ -45,6 +48,36 @@ export const SkillEditorPanel = observer(function SkillEditorPanel() {
 
   const graphMutation = useSkillGraphMutation(workspaceId);
   const graphQuery = useSkillGraphByTemplate(workspaceId, draft?.sessionId);
+  const compileMutation = useCompileSkillGraph(workspaceId);
+  const previewMutation = usePreviewSkillGraph(workspaceId);
+  const decompileMutation = useDecompileSkillGraph(workspaceId);
+
+  const handleCompile = useCallback(() => {
+    const graphId = graphQuery.data?.id;
+    if (!graphId) { toast.error('Save graph before compiling'); return; }
+    compileMutation.mutate(graphId, {
+      onSuccess: (result) => {
+        skillStore.updateDraftContent(result.skill_content);
+        toast.success('Skill compiled successfully');
+      },
+      onError: () => toast.error('Compilation failed'),
+    });
+  }, [graphQuery.data?.id, compileMutation, skillStore]);
+
+  const handlePreview = useCallback(() => {
+    const graphId = graphQuery.data?.id;
+    if (!graphId) return;
+    previewMutation.mutate(graphId);
+  }, [graphQuery.data?.id, previewMutation]);
+
+  const handleImport = useCallback((skillContent: string) => {
+    decompileMutation.mutate(skillContent, {
+      onSuccess: (result) => {
+        toast.success(`Imported ${result.node_count} nodes`);
+      },
+      onError: () => toast.error('Decompilation failed'),
+    });
+  }, [decompileMutation]);
 
   const handleGraphSave = useCallback(
     (data: { nodes: unknown[]; edges: unknown[] }) => {
@@ -141,6 +174,10 @@ export const SkillEditorPanel = observer(function SkillEditorPanel() {
                 initialNodes={draft.graphData?.nodes as never[] | undefined}
                 initialEdges={draft.graphData?.edges as never[] | undefined}
                 onSave={handleGraphSave}
+                onCompile={handleCompile}
+                isCompiling={compileMutation.isPending}
+                onPreview={handlePreview}
+                onImport={handleImport}
               />
             </Suspense>
           </div>
