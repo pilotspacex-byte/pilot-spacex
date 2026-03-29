@@ -60,7 +60,7 @@ export const SkillEditorPanel = observer(function SkillEditorPanel() {
         skillStore.updateDraftContent(result.skill_content);
         toast.success('Skill compiled successfully');
       },
-      onError: () => toast.error('Compilation failed'),
+      onError: () => toast.error('Compilation failed', { description: 'Check graph connections and try again' }),
     });
   }, [graphQuery.data?.id, compileMutation, skillStore]);
 
@@ -75,7 +75,7 @@ export const SkillEditorPanel = observer(function SkillEditorPanel() {
       onSuccess: (result) => {
         toast.success(`Imported ${result.node_count} nodes`);
       },
-      onError: () => toast.error('Decompilation failed'),
+      onError: () => toast.error('Decompilation failed', { description: 'Verify the SKILL.md content is valid and try again' }),
     });
   }, [decompileMutation]);
 
@@ -105,7 +105,7 @@ export const SkillEditorPanel = observer(function SkillEditorPanel() {
   return (
     <div
       data-testid="skill-editor-panel"
-      className="w-[480px] min-w-[380px] border-r flex flex-col h-full bg-background"
+      className="w-full md:w-[480px] md:min-w-[380px] border-r flex flex-col h-full bg-background"
     >
       {/* Header */}
       <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-b">

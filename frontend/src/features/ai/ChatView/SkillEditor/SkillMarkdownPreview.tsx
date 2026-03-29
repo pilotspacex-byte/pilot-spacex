@@ -6,6 +6,7 @@
  */
 'use client';
 
+import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 
 interface SkillMarkdownPreviewProps {
@@ -14,7 +15,7 @@ interface SkillMarkdownPreviewProps {
 }
 
 export function SkillMarkdownPreview({ content, className }: SkillMarkdownPreviewProps) {
-  const lines = content.split('\n');
+  const lines = useMemo(() => content.split('\n'), [content]);
 
   return (
     <div className={cn('overflow-auto max-h-[calc(100vh-200px)]', className)}>

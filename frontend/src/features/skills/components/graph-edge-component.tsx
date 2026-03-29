@@ -18,6 +18,15 @@ import {
   type Edge,
 } from '@xyflow/react';
 
+// Semantic edge colors — use CSS custom properties from design tokens where possible
+const EDGE_COLORS = {
+  sequential: 'hsl(var(--muted-foreground))',
+  sequentialFlow: 'hsl(var(--muted-foreground) / 0.7)',
+  conditionTrue: 'hsl(var(--primary))',          // teal-green #29A386
+  conditionFalse: 'hsl(var(--destructive))',      // warm-red #D9534F
+  loop: '#8B7EC8',                                // in-review purple from design system
+} as const;
+
 // ── Edge data types ────────────────────────────────────────────────────────
 
 export interface ConditionalEdgeData extends Record<string, unknown> {
@@ -59,7 +68,7 @@ const SequentialEdge: FC<EdgeProps<Edge<Record<string, unknown>>>> = ({
         path={edgePath}
         style={{
           ...style,
-          stroke: '#64748b',
+          stroke: EDGE_COLORS.sequential,
           strokeWidth: 2,
         }}
         markerEnd={`url(#marker-sequential-${id})`}
@@ -69,7 +78,7 @@ const SequentialEdge: FC<EdgeProps<Edge<Record<string, unknown>>>> = ({
       <path
         d={edgePath}
         fill="none"
-        stroke="#94a3b8"
+        stroke={EDGE_COLORS.sequentialFlow}
         strokeWidth={2}
         strokeDasharray="6 4"
         className="animate-edge-flow"
@@ -116,7 +125,7 @@ const ConditionalEdge: FC<EdgeProps<Edge<ConditionalEdgeData>>> = ({
 }) => {
   const branch = data?.branch ?? 'true';
   const isTrueBranch = branch === 'true';
-  const edgeColor = isTrueBranch ? '#22c55e' : '#ef4444';
+  const edgeColor = isTrueBranch ? EDGE_COLORS.conditionTrue : EDGE_COLORS.conditionFalse;
   const labelText = isTrueBranch ? 'Yes' : 'No';
 
   const [edgePath, labelX, labelY] = getBezierPath({
@@ -202,7 +211,7 @@ const LoopEdge: FC<EdgeProps<Edge<LoopEdgeData>>> = ({
         path={edgePath}
         style={{
           ...style,
-          stroke: '#a855f7',
+          stroke: EDGE_COLORS.loop,
           strokeWidth: 2,
           strokeDasharray: '8 4',
         }}
@@ -214,7 +223,7 @@ const LoopEdge: FC<EdgeProps<Edge<LoopEdgeData>>> = ({
           className="nodrag nopan pointer-events-none absolute rounded-full px-2 py-0.5 text-xs font-semibold"
           style={{
             transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
-            backgroundColor: '#a855f7',
+            backgroundColor: EDGE_COLORS.loop,
             color: '#fff',
           }}
         >

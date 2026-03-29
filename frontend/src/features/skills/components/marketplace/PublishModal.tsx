@@ -10,7 +10,20 @@
 
 import * as React from 'react';
 
-import { Loader2 } from 'lucide-react';
+import {
+  Code,
+  Container,
+  FileSearch,
+  GanttChart,
+  GitBranch,
+  Layers,
+  Loader2,
+  Pencil,
+  Target,
+  TestTube,
+  Wand2,
+  type LucideIcon,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -49,18 +62,10 @@ const CATEGORIES = [
   'Design',
 ] as const;
 
-const ICON_OPTIONS = [
-  'Wand2',
-  'Code',
-  'FileSearch',
-  'Target',
-  'Layers',
-  'GitBranch',
-  'TestTube',
-  'Container',
-  'GanttChart',
-  'Pencil',
-] as const;
+const ICON_MAP: Record<string, LucideIcon> = {
+  Wand2, Code, FileSearch, Target, Layers, GitBranch, TestTube, Container, GanttChart, Pencil,
+};
+const ICON_OPTIONS = Object.keys(ICON_MAP) as (keyof typeof ICON_MAP)[];
 
 const SEMVER_REGEX = /^\d+\.\d+\.\d+$/;
 
@@ -346,20 +351,25 @@ export function PublishModal({
           <div className="space-y-1.5">
             <Label>Icon</Label>
             <div className="flex flex-wrap gap-1.5">
-              {ICON_OPTIONS.map((iconName) => (
-                <button
-                  key={iconName}
-                  type="button"
-                  onClick={() => updateField('icon', iconName)}
-                  className={`rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
-                    form.icon === iconName
-                      ? 'border-primary bg-primary/10 text-primary'
-                      : 'border-border bg-background text-muted-foreground hover:bg-muted'
-                  }`}
-                >
-                  {iconName}
-                </button>
-              ))}
+              {ICON_OPTIONS.map((iconName) => {
+                const IconComp = ICON_MAP[iconName];
+                return (
+                  <button
+                    key={iconName}
+                    type="button"
+                    onClick={() => updateField('icon', iconName)}
+                    aria-pressed={form.icon === iconName}
+                    className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+                      form.icon === iconName
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-border bg-background text-muted-foreground hover:bg-muted'
+                    }`}
+                  >
+                    {IconComp && <IconComp size={14} />}
+                    {iconName}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

@@ -254,23 +254,14 @@ const TYPE_FORMS: Record<WorkflowNodeType, React.FC<TypeFormProps>> = {
 
 // ── Node color map ─────────────────────────────────────────────────────────
 
-const NODE_COLORS: Record<WorkflowNodeType, string> = {
-  [WorkflowNodeType.Prompt]: '#3b82f6',
-  [WorkflowNodeType.Skill]: '#22c55e',
-  [WorkflowNodeType.Condition]: '#eab308',
-  [WorkflowNodeType.Transform]: '#a855f7',
-  [WorkflowNodeType.Input]: '#06b6d4',
-  [WorkflowNodeType.Output]: '#f97316',
-};
+// Derive from single source of truth — WORKFLOW_NODE_SPECS
+const NODE_COLORS: Record<WorkflowNodeType, string> = Object.fromEntries(
+  Object.entries(WORKFLOW_NODE_SPECS).map(([k, v]) => [k, v.color]),
+) as Record<WorkflowNodeType, string>;
 
-const NODE_ICON_NAMES: Record<WorkflowNodeType, string> = {
-  [WorkflowNodeType.Prompt]: 'MessageSquare',
-  [WorkflowNodeType.Skill]: 'Sparkles',
-  [WorkflowNodeType.Condition]: 'GitBranch',
-  [WorkflowNodeType.Transform]: 'ArrowRightLeft',
-  [WorkflowNodeType.Input]: 'ArrowDownToLine',
-  [WorkflowNodeType.Output]: 'ArrowUpFromLine',
-};
+const NODE_ICON_NAMES: Record<WorkflowNodeType, string> = Object.fromEntries(
+  Object.entries(WORKFLOW_NODE_SPECS).map(([k, v]) => [k, v.icon]),
+) as Record<WorkflowNodeType, string>;
 
 // ── Main Component (observer — safe outside ReactFlow tree) ────────────────
 

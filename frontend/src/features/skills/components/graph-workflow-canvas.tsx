@@ -287,7 +287,7 @@ function GraphWorkflowInner({ store, initialNodes: initNodes, initialEdges: init
         proOptions={{ hideAttribution: true }}
         minZoom={0.2}
         maxZoom={3}
-        className="!bg-[#1a1a2e]"
+        className="!bg-background dark:!bg-[#1a1a2e]"
         deleteKeyCode={null}
       >
         <Background
@@ -312,7 +312,8 @@ function GraphWorkflowInner({ store, initialNodes: initNodes, initialEdges: init
                 store.markDirty();
                 requestAnimationFrame(() => pushHistory());
               }}
-              className="flex items-center gap-1.5 rounded-md bg-[#1e1e2e]/90 px-2.5 py-1.5 text-xs text-zinc-300 backdrop-blur-sm border border-[#2a2a3e] hover:bg-[#2a2a3e] transition-colors"
+              className="flex items-center gap-1.5 rounded-md bg-muted/90 px-2.5 py-1.5 text-xs text-muted-foreground backdrop-blur-sm border border-border hover:bg-accent transition-colors"
+              aria-label="Auto layout graph"
             >
               <LayoutGrid className="h-3.5 w-3.5" />
               Auto Layout
@@ -321,7 +322,8 @@ function GraphWorkflowInner({ store, initialNodes: initNodes, initialEdges: init
               <button
                 type="button"
                 onClick={() => store.stopPreview()}
-                className="flex items-center gap-1.5 rounded-md bg-red-900/60 px-2.5 py-1.5 text-xs text-red-200 backdrop-blur-sm border border-red-800/50 hover:bg-red-900/80 transition-colors"
+                aria-label="Stop preview"
+                className="flex items-center gap-1.5 rounded-md bg-destructive/20 px-2.5 py-1.5 text-xs text-destructive backdrop-blur-sm border border-destructive/30 hover:bg-destructive/30 transition-colors"
               >
                 <Square className="h-3.5 w-3.5" />
                 Stop
@@ -331,7 +333,8 @@ function GraphWorkflowInner({ store, initialNodes: initNodes, initialEdges: init
                 type="button"
                 onClick={onPreview}
                 disabled={!store.graphId || store.hasErrors}
-                className="flex items-center gap-1.5 rounded-md bg-[#1e1e2e]/90 px-2.5 py-1.5 text-xs text-zinc-300 backdrop-blur-sm border border-[#2a2a3e] hover:bg-[#2a2a3e] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                aria-label="Preview execution"
+                className="flex items-center gap-1.5 rounded-md bg-muted/90 px-2.5 py-1.5 text-xs text-muted-foreground backdrop-blur-sm border border-border hover:bg-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Eye className="h-3.5 w-3.5" />
                 Preview
@@ -342,11 +345,12 @@ function GraphWorkflowInner({ store, initialNodes: initNodes, initialEdges: init
                 type="button"
                 onClick={onCompile}
                 disabled={!store.graphId || store.hasErrors || isCompiling}
-                className="flex items-center gap-1.5 rounded-md bg-emerald-900/60 px-2.5 py-1.5 text-xs text-emerald-200 backdrop-blur-sm border border-emerald-800/50 hover:bg-emerald-900/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                aria-label="Compile graph to SKILL.md"
+                className="flex items-center gap-1.5 rounded-md bg-primary/20 px-2.5 py-1.5 text-xs text-primary backdrop-blur-sm border border-primary/30 hover:bg-primary/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 data-testid="compile-btn"
               >
                 {isCompiling ? (
-                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-emerald-200/30 border-t-emerald-200" />
+                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
                 ) : (
                   <Play className="h-3.5 w-3.5" />
                 )}
@@ -356,7 +360,8 @@ function GraphWorkflowInner({ store, initialNodes: initNodes, initialEdges: init
             <button
               type="button"
               onClick={() => setShowImportDialog(true)}
-              className="flex items-center gap-1.5 rounded-md bg-[#1e1e2e]/90 px-2.5 py-1.5 text-xs text-zinc-300 backdrop-blur-sm border border-[#2a2a3e] hover:bg-[#2a2a3e] transition-colors"
+              aria-label="Import from SKILL.md"
+              className="flex items-center gap-1.5 rounded-md bg-muted/90 px-2.5 py-1.5 text-xs text-muted-foreground backdrop-blur-sm border border-border hover:bg-accent transition-colors"
             >
               <FileInput className="h-3.5 w-3.5" />
               Import

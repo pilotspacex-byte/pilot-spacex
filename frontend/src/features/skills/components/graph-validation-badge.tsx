@@ -43,7 +43,7 @@ export const GraphValidationBadge = observer(function GraphValidationBadge() {
 
   if (errors.length === 0) {
     return (
-      <div className="flex items-center gap-1.5 rounded-md bg-emerald-950/80 px-2.5 py-1.5 text-xs text-emerald-400 backdrop-blur-sm border border-emerald-800/40">
+      <div className="flex items-center gap-1.5 rounded-md bg-primary/10 px-2.5 py-1.5 text-xs text-primary backdrop-blur-sm border border-primary/20">
         <CheckCircle2 className="h-3.5 w-3.5" />
         Valid
       </div>
@@ -54,7 +54,7 @@ export const GraphValidationBadge = observer(function GraphValidationBadge() {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
-          className="flex items-center gap-1.5 rounded-md bg-red-950/80 px-2.5 py-1.5 text-xs text-red-400 backdrop-blur-sm border border-red-800/40 hover:bg-red-950 transition-colors"
+          className="flex items-center gap-1.5 rounded-md bg-destructive/10 px-2.5 py-1.5 text-xs text-destructive backdrop-blur-sm border border-destructive/20 hover:bg-destructive/15 transition-colors"
           type="button"
         >
           <XCircle className="h-3.5 w-3.5" />
@@ -63,19 +63,19 @@ export const GraphValidationBadge = observer(function GraphValidationBadge() {
       </PopoverTrigger>
       <PopoverContent
         align="end"
-        className="w-72 p-0 bg-[#1e1e2e] border-[#2a2a3e]"
+        className="w-72 p-0"
       >
-        <div className="px-3 py-2 border-b border-[#2a2a3e]">
-          <p className="text-xs font-medium text-zinc-300">Validation Errors</p>
+        <div className="px-3 py-2 border-b">
+          <p className="text-xs font-medium">Validation Errors</p>
         </div>
         <div className="max-h-48 overflow-y-auto">
           {errors.map((error, i) => (
             <div
               key={`${error.nodeId}-${error.type}-${i}`}
-              className="flex items-start gap-2 px-3 py-2 border-b border-[#2a2a3e]/50 last:border-b-0"
+              className="flex items-start gap-2 px-3 py-2 border-b border-border/50 last:border-b-0"
             >
               <ErrorIcon type={error.type} />
-              <span className="text-xs text-zinc-400 leading-tight">
+              <span className="text-xs text-muted-foreground leading-tight">
                 {error.message}
               </span>
             </div>
