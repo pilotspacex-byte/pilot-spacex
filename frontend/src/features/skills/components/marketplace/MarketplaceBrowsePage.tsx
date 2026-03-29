@@ -11,7 +11,6 @@ import { useCallback, useState } from 'react';
 import { observer } from 'mobx-react-lite';
 import { Plus } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
-import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -123,10 +122,7 @@ export const MarketplaceBrowsePage = observer(function MarketplaceBrowsePage() {
           </p>
         </div>
         <Button
-          onClick={() => {
-            router.push(`/${workspaceSlug}/skills`);
-            toast.info('Create a skill first, then publish it from the Skills page.');
-          }}
+          onClick={() => router.push(`/${workspaceSlug}/skills/generator`)}
           data-testid="create-publish-btn"
         >
           <Plus className="mr-1.5 h-4 w-4" />

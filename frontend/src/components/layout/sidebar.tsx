@@ -530,6 +530,28 @@ export const Sidebar = observer(function Sidebar() {
                                     {badgeCount}
                                   </span>
                                 )}
+                                {item.path === 'skills' && canCreateContent && (
+                                  <Tooltip delayDuration={300}>
+                                    <TooltipTrigger asChild>
+                                      <button
+                                        type="button"
+                                        data-testid="sidebar-add-skill"
+                                        aria-label="Create Skill"
+                                        className="ml-auto flex h-4 w-4 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          router.push(`/${workspaceSlug}/skills/generator`);
+                                        }}
+                                      >
+                                        <Plus className="h-3 w-3" />
+                                      </button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="right" className="text-xs">
+                                      Create Skill
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
                               </motion.span>
                             )}
                             {/* Collapsed badge dot */}
