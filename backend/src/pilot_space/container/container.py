@@ -111,7 +111,6 @@ from pilot_space.application.services.project_detail import ProjectDetailService
 from pilot_space.application.services.rate_limit import RateLimitService
 from pilot_space.application.services.rbac_service import RbacService
 from pilot_space.application.services.related_issues import RelatedIssuesSuggestionService
-from pilot_space.application.services.role_skill import GenerateRoleSkillService
 from pilot_space.application.services.skill.graph_compiler_service import GraphCompilerService
 from pilot_space.application.services.skill.graph_decompiler_service import GraphDecompilerService
 from pilot_space.application.services.skill.skill_generator_service import SkillGeneratorService
@@ -200,7 +199,6 @@ class Container(SkillContainer, PluginContainer):
             "pilot_space.api.v1.dependencies_pilot",
             "pilot_space.api.v1.repository_deps",
             "pilot_space.api.v1.intent_deps",
-            "pilot_space.api.v1.dependencies_workspace_skills",
             "pilot_space.api.v1.routers.project_artifacts",
             "pilot_space.api.v1.routers.artifact_annotations",
             "pilot_space.api.v1.routers.notes_ai",
@@ -210,7 +208,6 @@ class Container(SkillContainer, PluginContainer):
             "pilot_space.application.services.extraction.extract_issues_service",
             "pilot_space.application.services.memory.graph_extraction_service",
             "pilot_space.application.services.intent.detection_service",
-            "pilot_space.application.services.role_skill.generate_role_skill_service",
             "pilot_space.application.services.version.digest_service",
             "pilot_space.ai.jobs.digest_job",
             "pilot_space.application.services.embedding_service",
@@ -835,13 +832,6 @@ class Container(SkillContainer, PluginContainer):
         session=providers.Callable(get_current_session),
         intent_repository=InfraContainer.work_intent_repository,
         redis_client=InfraContainer.redis_client,
-        llm_gateway=llm_gateway,
-    )
-
-    # Override SkillContainer's generate_role_skill_service to inject llm_gateway
-    generate_role_skill_service = providers.Factory(
-        GenerateRoleSkillService,
-        session=providers.Callable(get_current_session),
         llm_gateway=llm_gateway,
     )
 

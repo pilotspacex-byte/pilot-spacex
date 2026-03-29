@@ -132,9 +132,6 @@ from pilot_space.infrastructure.database.repositories.pm_block_queries_repositor
 from pilot_space.infrastructure.database.repositories.project_repository import (
     ProjectRepository,
 )
-from pilot_space.infrastructure.database.repositories.role_skill_repository import (
-    RoleSkillRepository,
-)
 from pilot_space.infrastructure.database.repositories.skill_action_button_repository import (
     SkillActionButtonRepository,
 )
@@ -344,11 +341,6 @@ class InfraContainer(containers.DeclarativeContainer):
 
     onboarding_repository = providers.Factory(
         OnboardingRepository,
-        session=providers.Callable(get_current_session),
-    )
-
-    role_skill_repository = providers.Factory(
-        RoleSkillRepository,
         session=providers.Callable(get_current_session),
     )
 

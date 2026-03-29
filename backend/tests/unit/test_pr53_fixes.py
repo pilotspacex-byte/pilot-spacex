@@ -6,7 +6,6 @@ Covers:
 - UserSkillCreate model validator
 - ConversationExtractionPayload model_name field
 - extract_and_persist_to_graph Ollama keyless path
-- GenerateRoleSkillService JSON parse guard for non-dict payloads
 """
 
 from __future__ import annotations
@@ -86,37 +85,6 @@ class TestSkillNameFallback:
         result = _build_skills_section(config)
         assert result is not None
         assert "**My Skill**" in result
-
-
-class TestGenerateRoleSkillJsonGuard:
-    """Tests for JSON parse guard against non-dict payloads."""
-
-    def test_json_list_does_not_crash(self) -> None:
-        """Valid JSON that's a list should not raise AttributeError."""
-        from unittest.mock import AsyncMock
-
-        from pilot_space.application.services.role_skill.generate_role_skill_service import (
-            GenerateRoleSkillService,
-        )
-
-        svc = GenerateRoleSkillService(session=AsyncMock())
-        # A valid JSON list (not dict) should be handled gracefully
-        result = svc._parse_ai_response('["item1", "item2"]', "Developer", None, "test-model")
-        # Should return None (no valid skill_content extracted)
-        assert result is None
-
-    def test_json_string_does_not_crash(self) -> None:
-        """Valid JSON string should not raise AttributeError."""
-        from unittest.mock import AsyncMock
-
-        from pilot_space.application.services.role_skill.generate_role_skill_service import (
-            GenerateRoleSkillService,
-        )
-
-        svc = GenerateRoleSkillService(session=AsyncMock())
-        result = svc._parse_ai_response('"just a string"', "Developer", None, "test-model")
-        # Raw text too short (< 50 chars), so returns None
-        assert result is None
 
 
 class TestUserSkillCreateValidator:

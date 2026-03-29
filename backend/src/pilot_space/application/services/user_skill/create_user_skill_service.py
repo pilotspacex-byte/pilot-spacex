@@ -10,10 +10,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from pilot_space.application.services.role_skill.generate_role_skill_service import (
-    GenerateRoleSkillPayload,
-    GenerateRoleSkillService,
-)
 from pilot_space.domain.exceptions import ValidationError
 from pilot_space.infrastructure.database.models.skill_template import SkillTemplate
 from pilot_space.infrastructure.database.repositories.skill_template_repository import (
@@ -154,34 +150,39 @@ class CreateUserSkillService:
         user_id: UUID,
         workspace_id: UUID,
     ) -> str:
-        """Generate personalized skill content via AI.
+        """Generate personalized skill content from template.
 
-        Reuses GenerateRoleSkillService pattern with template content
-        as context. Falls back to template content + experience if AI unavailable.
+        Uses template skill_content as the base and appends the user's
+        experience description for personalization. AI-based generation
+        is available via the conversational SkillGeneratorService (Phase 51).
 
         Args:
             template: SkillTemplate with name, skill_content, role_type.
             experience_description: User's experience description.
-            user_id: The user UUID for rate limiting.
-            workspace_id: The workspace UUID for API key resolution.
+            user_id: The user UUID (unused, kept for signature compatibility).
+            workspace_id: The workspace UUID (unused, kept for signature compatibility).
 
         Returns:
             Generated skill content markdown.
         """
-        role_type = template.role_type or "custom"
-        template_name = template.name
+        # Use template content as base with experience personalization
+        base_content = template.skill_content or ""
+        if experience_description.strip():
+            content = (
+                f"{base_content}\n\n"
+                f"## Experience Context\n\n"
+                f"{experience_description}"
+            )
+        else:
+            content = base_content
 
-        gen_service = GenerateRoleSkillService(self._session)
-        payload = GenerateRoleSkillPayload(
-            role_type=role_type,
-            experience_description=experience_description,
-            role_name=template_name,
-            workspace_id=workspace_id,
-            user_id=user_id,
+        logger.info(
+            "Generated skill from template=%s user=%s workspace=%s (template-based)",
+            template.id,
+            user_id,
+            workspace_id,
         )
-
-        result = await gen_service.execute(payload)
-        return result.skill_content
+        return content
 
 
 __all__ = ["CreateUserSkillService"]

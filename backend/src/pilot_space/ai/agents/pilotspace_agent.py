@@ -746,9 +746,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         from pilot_space.ai.sdk.output_schemas import get_skill_output_format
         from pilot_space.ai.sdk.question_adapter import create_can_use_tool_callback
         from pilot_space.ai.tools.mcp_server import ToolContext
-        from pilot_space.infrastructure.database.repositories.role_skill_repository import (
-            RoleSkillRepository,
-        )
         from pilot_space.infrastructure.database.repositories.user_skill_repository import (
             UserSkillRepository,
         )
@@ -773,6 +770,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
 
         # Load user skills for prompt-level awareness (separate from disk materialization)
         _user_skills_for_prompt: list[dict[str, str]] = []
+        _role_type: str | None = None
         try:
             _active_skills = await UserSkillRepository(db_session).get_active_by_user_workspace(
                 context.user_id, context.workspace_id
@@ -785,15 +783,11 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                     else (_s.experience_description or "")[:120]
                 )
                 _user_skills_for_prompt.append({"name": name, "description": desc})
+                # Derive role_type from first skill with a template role_type
+                if _role_type is None and _s.template and getattr(_s.template, "role_type", None):
+                    _role_type = _s.template.role_type
         except Exception:
             logger.warning("Failed to load user skills for prompt", exc_info=True)
-
-        _role_repo = RoleSkillRepository(db_session)
-        _primary_role = await _role_repo.get_primary_by_user_workspace(
-            context.user_id,
-            context.workspace_id,
-        )
-        _role_type = _primary_role.role_type if _primary_role else None
 
         if input_data.user_id is None:
             raise ValueError("user_id is required for AI interactions")

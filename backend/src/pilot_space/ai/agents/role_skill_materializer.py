@@ -3,9 +3,7 @@
 Writes user's skills as SKILL.md files to the sandbox's `.claude/skills/`
 directory so the Claude Agent SDK auto-discovers them.
 
-Primary path: reads from user_skills + skill_templates tables (Phase 20).
-Fallback path: reads from user_role_skills + workspace_role_skills (legacy).
-OperationalError on new tables triggers fallback automatically.
+Reads from user_skills + skill_templates tables (Phase 20).
 
 Source: 011-role-based-skills, FR-006, FR-007, FR-008, FR-014, Phase 20
 """
@@ -60,9 +58,8 @@ async def materialize_role_skills(
 ) -> int:
     """Write user's skills to the skills directory as SKILL.md files.
 
-    Tries new tables (user_skills + skill_templates) first.
-    Falls back to legacy tables on OperationalError.
-    Always calls materialize_plugin_skills at the end.
+    Reads from user_skills + skill_templates tables directly.
+    Also materializes plugin skills at the end.
 
     Args:
         db_session: Active database session.
@@ -73,17 +70,7 @@ async def materialize_role_skills(
     Returns:
         Number of skills materialized (0 if user has none).
     """
-    from sqlalchemy.exc import OperationalError
-
-    try:
-        count = await _materialize_from_new_tables(db_session, user_id, workspace_id, skills_dir)
-    except OperationalError:
-        logger.debug(
-            "New skill tables not accessible for user %s workspace %s, falling back to legacy",
-            user_id,
-            workspace_id,
-        )
-        count = await _materialize_from_legacy_tables(db_session, user_id, workspace_id, skills_dir)
+    count = await _materialize_from_new_tables(db_session, user_id, workspace_id, skills_dir)
 
     # SKRG-03: materialize plugin skills (workspace-scoped, all members)
     plugin_count = await materialize_plugin_skills(
@@ -201,95 +188,6 @@ async def _materialize_from_new_tables(
     return total
 
 
-async def _materialize_from_legacy_tables(
-    db_session: AsyncSession,
-    user_id: UUID,
-    workspace_id: UUID,
-    skills_dir: Path,
-) -> int:
-    """Materialize skills from legacy user_role_skills + workspace_role_skills.
-
-    This is the pre-Phase-20 path, kept for backward compatibility until
-    migration 077 is applied everywhere.
-
-    Args:
-        db_session: Active database session.
-        user_id: Current user UUID.
-        workspace_id: Current workspace UUID.
-        skills_dir: Path to ``.claude/skills/`` in the sandbox.
-
-    Returns:
-        Number of role skills materialized.
-    """
-    from pilot_space.infrastructure.database.repositories.role_skill_repository import (
-        RoleSkillRepository,
-    )
-
-    repo = RoleSkillRepository(db_session)
-    skills = await repo.get_by_user_workspace(user_id, workspace_id)
-
-    expected_dirs: set[str] = set()
-
-    for skill in skills:
-        dir_name = f"{_SKILL_PREFIX}{skill.role_type}"
-        expected_dirs.add(dir_name)
-        skill_dir = skills_dir / dir_name
-
-        frontmatter = _build_legacy_frontmatter(skill.role_name, skill.role_type, skill.is_primary)
-        content = f"{frontmatter}\n{skill.skill_content}"
-        await asyncio.to_thread(_write_skill_file, skill_dir, content)
-
-    # WRSKL-03: workspace skills fallback
-    from sqlalchemy.exc import OperationalError
-
-    from pilot_space.infrastructure.database.repositories.workspace_role_skill_repository import (
-        WorkspaceRoleSkillRepository,
-    )
-
-    user_role_types = {s.role_type for s in skills}
-    ws_repo = WorkspaceRoleSkillRepository(db_session)
-    try:
-        workspace_skills = await ws_repo.get_active_by_workspace(workspace_id)
-    except OperationalError:
-        logger.debug(
-            "workspace_role_skills table not accessible for workspace %s, skipping",
-            workspace_id,
-        )
-        workspace_skills = []
-
-    for ws_skill in workspace_skills:
-        if ws_skill.role_type in user_role_types:
-            continue
-        dir_name = f"{_SKILL_PREFIX}{ws_skill.role_type}"
-        expected_dirs.add(dir_name)
-        skill_dir = skills_dir / dir_name
-        frontmatter = _build_legacy_workspace_frontmatter(ws_skill.role_name, ws_skill.role_type)
-        content = f"{frontmatter}\n{ws_skill.skill_content}"
-        await asyncio.to_thread(_write_skill_file, skill_dir, content)
-
-    await asyncio.to_thread(_cleanup_stale_role_skills, skills_dir, expected_dirs)
-
-    total = len(skills) + sum(
-        1 for ws_skill in workspace_skills if ws_skill.role_type not in user_role_types
-    )
-
-    if total == 0:
-        logger.debug(
-            "No role skills to materialize for user %s in workspace %s",
-            user_id,
-            workspace_id,
-        )
-    else:
-        logger.info(
-            "Materialized %d legacy role skills for user %s in workspace %s",
-            total,
-            user_id,
-            workspace_id,
-        )
-
-    return total
-
-
 def _write_skill_file(skill_dir: Path, content: str) -> None:
     """Write a single SKILL.md file (runs in thread pool)."""
     skill_dir.mkdir(parents=True, exist_ok=True)
@@ -333,48 +231,6 @@ def _build_workspace_frontmatter(name: str, template_id: str) -> str:
         "---",
         f"name: skill-{sanitized}",
         f'description: "{name}" workspace skill (inherited)',
-        "origin: workspace",
-        "---",
-    ]
-    return "\n".join(lines)
-
-
-def _build_legacy_frontmatter(role_name: str, role_type: str, is_primary: bool) -> str:
-    """Build YAML frontmatter for legacy role skill SKILL.md file.
-
-    Args:
-        role_name: Display name (e.g., "Senior Developer").
-        role_type: Role type key (e.g., "developer").
-        is_primary: Whether this is the user's primary role.
-
-    Returns:
-        YAML frontmatter string including delimiters.
-    """
-    lines = [
-        "---",
-        f"name: skill-{role_type}",
-        f'description: "{role_name}" skill for AI context personalization',
-    ]
-    if is_primary:
-        lines.append("priority: primary")
-    lines.append("---")
-    return "\n".join(lines)
-
-
-def _build_legacy_workspace_frontmatter(role_name: str, role_type: str) -> str:
-    """Build YAML frontmatter for legacy workspace-inherited skill files.
-
-    Args:
-        role_name: Display name.
-        role_type: Role type key.
-
-    Returns:
-        YAML frontmatter string including delimiters and origin: workspace.
-    """
-    lines = [
-        "---",
-        f"name: skill-{role_type}",
-        f'description: "{role_name}" workspace skill (inherited)',
         "origin: workspace",
         "---",
     ]

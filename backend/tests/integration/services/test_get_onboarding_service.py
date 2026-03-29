@@ -28,7 +28,7 @@ from pilot_space.infrastructure.database.models.ai_configuration import (
     AIConfiguration,
 )
 from pilot_space.infrastructure.database.models.onboarding import WorkspaceOnboarding
-from pilot_space.infrastructure.database.models.user_role_skill import UserRoleSkill
+from pilot_space.infrastructure.database.models.user_skill import UserSkill
 from pilot_space.infrastructure.database.models.workspace_api_key import (
     WorkspaceAPIKey,
 )
@@ -253,18 +253,16 @@ class TestGetOnboardingAutoSync:
         self,
         db_session: AsyncSession,
     ) -> None:
-        """role_setup step should be marked True when a UserRoleSkill exists."""
+        """role_setup step should be marked True when a UserSkill exists."""
         owner, workspace = await _seed_workspace(db_session)
 
-        # Add a role skill for this workspace
-        role_skill = UserRoleSkill(
+        # Add a user skill for this workspace
+        user_skill = UserSkill(
             workspace_id=workspace.id,
             user_id=owner.id,
-            role_type="developer",
-            role_name="Senior Developer",
             skill_content="# Developer Skill\nTest content.",
         )
-        db_session.add(role_skill)
+        db_session.add(user_skill)
         await db_session.flush()
 
         service = GetOnboardingService(session=db_session)
@@ -277,7 +275,7 @@ class TestGetOnboardingAutoSync:
         self,
         db_session: AsyncSession,
     ) -> None:
-        """role_setup step should remain False when no UserRoleSkill exists."""
+        """role_setup step should remain False when no UserSkill exists."""
         _owner, workspace = await _seed_workspace(db_session)
 
         service = GetOnboardingService(session=db_session)

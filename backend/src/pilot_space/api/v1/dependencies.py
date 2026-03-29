@@ -101,13 +101,6 @@ from pilot_space.application.services.project_detail import ProjectDetailService
 from pilot_space.application.services.rate_limit import RateLimitService
 from pilot_space.application.services.rbac_service import RbacService
 from pilot_space.application.services.related_issues import RelatedIssuesSuggestionService
-from pilot_space.application.services.role_skill import (
-    CreateRoleSkillService,
-    DeleteRoleSkillService,
-    GenerateRoleSkillService,
-    ListRoleSkillsService,
-    UpdateRoleSkillService,
-)
 from pilot_space.application.services.scim_service import ScimService
 from pilot_space.application.services.sprint_board import SprintBoardService
 from pilot_space.application.services.task_service import TaskService
@@ -573,66 +566,6 @@ UpdateOnboardingServiceDep = Annotated[
     UpdateOnboardingService, Depends(_get_update_onboarding_service)
 ]
 
-# ===== Role Skill Service Dependencies =====
-
-
-@inject
-def _get_create_role_skill_service(
-    svc: CreateRoleSkillService = Depends(Provide[Container.create_role_skill_service]),
-) -> CreateRoleSkillService:
-    return svc
-
-
-CreateRoleSkillServiceDep = Annotated[
-    CreateRoleSkillService, Depends(_get_create_role_skill_service)
-]
-
-
-@inject
-def _get_update_role_skill_service(
-    svc: UpdateRoleSkillService = Depends(Provide[Container.update_role_skill_service]),
-) -> UpdateRoleSkillService:
-    return svc
-
-
-UpdateRoleSkillServiceDep = Annotated[
-    UpdateRoleSkillService, Depends(_get_update_role_skill_service)
-]
-
-
-@inject
-def _get_delete_role_skill_service(
-    svc: DeleteRoleSkillService = Depends(Provide[Container.delete_role_skill_service]),
-) -> DeleteRoleSkillService:
-    return svc
-
-
-DeleteRoleSkillServiceDep = Annotated[
-    DeleteRoleSkillService, Depends(_get_delete_role_skill_service)
-]
-
-
-@inject
-def _get_list_role_skills_service(
-    svc: ListRoleSkillsService = Depends(Provide[Container.list_role_skills_service]),
-) -> ListRoleSkillsService:
-    return svc
-
-
-ListRoleSkillsServiceDep = Annotated[ListRoleSkillsService, Depends(_get_list_role_skills_service)]
-
-
-@inject
-def _get_generate_role_skill_service(
-    svc: GenerateRoleSkillService = Depends(Provide[Container.generate_role_skill_service]),
-) -> GenerateRoleSkillService:
-    return svc
-
-
-GenerateRoleSkillServiceDep = Annotated[
-    GenerateRoleSkillService, Depends(_get_generate_role_skill_service)
-]
-
 # ===== Skill Generator Service Dependencies =====
 
 from pilot_space.application.services.skill.skill_generator_service import SkillGeneratorService
@@ -1094,15 +1027,12 @@ __all__ = [  # noqa: RUF022
     "CreateIssueServiceDep",
     "CreateNoteFromChatServiceDep",
     "CreateNoteServiceDep",
-    "CreateRoleSkillServiceDep",
     "DeleteIssueServiceDep",
     "DeleteNoteServiceDep",
-    "DeleteRoleSkillServiceDep",
     "DismissSuggestionServiceDep",
     "ExportAIContextServiceDep",
     "GenerateAIContextServiceDep",
     "GeneratePlanServiceDep",
-    "GenerateRoleSkillServiceDep",
     "GetActivityServiceDep",
     "GetCycleServiceDep",
     "GetDigestServiceDep",
@@ -1114,7 +1044,6 @@ __all__ = [  # noqa: RUF022
     "ListAnnotationsServiceDep",
     "ListIssuesServiceDep",
     "ListNotesServiceDep",
-    "ListRoleSkillsServiceDep",
     "NoteAIUpdateServiceDep",
     "PinNoteServiceDep",
     "ProcessGitHubWebhookServiceDep",
@@ -1125,7 +1054,6 @@ __all__ = [  # noqa: RUF022
     "UpdateIssueServiceDep",
     "UpdateNoteServiceDep",
     "UpdateOnboardingServiceDep",
-    "UpdateRoleSkillServiceDep",
     "MemberProfileServiceDep",
     "WorkspaceServiceDep",
     "WorkspaceMemberServiceDep",

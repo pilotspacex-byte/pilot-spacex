@@ -67,8 +67,6 @@ from pilot_space.api.v1.routers import (
     project_artifacts_router,
     projects_router,
     related_issues_router,
-    role_skills_router,
-    role_templates_router,
     scim_router,
     skill_approvals_router,
     skill_generator_router,
@@ -106,7 +104,6 @@ from pilot_space.api.v1.routers.workspace_action_buttons import (
     router as workspace_action_buttons_router,
 )
 from pilot_space.api.v1.routers.workspace_plugins import router as workspace_plugins_router
-from pilot_space.api.v1.routers.workspace_role_skills import router as workspace_role_skills_router
 from pilot_space.api.v1.routers.workspace_scim_settings import workspace_scim_settings_router
 
 dotenv.load_dotenv()
@@ -358,7 +355,6 @@ app.include_router(workspace_quota_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_cycles_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_issues_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(related_issues_router, prefix=f"{API_V1_PREFIX}/workspaces")
-app.include_router(workspace_role_skills_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(skill_templates_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(skill_graphs_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(marketplace_router, prefix=f"{API_V1_PREFIX}/workspaces")
@@ -401,8 +397,6 @@ app.include_router(
 app.include_router(onboarding_router, prefix=API_V1_PREFIX)
 app.include_router(homepage_router, prefix=API_V1_PREFIX)
 app.include_router(homepage_notes_from_chat_router, prefix=API_V1_PREFIX)
-app.include_router(role_templates_router, prefix=API_V1_PREFIX)
-app.include_router(role_skills_router, prefix=API_V1_PREFIX)
 app.include_router(skills_router, prefix=API_V1_PREFIX)
 app.include_router(skill_approvals_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(skill_generator_router, prefix=API_V1_PREFIX)

@@ -186,17 +186,17 @@ class GetOnboardingService:
                 await repo.update_step(workspace_id, "invite_members", completed=True)
                 synced = True
 
-        # Auto-detect role_setup: check if any user in workspace has a role skill
+        # Auto-detect role_setup: check if any user in workspace has a skill
         if not steps.get("role_setup", False):
-            from pilot_space.infrastructure.database.models.user_role_skill import (
-                UserRoleSkill,
+            from pilot_space.infrastructure.database.models.user_skill import (
+                UserSkill,
             )
 
             skill_count = await self._session.scalar(
                 select(func.count())
-                .select_from(UserRoleSkill)
+                .select_from(UserSkill)
                 .where(
-                    UserRoleSkill.workspace_id == workspace_id,
+                    UserSkill.workspace_id == workspace_id,
                 )
             )
             if skill_count and skill_count > 0:

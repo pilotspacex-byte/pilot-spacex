@@ -1,7 +1,7 @@
 """Skill generation prompt templates.
 
 Prompts for AI-powered SKILL.md content generation.
-Used by GenerateRoleSkillService to produce personalized skill profiles.
+Used by skill generation services to produce personalized skill profiles.
 
 The prompt requests JSON output including skill_content, suggested_role_name,
 suggested_tags, and suggested_usage.
