@@ -15,15 +15,21 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
+from sqlalchemy import select
+
 from pilot_space.ai.prompts.skill_generator import (
     get_skill_generation_system_prompt,
     get_skill_refinement_prompt,
 )
 from pilot_space.ai.providers.provider_selector import TaskType
-from pilot_space.domain.exceptions import AppError, ValidationError
+from pilot_space.domain.exceptions import AppError, ForbiddenError, ValidationError
 from pilot_space.infrastructure.database.models.skill_graph import SkillGraph
 from pilot_space.infrastructure.database.models.skill_template import SkillTemplate
 from pilot_space.infrastructure.database.models.user_skill import UserSkill
+from pilot_space.infrastructure.database.models.workspace_member import (
+    WorkspaceMember,
+    WorkspaceRole,
+)
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -209,14 +215,38 @@ class SkillGeneratorService:
 
         Raises:
             ValidationError: If save_type is invalid.
+            ForbiddenError: If non-admin user attempts workspace save.
         """
         if payload.save_type not in ("personal", "workspace"):
             msg = f"Invalid save_type: {payload.save_type}"
             raise ValidationError(msg)
 
+        if payload.save_type == "workspace":
+            await self._verify_admin_role(payload.workspace_id, payload.user_id)
+
         if payload.save_type == "personal":
             return await self._save_personal(payload)
         return await self._save_workspace(payload)
+
+    async def _verify_admin_role(self, workspace_id: UUID, user_id: UUID) -> None:
+        """Verify user has admin or owner role in the workspace.
+
+        Raises:
+            ForbiddenError: If user is not a member or lacks admin/owner role.
+        """
+        stmt = select(WorkspaceMember.role).where(
+            WorkspaceMember.workspace_id == workspace_id,
+            WorkspaceMember.user_id == user_id,
+            WorkspaceMember.is_active.is_(True),
+            WorkspaceMember.is_deleted.is_(False),
+        )
+        result = await self._session.execute(stmt)
+        row = result.scalar()
+        if row is None:
+            raise ForbiddenError("Not a member of this workspace")
+        role = row.value if hasattr(row, "value") else str(row)
+        if role not in (WorkspaceRole.ADMIN.value, WorkspaceRole.OWNER.value):
+            raise ForbiddenError("Admin or owner role required to save workspace skills")
 
     async def _save_personal(self, payload: SkillSavePayload) -> SkillSaveResult:
         """Create a UserSkill record for personal save."""

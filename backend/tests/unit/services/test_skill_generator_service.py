@@ -18,6 +18,8 @@ from pilot_space.application.services.skill.skill_generator_service import (
     SkillSavePayload,
     SkillSaveResult,
 )
+from pilot_space.domain.exceptions import ForbiddenError
+from pilot_space.infrastructure.database.models.workspace_member import WorkspaceRole
 
 _WORKSPACE_ID = uuid4()
 _USER_ID = uuid4()
@@ -53,6 +55,13 @@ def _base_llm_data(*, is_complete: bool = False) -> dict:
         "is_complete": is_complete,
         "refinement_suggestion": None if is_complete else "Would you like to add error handling patterns?",
     }
+
+
+def _mock_role_result(role: WorkspaceRole) -> MagicMock:
+    """Create a mock execute result that returns a role from .scalar()."""
+    result = MagicMock()
+    result.scalar.return_value = role
+    return result
 
 
 @pytest.fixture
@@ -286,6 +295,9 @@ async def test_save_skill_workspace(
     mock_session: AsyncMock,
 ) -> None:
     """save_type='workspace' creates a SkillTemplate with source='workspace'."""
+    # Mock role query to return ADMIN so save proceeds
+    mock_session.execute = AsyncMock(return_value=_mock_role_result(WorkspaceRole.ADMIN))
+
     payload = SkillSavePayload(
         workspace_id=_WORKSPACE_ID,
         user_id=_USER_ID,
@@ -321,6 +333,9 @@ async def test_save_skill_workspace_with_graph(
     mock_session: AsyncMock,
 ) -> None:
     """save_type='workspace' with graph_data creates SkillGraph linked to template."""
+    # Mock role query to return ADMIN so save proceeds
+    mock_session.execute = AsyncMock(return_value=_mock_role_result(WorkspaceRole.ADMIN))
+
     graph_data = {
         "nodes": [
             {"id": "1", "type": "prompt", "position": {"x": 0, "y": 0}, "data": {"label": "Step 1"}}
@@ -358,3 +373,119 @@ async def test_save_skill_workspace_with_graph(
     assert second_add.graph_json == graph_data
     assert second_add.node_count == 1
     assert second_add.edge_count == 1
+
+
+# ---------------------------------------------------------------------------
+# Admin role enforcement tests (SKG-05)
+# ---------------------------------------------------------------------------
+
+
+def _workspace_save_payload() -> SkillSavePayload:
+    """Reusable workspace save payload for role tests."""
+    return SkillSavePayload(
+        workspace_id=_WORKSPACE_ID,
+        user_id=_USER_ID,
+        session_id=_SESSION_ID,
+        save_type="workspace",
+        name="Test Skill",
+        description="desc",
+        category="general",
+        icon="Wand2",
+        skill_content="# Test\n\nContent.",
+        example_prompts=["test"],
+        graph_data=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_save_skill_workspace_forbidden_for_member(
+    service: SkillGeneratorService,
+    mock_session: AsyncMock,
+) -> None:
+    """MEMBER role cannot save workspace skills — raises ForbiddenError."""
+    mock_session.execute = AsyncMock(return_value=_mock_role_result(WorkspaceRole.MEMBER))
+
+    with pytest.raises(ForbiddenError, match="Admin or owner role required"):
+        await service.save_skill(_workspace_save_payload())
+
+
+@pytest.mark.asyncio
+async def test_save_skill_workspace_forbidden_for_guest(
+    service: SkillGeneratorService,
+    mock_session: AsyncMock,
+) -> None:
+    """GUEST role cannot save workspace skills — raises ForbiddenError."""
+    mock_session.execute = AsyncMock(return_value=_mock_role_result(WorkspaceRole.GUEST))
+
+    with pytest.raises(ForbiddenError, match="Admin or owner role required"):
+        await service.save_skill(_workspace_save_payload())
+
+
+@pytest.mark.asyncio
+async def test_save_skill_workspace_allowed_for_admin(
+    service: SkillGeneratorService,
+    mock_session: AsyncMock,
+) -> None:
+    """ADMIN role can save workspace skills successfully."""
+    mock_session.execute = AsyncMock(return_value=_mock_role_result(WorkspaceRole.ADMIN))
+
+    result = await service.save_skill(_workspace_save_payload())
+
+    assert isinstance(result, SkillSaveResult)
+    assert result.save_type == "workspace"
+    assert result.skill_name == "Test Skill"
+
+
+@pytest.mark.asyncio
+async def test_save_skill_workspace_allowed_for_owner(
+    service: SkillGeneratorService,
+    mock_session: AsyncMock,
+) -> None:
+    """OWNER role can save workspace skills successfully."""
+    mock_session.execute = AsyncMock(return_value=_mock_role_result(WorkspaceRole.OWNER))
+
+    result = await service.save_skill(_workspace_save_payload())
+
+    assert isinstance(result, SkillSaveResult)
+    assert result.save_type == "workspace"
+
+
+@pytest.mark.asyncio
+async def test_save_skill_workspace_forbidden_for_non_member(
+    service: SkillGeneratorService,
+    mock_session: AsyncMock,
+) -> None:
+    """Non-member (no row returned) raises ForbiddenError."""
+    no_member_result = MagicMock()
+    no_member_result.scalar.return_value = None
+    mock_session.execute = AsyncMock(return_value=no_member_result)
+
+    with pytest.raises(ForbiddenError, match="Not a member of this workspace"):
+        await service.save_skill(_workspace_save_payload())
+
+
+@pytest.mark.asyncio
+async def test_save_skill_personal_no_role_check(
+    service: SkillGeneratorService,
+    mock_session: AsyncMock,
+) -> None:
+    """Personal saves do NOT trigger role query — execute not called for role check."""
+    payload = SkillSavePayload(
+        workspace_id=_WORKSPACE_ID,
+        user_id=_USER_ID,
+        session_id=_SESSION_ID,
+        save_type="personal",
+        name="Personal Skill",
+        description="desc",
+        category="general",
+        icon="Wand2",
+        skill_content="# Personal\n\nContent.",
+        example_prompts=["test"],
+        graph_data=None,
+    )
+
+    result = await service.save_skill(payload)
+
+    assert result.save_type == "personal"
+    # session.execute should NOT have been called (no role query for personal saves)
+    mock_session.execute.assert_not_awaited()
