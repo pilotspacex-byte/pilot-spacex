@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { useStore } from '@/stores/RootStore';
 import {
   useSkillGraphMutation,
+  useCompileSkillGraph,
   useSkillGraphByTemplate,
 } from '@/features/skills/hooks/use-skill-graph-queries';
 import { SkillMarkdownPreview } from './SkillMarkdownPreview';
@@ -44,7 +45,25 @@ export const SkillEditorPanel = observer(function SkillEditorPanel() {
   const [viewMode, setViewMode] = useState<ViewMode>('text');
 
   const graphMutation = useSkillGraphMutation(workspaceId);
+  const compileMutation = useCompileSkillGraph(workspaceId);
   const graphQuery = useSkillGraphByTemplate(workspaceId, draft?.sessionId);
+  const [compiledContent, setCompiledContent] = useState<string | null>(null);
+
+  const handleCompile = useCallback(() => {
+    const graphId = graphQuery.data?.id;
+    if (!graphId) {
+      toast.error('Save the graph before compiling');
+      return;
+    }
+    compileMutation.mutate(
+      { graphId },
+      {
+        onSuccess: (result) => {
+          setCompiledContent(result.skill_content);
+        },
+      },
+    );
+  }, [graphQuery.data?.id, compileMutation]);
 
   const handleGraphSave = useCallback(
     (data: { nodes: unknown[]; edges: unknown[] }) => {
@@ -68,8 +87,6 @@ export const SkillEditorPanel = observer(function SkillEditorPanel() {
   );
 
   if (!draft || !skillStore.isPreviewVisible) return null;
-
-  // Graph stats available via draft.graphData?.nodes/edges
 
   return (
     <div
@@ -125,7 +142,7 @@ export const SkillEditorPanel = observer(function SkillEditorPanel() {
       {/* Content */}
       {viewMode === 'text' ? (
         <div className="flex-1 overflow-auto min-h-0 p-4">
-          <SkillMarkdownPreview content={draft.skillContent} />
+          <SkillMarkdownPreview content={compiledContent ?? draft.skillContent} />
         </div>
       ) : (
         <div className="flex-1 flex min-h-0">
@@ -143,12 +160,19 @@ export const SkillEditorPanel = observer(function SkillEditorPanel() {
                 initialNodes={draft.graphData?.nodes as never[] | undefined}
                 initialEdges={draft.graphData?.edges as never[] | undefined}
                 onSave={handleGraphSave}
+                onCompile={handleCompile}
+                isCompiling={compileMutation.isPending}
               />
             </Suspense>
           </div>
           {/* SKILL.md preview (right) */}
           <div className="w-[320px] shrink-0 border-l overflow-auto p-4">
-            <SkillMarkdownPreview content={draft.skillContent} />
+            {compiledContent && (
+              <div className="mb-2 text-[10px] text-muted-foreground uppercase tracking-wider">
+                Compiled output
+              </div>
+            )}
+            <SkillMarkdownPreview content={compiledContent ?? draft.skillContent} />
           </div>
         </div>
       )}
