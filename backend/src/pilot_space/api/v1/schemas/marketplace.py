@@ -122,11 +122,74 @@ class MarketplaceSearchResponse(PaginatedResponse[MarketplaceListingResponse]):
     """Paginated search response for marketplace listings."""
 
 
+class ReviewCreateRequest(BaseSchema):
+    """Request body for creating or updating a review."""
+
+    rating: int = Field(ge=1, le=5)
+    review_text: str | None = None
+
+
+class ReviewResponse(EntitySchema):
+    """Response schema for a single review."""
+
+    listing_id: UUID
+    user_id: UUID
+    rating: int
+    review_text: str | None = None
+
+
+class ReviewListResponse(BaseSchema):
+    """Paginated list of reviews."""
+
+    items: list[ReviewResponse]
+    total: int
+    has_next: bool
+
+
+class InstallResponse(BaseSchema):
+    """Response schema for install endpoint."""
+
+    skill_template_id: UUID
+    already_installed: bool
+
+
+class UpdateCheckResponse(BaseSchema):
+    """Response schema for a single update check result."""
+
+    template_id: UUID
+    template_name: str
+    installed_version: str
+    available_version: str
+    listing_id: UUID
+
+
+class UpdateApplyResponse(BaseSchema):
+    """Response schema for applying an update."""
+
+    updated: bool
+    new_version: str
+    template_id: UUID
+
+
+class PublishListingRequest(BaseSchema):
+    """Request body for publishing a skill to marketplace."""
+
+    skill_template_id: UUID
+    listing: MarketplaceListingCreate
+
+
 __all__ = [
+    "InstallResponse",
     "MarketplaceListingCreate",
     "MarketplaceListingResponse",
     "MarketplaceSearchParams",
     "MarketplaceSearchResponse",
     "MarketplaceVersionCreate",
     "MarketplaceVersionResponse",
+    "PublishListingRequest",
+    "ReviewCreateRequest",
+    "ReviewListResponse",
+    "ReviewResponse",
+    "UpdateApplyResponse",
+    "UpdateCheckResponse",
 ]

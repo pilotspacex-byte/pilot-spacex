@@ -94,6 +94,7 @@ from pilot_space.api.v1.routers import (
     workspace_tasks_router,
     workspaces_router,
 )
+from pilot_space.api.v1.routers.marketplace import router as marketplace_router
 from pilot_space.api.v1.routers.skill_graphs import router as skill_graphs_router
 from pilot_space.api.v1.routers.skill_templates import (
     router as skill_templates_router,
@@ -360,6 +361,7 @@ app.include_router(related_issues_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_role_skills_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(skill_templates_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(skill_graphs_router, prefix=f"{API_V1_PREFIX}/workspaces")
+app.include_router(marketplace_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(user_skills_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_plugins_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_action_buttons_router, prefix=f"{API_V1_PREFIX}/workspaces")
