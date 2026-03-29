@@ -56,8 +56,9 @@ vi.mock('@/features/onboarding/hooks', () => ({
   useCreateRoleSkill: () => mockCreateRoleSkill,
 }));
 
-vi.mock('@/services/api/workspace-role-skills', () => ({
-  useGenerateWorkspaceSkill: () => mockGenerateWorkspaceSkill,
+vi.mock('@/services/api/skill-templates', () => ({
+  useCreateSkillTemplate: () => mockGenerateWorkspaceSkill,
+  useSkillTemplates: () => ({ data: [], isLoading: false }),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -313,16 +314,24 @@ describe('SkillAddModal', () => {
       await user.click(generateBtn);
 
       // Should show generating state (bouncing dots / progress)
-      expect(screen.getByText('Crafting your skill...')).toBeInTheDocument();
+      expect(screen.getByText('Generating your skill...')).toBeInTheDocument();
 
       // Resolve the deferred promise to transition to preview
       await React.act(async () => {
         resolveGenerate({
-          skillContent: '# Generated Skill\n\nContent here',
-          suggestedRoleName: 'AI Generated Name',
-          suggestedTags: ['Python', 'FastAPI'],
-          suggestedUsage: 'Use during backend code reviews.',
-          wordCount: 5,
+          id: 'tmpl-new',
+          workspace_id: 'ws-123',
+          name: 'AI Generated Name',
+          description: 'Use during backend code reviews.',
+          skill_content: '# Generated Skill\n\nContent here',
+          icon: '',
+          sort_order: 0,
+          source: 'custom',
+          role_type: 'custom',
+          is_active: true,
+          created_by: null,
+          created_at: '2026-01-01T00:00:00Z',
+          updated_at: '2026-01-01T00:00:00Z',
         });
       });
 

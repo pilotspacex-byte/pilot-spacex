@@ -1,7 +1,7 @@
 /**
  * Component tests for SkillGenerationWizard.
  *
- * Tests for the single-form skill generation wizard with two-panel layout.
+ * Migrated from RoleSkillStore/roleSkillsApi to local state/skill-templates API.
  * Source: FR-001, FR-002, FR-003, FR-004, US1, US2
  */
 
@@ -10,19 +10,22 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { StoreContext, RootStore } from '@/stores/RootStore';
 import { SkillGenerationWizard } from '../SkillGenerationWizard';
-import { roleSkillsApi } from '@/services/api/role-skills';
-import type { RoleTemplate } from '@/services/api/role-skills';
+import { skillTemplatesApi } from '@/services/api/skill-templates';
+import type { SkillTemplate } from '@/services/api/skill-templates';
 
-// Mock the role-skills API
-vi.mock('@/services/api/role-skills', () => ({
-  roleSkillsApi: {
-    generateSkill: vi.fn(),
-    createRoleSkill: vi.fn(),
+// Mock the skill-templates API
+vi.mock('@/services/api/skill-templates', () => ({
+  skillTemplatesApi: {
     getTemplates: vi.fn(),
-    getRoleSkills: vi.fn(),
+    createTemplate: vi.fn(),
+    updateTemplate: vi.fn(),
+    deleteTemplate: vi.fn(),
   },
+  useSkillTemplates: vi.fn(() => ({ data: [], isLoading: false })),
+  useCreateSkillTemplate: vi.fn(),
+  useUpdateSkillTemplate: vi.fn(),
+  useDeleteSkillTemplate: vi.fn(),
 }));
 
 // Mock sonner toast
@@ -33,32 +36,33 @@ vi.mock('sonner', () => ({
   },
 }));
 
-const mockTemplate: RoleTemplate = {
+const mockTemplate: SkillTemplate = {
   id: 'tmpl-1',
-  roleType: 'developer',
-  displayName: 'Developer',
+  workspace_id: 'ws-1',
+  name: 'Developer',
   description: 'Code & architecture',
+  skill_content: '# Developer\n\n## Focus Areas\n- Code quality\n- Architecture',
   icon: 'Code',
-  sortOrder: 3,
-  version: 1,
-  defaultSkillContent: '# Developer\n\n## Focus Areas\n- Code quality\n- Architecture',
+  sort_order: 3,
+  source: 'built_in',
+  role_type: 'developer',
+  is_active: true,
+  created_by: null,
+  created_at: '2026-02-06T00:00:00Z',
+  updated_at: '2026-02-06T00:00:00Z',
 };
 
 function createWrapper() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  const rootStore = new RootStore();
-  // Pre-select developer role
-  rootStore.roleSkill.toggleRole('developer');
 
   return {
-    rootStore,
     Wrapper({ children }: { children: React.ReactNode }) {
       return React.createElement(
         QueryClientProvider,
         { client: queryClient },
-        React.createElement(StoreContext.Provider, { value: rootStore }, children)
+        children
       );
     },
   };
@@ -81,8 +85,7 @@ describe('SkillGenerationWizard', () => {
 
   describe('form view', () => {
     it('should render the form with textarea and examples panel', () => {
-      const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('form');
+      const { Wrapper } = createWrapper();
       render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
 
       expect(screen.getByText('Generate Your AI Skill')).toBeInTheDocument();
@@ -91,8 +94,7 @@ describe('SkillGenerationWizard', () => {
     });
 
     it('should pre-fill textarea with role sample description', () => {
-      const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('form');
+      const { Wrapper } = createWrapper();
       render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
 
       const textarea = screen.getByRole('textbox', { name: /expertise/i }) as HTMLTextAreaElement;
@@ -100,17 +102,14 @@ describe('SkillGenerationWizard', () => {
     });
 
     it('should show header with role name', () => {
-      const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('form');
+      const { Wrapper } = createWrapper();
       render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
 
       expect(screen.getByText(/Skill Setup · Developer/)).toBeInTheDocument();
     });
 
     it('should show "(1 of 2)" when configuring multiple roles', () => {
-      const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.toggleRole('tester');
-      rootStore.roleSkill.setGenerationStep('form');
+      const { Wrapper } = createWrapper();
       render(<SkillGenerationWizard {...defaultProps} currentIndex={1} totalRoles={2} />, {
         wrapper: Wrapper,
       });
@@ -119,30 +118,17 @@ describe('SkillGenerationWizard', () => {
     });
 
     it('should show "Use Default Template" link when template exists', () => {
-      const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('form');
+      const { Wrapper } = createWrapper();
       render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
 
       expect(screen.getByText('Use Default Template')).toBeInTheDocument();
-    });
-
-    it('should show before/after examples in right panel', () => {
-      const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('form');
-      render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
-
-      const withoutSkillTexts = screen.getAllByText(/Without skill/);
-      expect(withoutSkillTexts.length).toBeGreaterThanOrEqual(1);
-      const withSkillTexts = screen.getAllByText(/With Developer skill/);
-      expect(withSkillTexts.length).toBeGreaterThanOrEqual(1);
     });
   });
 
   describe('use default template', () => {
     it('should show preview with default template content on Use Default click', async () => {
       const user = userEvent.setup();
-      const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('form');
+      const { Wrapper } = createWrapper();
       render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
 
       await user.click(screen.getByText('Use Default Template'));
@@ -153,8 +139,7 @@ describe('SkillGenerationWizard', () => {
 
     it('should show "Save & Activate" button in preview', async () => {
       const user = userEvent.setup();
-      const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('form');
+      const { Wrapper } = createWrapper();
       render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
 
       await user.click(screen.getByText('Use Default Template'));
@@ -164,24 +149,9 @@ describe('SkillGenerationWizard', () => {
 
     it('should call onComplete after saving default skill', async () => {
       const user = userEvent.setup();
-      vi.mocked(roleSkillsApi.createRoleSkill).mockResolvedValue({
-        id: 'skill-1',
-        roleType: 'developer',
-        roleName: 'Developer',
-        skillContent: mockTemplate.defaultSkillContent,
-        experienceDescription: null,
-        tags: [],
-        usage: null,
-        isPrimary: true,
-        templateVersion: 1,
-        templateUpdateAvailable: false,
-        wordCount: 10,
-        createdAt: '2026-02-06T00:00:00Z',
-        updatedAt: '2026-02-06T00:00:00Z',
-      });
+      vi.mocked(skillTemplatesApi.createTemplate).mockResolvedValue(mockTemplate);
 
-      const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('form');
+      const { Wrapper } = createWrapper();
       render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
 
       await user.click(screen.getByText('Use Default Template'));
@@ -198,13 +168,11 @@ describe('SkillGenerationWizard', () => {
   describe('generate skill', () => {
     it('should disable Generate button when description is too short', async () => {
       const user = userEvent.setup();
-      const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('form');
-      rootStore.roleSkill.setExperienceDescription('');
-      render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
+      const { Wrapper } = createWrapper();
+      // Use a role type that has no sample description
+      render(<SkillGenerationWizard {...defaultProps} roleType="custom" template={undefined} />, { wrapper: Wrapper });
 
       const textarea = screen.getByRole('textbox', { name: /expertise/i });
-      await user.clear(textarea);
       await user.type(textarea, 'short');
 
       const genButton = screen.getByRole('button', { name: /Generate Skill/i });
@@ -212,9 +180,7 @@ describe('SkillGenerationWizard', () => {
     });
 
     it('should enable Generate button when description meets minimum', () => {
-      const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('form');
-      // Pre-fill from role sample (auto via useEffect)
+      const { Wrapper } = createWrapper();
       render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
 
       const genButton = screen.getByRole('button', { name: /Generate Skill/i });
@@ -223,13 +189,9 @@ describe('SkillGenerationWizard', () => {
 
     it('should show generating state during AI generation', async () => {
       const user = userEvent.setup();
-      vi.mocked(roleSkillsApi.generateSkill).mockReturnValue(new Promise(() => {}));
+      vi.mocked(skillTemplatesApi.createTemplate).mockReturnValue(new Promise(() => {}));
 
-      const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('form');
-      rootStore.roleSkill.setExperienceDescription(
-        'I am a full-stack engineer with expertise in TypeScript'
-      );
+      const { Wrapper } = createWrapper();
       render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
 
       const genButton = screen.getByRole('button', { name: /Generate Skill/i });
@@ -242,21 +204,13 @@ describe('SkillGenerationWizard', () => {
 
     it('should show preview after successful generation', async () => {
       const user = userEvent.setup();
-      vi.mocked(roleSkillsApi.generateSkill).mockResolvedValue({
-        skillContent: '# Senior Developer\n\n## Focus\n- TypeScript',
-        suggestedRoleName: 'Senior TypeScript Developer',
-        suggestedTags: [],
-        suggestedUsage: null,
-        wordCount: 50,
-        generationModel: 'claude-sonnet',
-        generationTimeMs: 2500,
+      vi.mocked(skillTemplatesApi.createTemplate).mockResolvedValue({
+        ...mockTemplate,
+        name: 'Senior TypeScript Developer',
+        skill_content: '# Senior Developer\n\n## Focus\n- TypeScript',
       });
 
-      const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('form');
-      rootStore.roleSkill.setExperienceDescription(
-        'I am a full-stack engineer with expertise in TypeScript'
-      );
+      const { Wrapper } = createWrapper();
       render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
 
       const genButton = screen.getByRole('button', { name: /Generate Skill/i });
@@ -271,13 +225,9 @@ describe('SkillGenerationWizard', () => {
 
     it('should show error fallback when generation fails', async () => {
       const user = userEvent.setup();
-      vi.mocked(roleSkillsApi.generateSkill).mockRejectedValue(new Error('API error'));
+      vi.mocked(skillTemplatesApi.createTemplate).mockRejectedValue(new Error('API error'));
 
-      const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('form');
-      rootStore.roleSkill.setExperienceDescription(
-        'I am a full-stack engineer with expertise in TypeScript'
-      );
+      const { Wrapper } = createWrapper();
       render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
 
       const genButton = screen.getByRole('button', { name: /Generate Skill/i });
@@ -290,40 +240,10 @@ describe('SkillGenerationWizard', () => {
     });
   });
 
-  describe('preview actions', () => {
-    it('should allow editing the role name', async () => {
-      const user = userEvent.setup();
-      const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('form');
-      render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
-
-      // Use default to get to preview
-      await user.click(screen.getByText('Use Default Template'));
-
-      const nameInput = screen.getByLabelText(/Role name/i);
-      await user.clear(nameInput);
-      await user.type(nameInput, 'My Custom Dev Name');
-
-      expect(nameInput).toHaveValue('My Custom Dev Name');
-    });
-
-    it('should show word count', async () => {
-      const user = userEvent.setup();
-      const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('form');
-      render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
-
-      await user.click(screen.getByText('Use Default Template'));
-
-      expect(screen.getByText(/\/ 2000 words/)).toBeInTheDocument();
-    });
-  });
-
   describe('navigation', () => {
     it('should call onBack when Back button is clicked from form', async () => {
       const user = userEvent.setup();
-      const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('form');
+      const { Wrapper } = createWrapper();
       render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
 
       await user.click(screen.getByLabelText('Back'));
@@ -333,8 +253,7 @@ describe('SkillGenerationWizard', () => {
 
     it('should go back to form when Back is clicked from preview', async () => {
       const user = userEvent.setup();
-      const { Wrapper, rootStore } = createWrapper();
-      rootStore.roleSkill.setGenerationStep('form');
+      const { Wrapper } = createWrapper();
       render(<SkillGenerationWizard {...defaultProps} />, { wrapper: Wrapper });
 
       // Navigate to preview

@@ -37,20 +37,11 @@ const mockWorkspaceStore = {
 vi.mock('@/stores', () => ({
   useStore: () => ({
     workspaceStore: mockWorkspaceStore,
-    roleSkillStore: {
-      editingSkillId: null,
-      setEditingSkillId: vi.fn(),
-      clearEditingSkillId: vi.fn(),
-    },
   }),
 }));
 
 vi.mock('@/stores/RootStore', () => ({
-  useRoleSkillStore: () => ({
-    editingSkillId: null,
-    setEditingSkillId: vi.fn(),
-    clearEditingSkillId: vi.fn(),
-  }),
+  useStores: () => ({}),
 }));
 
 // Mock user-skills hooks
@@ -71,14 +62,6 @@ vi.mock('@/services/api/skill-templates', () => ({
   useCreateSkillTemplate: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateSkillTemplate: () => ({ mutate: vi.fn(), isPending: false }),
   useDeleteSkillTemplate: () => ({ mutate: vi.fn(), isPending: false }),
-}));
-
-// Mock workspace-role-skills (legacy, may still be imported transitively)
-vi.mock('@/services/api/workspace-role-skills', () => ({
-  useWorkspaceRoleSkills: () => ({ data: { skills: [] } }),
-  useActivateWorkspaceSkill: () => ({ mutate: vi.fn(), isPending: false }),
-  useDeleteWorkspaceSkill: () => ({ mutate: vi.fn(), isPending: false }),
-  useGenerateWorkspaceSkill: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 // Mock onboarding hooks (for SkillGeneratorModal)

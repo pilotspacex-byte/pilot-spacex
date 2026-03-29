@@ -1,7 +1,7 @@
 /**
  * RegenerateSkillModal - Modal for regenerating a skill with diff preview.
  *
- * T039: Regeneration flow with experience textarea, AI generation, and diff view.
+ * Migrated from RoleSkill/RegenerateSkillResponse to SkillTemplate type.
  * Source: FR-003, FR-015, US6
  */
 
@@ -19,13 +19,19 @@ import {
 } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-import type { RoleSkill, RegenerateSkillResponse } from '@/services/api/role-skills';
+import type { SkillTemplate } from '@/services/api/skill-templates';
+
+interface RegenerateResult {
+  skill_content: string;
+  name: string;
+  previousSkillContent: string;
+}
 
 interface RegenerateSkillModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  skill: RoleSkill;
-  onRegenerate: (experienceDescription: string) => Promise<RegenerateSkillResponse>;
+  skill: SkillTemplate;
+  onRegenerate: (experienceDescription: string) => Promise<RegenerateResult>;
   onAccept: (newContent: string, newName: string) => void;
   isRegenerating: boolean;
 }
@@ -41,8 +47,8 @@ export function RegenerateSkillModal({
   isRegenerating,
 }: RegenerateSkillModalProps) {
   const [step, setStep] = React.useState<ModalStep>('input');
-  const [description, setDescription] = React.useState(skill.experienceDescription ?? '');
-  const [regenerated, setRegenerated] = React.useState<RegenerateSkillResponse | null>(null);
+  const [description, setDescription] = React.useState(skill.description ?? '');
+  const [regenerated, setRegenerated] = React.useState<RegenerateResult | null>(null);
 
   const handleGenerate = async () => {
     try {
@@ -56,7 +62,7 @@ export function RegenerateSkillModal({
 
   const handleAccept = () => {
     if (regenerated) {
-      onAccept(regenerated.skillContent, regenerated.suggestedRoleName);
+      onAccept(regenerated.skill_content, regenerated.name);
     }
   };
 
@@ -74,7 +80,7 @@ export function RegenerateSkillModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-ai" />
-            Regenerate {skill.roleName} Skill
+            Regenerate {skill.name} Skill
           </DialogTitle>
           <DialogDescription>
             Update your experience description and generate a new skill.
@@ -147,16 +153,16 @@ export function RegenerateSkillModal({
                   New (AI Generated)
                 </p>
                 <div className="max-h-[300px] overflow-y-auto whitespace-pre-wrap font-mono text-xs leading-relaxed">
-                  {regenerated.skillContent}
+                  {regenerated.skill_content}
                 </div>
               </div>
             </div>
 
             {/* Suggested name */}
-            {regenerated.suggestedRoleName !== skill.roleName && (
+            {regenerated.name !== skill.name && (
               <p className="text-sm text-muted-foreground">
                 Suggested role name:{' '}
-                <span className="font-medium text-foreground">{regenerated.suggestedRoleName}</span>
+                <span className="font-medium text-foreground">{regenerated.name}</span>
               </p>
             )}
 

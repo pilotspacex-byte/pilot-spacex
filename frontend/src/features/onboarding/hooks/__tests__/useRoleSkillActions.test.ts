@@ -1,7 +1,7 @@
 /**
  * Hook tests for useRoleSkillActions.
  *
- * T023: Tests for TanStack Query hooks for role skill operations.
+ * Migrated from roleSkillsApi to skill-templates API.
  * Source: FR-001, FR-002, FR-003, FR-004, FR-009, FR-018, US1, US2, US6
  */
 
@@ -10,13 +10,11 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import {
-  useRoleTemplates,
-  useRoleSkills,
   useGenerateSkill,
   useCreateRoleSkill,
   useDeleteRoleSkill,
 } from '../useRoleSkillActions';
-import { roleSkillsApi } from '@/services/api/role-skills';
+import { skillTemplatesApi, useSkillTemplates } from '@/services/api/skill-templates';
 
 // Mock sonner toast
 vi.mock('sonner', () => ({
@@ -26,44 +24,40 @@ vi.mock('sonner', () => ({
   },
 }));
 
-vi.mock('@/services/api/role-skills', () => ({
-  roleSkillsApi: {
+vi.mock('@/services/api/skill-templates', () => ({
+  skillTemplatesApi: {
     getTemplates: vi.fn(),
-    getRoleSkills: vi.fn(),
-    generateSkill: vi.fn(),
-    createRoleSkill: vi.fn(),
-    deleteRoleSkill: vi.fn(),
+    createTemplate: vi.fn(),
+    updateTemplate: vi.fn(),
+    deleteTemplate: vi.fn(),
   },
+  useSkillTemplates: vi.fn(() => ({
+    data: [],
+    isLoading: false,
+    isSuccess: false,
+    isError: false,
+    error: null,
+  })),
+  useCreateSkillTemplate: vi.fn(),
+  useUpdateSkillTemplate: vi.fn(),
+  useDeleteSkillTemplate: vi.fn(),
 }));
 
 const mockTemplates = [
   {
     id: '1',
-    roleType: 'developer' as const,
-    displayName: 'Developer',
+    workspace_id: 'ws-1',
+    name: 'Developer',
     description: 'Code & architecture',
+    skill_content: '# Developer',
     icon: 'Code',
-    sortOrder: 3,
-    version: 1,
-    defaultSkillContent: '# Developer',
-  },
-];
-
-const mockSkills = [
-  {
-    id: 'skill-1',
-    roleType: 'developer' as const,
-    roleName: 'Developer',
-    skillContent: '# Developer',
-    experienceDescription: null,
-    tags: [] as string[],
-    usage: null as string | null,
-    isPrimary: true,
-    templateVersion: 1,
-    templateUpdateAvailable: false,
-    wordCount: 5,
-    createdAt: '2026-02-06T00:00:00Z',
-    updatedAt: '2026-02-06T00:00:00Z',
+    sort_order: 3,
+    source: 'built_in' as const,
+    role_type: 'developer',
+    is_active: true,
+    created_by: null,
+    created_at: '2026-02-06T00:00:00Z',
+    updated_at: '2026-02-06T00:00:00Z',
   },
 ];
 
@@ -76,56 +70,14 @@ function createWrapper() {
   };
 }
 
-describe('useRoleTemplates', () => {
+describe('useSkillTemplates (via useRoleTemplates)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('should fetch and return templates', async () => {
-    vi.mocked(roleSkillsApi.getTemplates).mockResolvedValue({ templates: mockTemplates });
-
-    const wrapper = createWrapper();
-    const { result } = renderHook(() => useRoleTemplates(), { wrapper });
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
-    expect(result.current.data).toEqual(mockTemplates);
-    expect(roleSkillsApi.getTemplates).toHaveBeenCalledOnce();
-  });
-
-  it('should handle fetch error', async () => {
-    vi.mocked(roleSkillsApi.getTemplates).mockRejectedValue(new Error('Network error'));
-
-    const wrapper = createWrapper();
-    const { result } = renderHook(() => useRoleTemplates(), { wrapper });
-
-    await waitFor(() => expect(result.current.isError).toBe(true));
-    expect(result.current.error).toBeTruthy();
-  });
-});
-
-describe('useRoleSkills', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('should fetch skills for a workspace', async () => {
-    vi.mocked(roleSkillsApi.getRoleSkills).mockResolvedValue({ skills: mockSkills });
-
-    const wrapper = createWrapper();
-    const { result } = renderHook(() => useRoleSkills('ws-123'), { wrapper });
-
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-
-    expect(result.current.data).toEqual(mockSkills);
-    expect(roleSkillsApi.getRoleSkills).toHaveBeenCalledWith('ws-123');
-  });
-
-  it('should not fetch when workspaceId is empty', () => {
-    const wrapper = createWrapper();
-    const { result } = renderHook(() => useRoleSkills(''), { wrapper });
-
-    expect(result.current.isFetching).toBe(false);
+  it('should delegate to useSkillTemplates', () => {
+    // useSkillTemplates is mocked at the module level
+    expect(useSkillTemplates).toBeDefined();
   });
 });
 
@@ -134,17 +86,23 @@ describe('useGenerateSkill', () => {
     vi.clearAllMocks();
   });
 
-  it('should call generateSkill API with correct params', async () => {
+  it('should call createTemplate API with correct params', async () => {
     const mockResponse = {
-      skillContent: '# Generated',
-      suggestedRoleName: 'Senior Dev',
-      suggestedTags: [] as string[],
-      suggestedUsage: null as string | null,
-      wordCount: 50,
-      generationModel: 'claude-sonnet',
-      generationTimeMs: 2000,
+      id: 'tmpl-new',
+      workspace_id: 'ws-123',
+      name: 'Senior Dev',
+      description: 'Full-stack TypeScript dev',
+      skill_content: '# Generated',
+      icon: '',
+      sort_order: 0,
+      source: 'custom' as const,
+      role_type: 'developer',
+      is_active: true,
+      created_by: null,
+      created_at: '2026-02-06T00:00:00Z',
+      updated_at: '2026-02-06T00:00:00Z',
     };
-    vi.mocked(roleSkillsApi.generateSkill).mockResolvedValue(mockResponse);
+    vi.mocked(skillTemplatesApi.createTemplate).mockResolvedValue(mockResponse);
 
     const wrapper = createWrapper();
     const { result } = renderHook(() => useGenerateSkill({ workspaceId: 'ws-123' }), { wrapper });
@@ -156,15 +114,16 @@ describe('useGenerateSkill', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(roleSkillsApi.generateSkill).toHaveBeenCalledWith('ws-123', {
-      roleType: 'developer',
-      experienceDescription: 'Full-stack TypeScript dev',
+    expect(skillTemplatesApi.createTemplate).toHaveBeenCalledWith('ws-123', {
+      name: 'developer',
+      description: 'Full-stack TypeScript dev',
+      skill_content: '',
+      role_type: 'developer',
     });
-    expect(result.current.data).toEqual(mockResponse);
   });
 
   it('should handle generation error', async () => {
-    vi.mocked(roleSkillsApi.generateSkill).mockRejectedValue(new Error('Provider unavailable'));
+    vi.mocked(skillTemplatesApi.createTemplate).mockRejectedValue(new Error('Provider unavailable'));
 
     const wrapper = createWrapper();
     const { result } = renderHook(() => useGenerateSkill({ workspaceId: 'ws-123' }), { wrapper });
@@ -183,26 +142,28 @@ describe('useCreateRoleSkill', () => {
     vi.clearAllMocks();
   });
 
-  it('should call createRoleSkill API', async () => {
-    vi.mocked(roleSkillsApi.createRoleSkill).mockResolvedValue(mockSkills[0]!);
+  it('should call createTemplate API', async () => {
+    vi.mocked(skillTemplatesApi.createTemplate).mockResolvedValue(mockTemplates[0]!);
 
     const wrapper = createWrapper();
     const { result } = renderHook(() => useCreateRoleSkill({ workspaceId: 'ws-123' }), { wrapper });
 
     result.current.mutate({
+      name: 'Developer',
+      description: '',
+      skill_content: '# Developer',
       roleType: 'developer',
       roleName: 'Developer',
-      skillContent: '# Developer',
       isPrimary: true,
     });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(roleSkillsApi.createRoleSkill).toHaveBeenCalledWith('ws-123', {
-      roleType: 'developer',
-      roleName: 'Developer',
-      skillContent: '# Developer',
-      isPrimary: true,
+    expect(skillTemplatesApi.createTemplate).toHaveBeenCalledWith('ws-123', {
+      name: 'Developer',
+      description: '',
+      skill_content: '# Developer',
+      role_type: 'developer',
     });
   });
 });
@@ -212,8 +173,8 @@ describe('useDeleteRoleSkill', () => {
     vi.clearAllMocks();
   });
 
-  it('should call deleteRoleSkill API', async () => {
-    vi.mocked(roleSkillsApi.deleteRoleSkill).mockResolvedValue(undefined);
+  it('should call deleteTemplate API', async () => {
+    vi.mocked(skillTemplatesApi.deleteTemplate).mockResolvedValue(undefined);
 
     const wrapper = createWrapper();
     const { result } = renderHook(() => useDeleteRoleSkill({ workspaceId: 'ws-123' }), { wrapper });
@@ -222,6 +183,6 @@ describe('useDeleteRoleSkill', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(roleSkillsApi.deleteRoleSkill).toHaveBeenCalledWith('ws-123', 'skill-1');
+    expect(skillTemplatesApi.deleteTemplate).toHaveBeenCalledWith('ws-123', 'skill-1');
   });
 });

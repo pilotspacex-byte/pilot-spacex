@@ -8,19 +8,28 @@
 'use client';
 
 import * as React from 'react';
-import { observer } from 'mobx-react-lite';
 import { ChevronDown, ChevronUp, Pencil, RotateCcw, Sparkles, Tag, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { getRoleIcon } from '@/components/role-skill/role-icons';
-import { useRoleSkillStore } from '@/stores/RootStore';
 import { SkillEditor } from './skill-editor';
 import { WordCountBar } from './word-count-bar';
 import { ConfirmActionDialog } from './confirm-action-dialog';
-import type { RoleSkill } from '@/services/api/role-skills';
+
+interface SkillData {
+  id: string;
+  roleType: string;
+  roleName: string;
+  skillContent: string;
+  tags?: string[];
+  usage?: string | null;
+  isPrimary?: boolean;
+  templateUpdateAvailable?: boolean;
+  wordCount: number;
+}
 
 interface SkillCardProps {
-  skill: RoleSkill;
+  skill: SkillData;
   onEdit: (skillId: string, content: string) => void;
   onRegenerate: (skillId: string) => void;
   onReset: (skillId: string) => void;
@@ -30,7 +39,7 @@ interface SkillCardProps {
 
 const COLLAPSED_HEIGHT = 200;
 
-export const SkillCard = observer(function SkillCard({
+export function SkillCard({
   skill,
   onEdit,
   onRegenerate,
@@ -38,8 +47,8 @@ export const SkillCard = observer(function SkillCard({
   onRemove,
   isSaving = false,
 }: SkillCardProps) {
-  const roleSkillStore = useRoleSkillStore();
-  const isEditing = roleSkillStore.editingSkillId === skill.id;
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const isEditing = editingId === skill.id;
   const [isExpanded, setIsExpanded] = React.useState(false);
   const contentRef = React.useRef<HTMLDivElement>(null);
   const [needsExpand, setNeedsExpand] = React.useState(false);
@@ -54,11 +63,11 @@ export const SkillCard = observer(function SkillCard({
   }, [skill.skillContent]);
 
   const handleStartEdit = () => {
-    roleSkillStore.setEditingSkillId(skill.id);
+    setEditingId(skill.id);
   };
 
   const handleCancelEdit = () => {
-    roleSkillStore.clearEditingSkillId();
+    setEditingId(null);
   };
 
   const handleSave = (content: string) => {
@@ -241,4 +250,4 @@ export const SkillCard = observer(function SkillCard({
       )}
     </article>
   );
-});
+}

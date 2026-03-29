@@ -7,16 +7,18 @@
  * - Left: Textarea with rich placeholder for custom role description.
  * - Right: "How Role Skills Work" examples panel showing 3 predefined role examples.
  *
- * T020: Custom role input view within the onboarding sub-flow.
+ * Migrated from RoleSkillStore to props-based state management.
  * Source: FR-002, US1
  */
-import { observer } from 'mobx-react-lite';
 import { ArrowLeft, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useRoleSkillStore } from '@/stores/RootStore';
 import { CUSTOM_ROLE_EXAMPLES } from '../constants/skill-wizard-constants';
 
 export interface CustomRoleInputProps {
+  /** Current custom role description. */
+  description: string;
+  /** Called when description changes. */
+  onDescriptionChange: (text: string) => void;
   /** Called when user clicks "Back to grid". */
   onBack: () => void;
   /** Called when user clicks "Generate Skill". */
@@ -28,13 +30,13 @@ export interface CustomRoleInputProps {
 const MAX_CHARS = 5000;
 const MIN_CHARS = 10;
 
-export const CustomRoleInput = observer(function CustomRoleInput({
+export function CustomRoleInput({
+  description,
+  onDescriptionChange,
   onBack,
   onGenerate,
   isGenerating = false,
 }: CustomRoleInputProps) {
-  const roleSkillStore = useRoleSkillStore();
-  const description = roleSkillStore.customRoleDescription;
   const charCount = description.length;
   const canGenerate = charCount >= MIN_CHARS && !isGenerating;
 
@@ -55,7 +57,7 @@ export const CustomRoleInput = observer(function CustomRoleInput({
 
       {/* Two-column layout */}
       <div className="flex flex-col md:flex-row gap-4">
-        {/* Left panel — Form */}
+        {/* Left panel -- Form */}
         <div className="flex-[3] flex flex-col gap-3">
           <p className="text-sm text-muted-foreground">
             Describe your role, responsibilities, and focus areas
@@ -65,7 +67,7 @@ export const CustomRoleInput = observer(function CustomRoleInput({
             <textarea
               value={description}
               onChange={(e) =>
-                roleSkillStore.setCustomRoleDescription(e.target.value.slice(0, MAX_CHARS))
+                onDescriptionChange(e.target.value.slice(0, MAX_CHARS))
               }
               placeholder="I focus on application security, threat modeling, secure code review, and compliance frameworks (SOC2, ISO 27001). I work closely with the dev team to integrate security into the SDLC pipeline."
               className="w-full rounded-[10px] border border-border bg-background p-3 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 min-h-[160px] resize-y"
@@ -109,7 +111,7 @@ export const CustomRoleInput = observer(function CustomRoleInput({
           </div>
         </div>
 
-        {/* Right panel — Examples */}
+        {/* Right panel -- Examples */}
         <div className="flex-[2] flex flex-col gap-3">
           <p className="text-sm font-medium">How Role Skills Work</p>
           <p className="text-xs text-muted-foreground">
@@ -131,4 +133,4 @@ export const CustomRoleInput = observer(function CustomRoleInput({
       </div>
     </div>
   );
-});
+}

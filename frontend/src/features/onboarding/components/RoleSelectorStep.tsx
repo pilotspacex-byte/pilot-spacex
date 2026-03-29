@@ -6,17 +6,14 @@
  * Renders a 3-column grid of RoleCards, handles multi-select (max 3),
  * displays selection summary, and routes to custom role input.
  *
- * T020: Create RoleSelectorStep component
+ * Migrated from RoleSkillStore to props-based state management.
  * Source: FR-001, FR-002, FR-018, US1
  */
-import { observer } from 'mobx-react-lite';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { RoleCard } from '@/components/role-skill/RoleCard';
-import { useRoleSkillStore } from '@/stores/RootStore';
-import { useRoleTemplates } from '../hooks/useRoleSkillActions';
-import type { SDLCRoleType } from '@/services/api/role-skills';
-import type { RoleTemplate } from '@/services/api/role-skills';
+import type { SDLCRoleType } from '../constants/skill-wizard-constants';
+import type { SkillTemplate } from '@/services/api/skill-templates';
 
 export interface RoleSelectorStepProps {
   /** User's profile default role (for badge display). */
@@ -24,7 +21,15 @@ export interface RoleSelectorStepProps {
   /** Workspace owner's suggested role (for badge display). */
   suggestedRole?: SDLCRoleType | null;
   /** Role types that already have a saved skill (shown as disabled). */
-  existingSkillRoleTypes?: SDLCRoleType[];
+  existingSkillRoleTypes?: string[];
+  /** Currently selected roles. */
+  selectedRoles: SDLCRoleType[];
+  /** Called when a role is toggled. */
+  onToggleRole: (roleType: SDLCRoleType) => void;
+  /** Skill templates to display. */
+  templates?: SkillTemplate[];
+  /** Whether templates are loading. */
+  isLoadingTemplates?: boolean;
   /** Called when user clicks "Continue to Skill Setup". */
   onContinue: () => void;
   /** Called when user clicks "Skip". */
@@ -46,34 +51,34 @@ function getContinueLabel(count: number): string {
   return `Set Up ${count} Skills`;
 }
 
-export const RoleSelectorStep = observer(function RoleSelectorStep({
+export function RoleSelectorStep({
   defaultRole,
   suggestedRole,
   existingSkillRoleTypes = [],
+  selectedRoles,
+  onToggleRole,
+  templates,
+  isLoadingTemplates = false,
   onContinue,
   onSkip,
   onBack,
   onCustomRole,
 }: RoleSelectorStepProps) {
-  const roleSkillStore = useRoleSkillStore();
-  const { data: templates, isLoading } = useRoleTemplates();
+  const selectedCount = selectedRoles.length;
+  const canContinue = selectedCount > 0;
+  const remainingSlots = MAX_ROLES - selectedCount;
+  const primaryRole = selectedRoles[0] ?? null;
 
-  const selectedRoles = roleSkillStore.selectedRoles;
-  const selectedCount = roleSkillStore.selectedCount;
-  const canContinue = roleSkillStore.canContinue;
-  const remainingSlots = roleSkillStore.remainingSlots;
-  const primaryRole = roleSkillStore.primaryRole;
-
-  const handleToggle = (roleType: SDLCRoleType) => {
+  const handleToggle = (roleType: string) => {
     if (existingSkillRoleTypes.includes(roleType)) return;
     if (roleType === 'custom') {
       onCustomRole();
       return;
     }
-    roleSkillStore.toggleRole(roleType);
+    onToggleRole(roleType as SDLCRoleType);
   };
 
-  if (isLoading) {
+  if (isLoadingTemplates) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -82,8 +87,8 @@ export const RoleSelectorStep = observer(function RoleSelectorStep({
     );
   }
 
-  // Sort templates by sortOrder, append custom option
-  const sortedTemplates = [...(templates ?? [])].sort((a, b) => a.sortOrder - b.sortOrder);
+  // Sort templates by sort_order, append custom option
+  const sortedTemplates = [...(templates ?? [])].sort((a, b) => a.sort_order - b.sort_order);
 
   return (
     <div className="flex flex-col gap-4">
@@ -117,27 +122,28 @@ export const RoleSelectorStep = observer(function RoleSelectorStep({
         aria-label="Select your skills"
         className="grid grid-cols-3 gap-3 justify-items-center"
       >
-        {sortedTemplates.map((template: RoleTemplate) => {
-          const isExisting = existingSkillRoleTypes.includes(template.roleType);
-          const idx = selectedRoles.indexOf(template.roleType);
+        {sortedTemplates.map((template) => {
+          const roleType = (template.role_type ?? template.name) as string;
+          const isExisting = existingSkillRoleTypes.includes(roleType);
+          const idx = selectedRoles.indexOf(roleType as SDLCRoleType);
           const isSelected = idx >= 0;
           const order = isSelected ? idx + 1 : null;
           const isDisabled = isExisting || (!isSelected && selectedCount >= MAX_ROLES);
 
           return (
             <RoleCard
-              key={template.roleType}
-              roleType={template.roleType}
-              displayName={template.displayName}
+              key={template.id}
+              roleType={roleType}
+              displayName={template.name}
               description={isExisting ? 'Already set up' : template.description}
               icon={template.icon}
               selected={isSelected}
               selectionOrder={order}
-              isPrimary={isSelected && template.roleType === primaryRole}
-              isDefaultRole={template.roleType === defaultRole}
-              isSuggestedByOwner={template.roleType === suggestedRole}
+              isPrimary={isSelected && roleType === primaryRole}
+              isDefaultRole={roleType === defaultRole}
+              isSuggestedByOwner={roleType === suggestedRole}
               disabled={isDisabled}
-              onToggle={() => handleToggle(template.roleType)}
+              onToggle={() => handleToggle(roleType)}
             />
           );
         })}
@@ -194,4 +200,4 @@ export const RoleSelectorStep = observer(function RoleSelectorStep({
       </div>
     </div>
   );
-});
+}

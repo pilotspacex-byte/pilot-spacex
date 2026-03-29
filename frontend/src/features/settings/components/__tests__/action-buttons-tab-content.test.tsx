@@ -63,9 +63,9 @@ vi.mock('@/services/api/skill-action-buttons', () => ({
   ACTION_BUTTONS_KEY: 'action-buttons',
 }));
 
-vi.mock('@/services/api/workspace-role-skills', () => ({
-  useWorkspaceRoleSkills: vi.fn(() => ({
-    data: { skills: [] },
+vi.mock('@/services/api/skill-templates', () => ({
+  useSkillTemplates: vi.fn(() => ({
+    data: [],
     isLoading: false,
   })),
 }));

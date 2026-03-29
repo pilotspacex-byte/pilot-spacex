@@ -7,11 +7,10 @@
  * Right panel: Role-specific before/after examples.
  * Bottom: Generate Skill + Use Default Template actions.
  *
- * T021: Create SkillGenerationWizard
+ * Migrated from RoleSkillStore to local React state.
  * Source: FR-001, FR-002, FR-003, FR-004, US1, US2
  */
 import { useCallback, useEffect, useState } from 'react';
-import { observer } from 'mobx-react-lite';
 import {
   ArrowLeft,
   Sparkles,
@@ -22,17 +21,26 @@ import {
   Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useRoleSkillStore } from '@/stores/RootStore';
 import { useGenerateSkill, useCreateRoleSkill } from '../hooks/useRoleSkillActions';
 import { ROLE_SAMPLE_DESCRIPTIONS, ROLE_EXAMPLES } from '../constants/skill-wizard-constants';
-import type { SDLCRoleType, RoleTemplate } from '@/services/api/role-skills';
-import type { SkillExample } from '../constants/skill-wizard-constants';
+import type { SDLCRoleType, SkillExample } from '../constants/skill-wizard-constants';
+import type { SkillTemplate } from '@/services/api/skill-templates';
+
+/** Preview data from AI skill generation. */
+interface SkillPreview {
+  content: string;
+  suggestedName: string;
+  wordCount: number;
+}
+
+/** Steps in the skill generation wizard. */
+type GenerationStep = 'form' | 'generating' | 'preview';
 
 export interface SkillGenerationWizardProps {
   /** Role being configured. */
   roleType: SDLCRoleType;
-  /** Template for this role (provides default_skill_content and display_name). */
-  template: RoleTemplate | undefined;
+  /** Template for this role (provides skill_content and name). */
+  template: SkillTemplate | undefined;
   /** Workspace ID for API calls. */
   workspaceId: string;
   /** Called when Back is clicked (returns to role grid or previous role). */
@@ -43,12 +51,14 @@ export interface SkillGenerationWizardProps {
   currentIndex?: number;
   /** Total roles being configured. */
   totalRoles?: number;
+  /** Whether this is the primary role. */
+  isPrimary?: boolean;
 }
 
 const MIN_DESCRIPTION_CHARS = 10;
 const MAX_DESCRIPTION_CHARS = 5000;
 
-export const SkillGenerationWizard = observer(function SkillGenerationWizard({
+export function SkillGenerationWizard({
   roleType,
   template,
   workspaceId,
@@ -56,104 +66,104 @@ export const SkillGenerationWizard = observer(function SkillGenerationWizard({
   onComplete,
   currentIndex = 1,
   totalRoles = 1,
+  isPrimary = false,
 }: SkillGenerationWizardProps) {
-  const roleSkillStore = useRoleSkillStore();
   const generateSkillMutation = useGenerateSkill({ workspaceId });
   const createRoleSkillMutation = useCreateRoleSkill({ workspaceId });
 
-  const step = roleSkillStore.generationStep ?? 'form';
-  const roleName = template?.displayName ?? roleType.replace(/_/g, ' ');
+  // Local state (previously in RoleSkillStore)
+  const [step, setStep] = useState<GenerationStep>('form');
+  const [experienceDescription, setExperienceDescription] = useState('');
+  const [skillPreview, setSkillPreview] = useState<SkillPreview | null>(null);
+  const roleName = template?.name ?? roleType.replace(/_/g, ' ');
 
   const [editableRoleName, setEditableRoleName] = useState(roleName);
   const [showError, setShowError] = useState(false);
 
   // Pre-fill expertise description from role sample when entering form step
   useEffect(() => {
-    if (step === 'form' && roleSkillStore.experienceDescription === '') {
+    if (step === 'form' && experienceDescription === '') {
       const sample = ROLE_SAMPLE_DESCRIPTIONS[roleType];
       if (sample) {
-        roleSkillStore.setExperienceDescription(sample);
+        setExperienceDescription(sample);
       }
     }
-  }, [step, roleType, roleSkillStore]);
+  }, [step, roleType, experienceDescription]);
 
   const handleUseDefault = useCallback(() => {
     if (!template) return;
-    setEditableRoleName(template.displayName);
-    roleSkillStore.setSkillPreview({
-      content: template.defaultSkillContent,
-      suggestedName: template.displayName,
-      wordCount: template.defaultSkillContent.split(/\s+/).length,
+    setEditableRoleName(template.name);
+    setSkillPreview({
+      content: template.skill_content,
+      suggestedName: template.name,
+      wordCount: template.skill_content.split(/\s+/).length,
     });
-    roleSkillStore.setGenerationStep('preview');
-  }, [template, roleSkillStore]);
+    setStep('preview');
+  }, [template]);
 
   const handleGenerate = useCallback(async () => {
-    const description = roleSkillStore.experienceDescription;
-    if (description.length < MIN_DESCRIPTION_CHARS) return;
+    if (experienceDescription.length < MIN_DESCRIPTION_CHARS) return;
 
-    roleSkillStore.setGenerationStep('generating');
-    roleSkillStore.setIsGenerating(true);
+    setStep('generating');
     setShowError(false);
 
     try {
       const result = await generateSkillMutation.mutateAsync({
         roleType: roleType,
-        experienceDescription: description,
+        experienceDescription: experienceDescription,
       });
-      setEditableRoleName(result.suggestedRoleName);
-      roleSkillStore.setSkillPreview({
-        content: result.skillContent,
-        suggestedName: result.suggestedRoleName,
-        wordCount: result.wordCount,
+      setEditableRoleName(result.name);
+      setSkillPreview({
+        content: result.skill_content,
+        suggestedName: result.name,
+        wordCount: result.skill_content.split(/\s+/).length,
       });
-      roleSkillStore.setGenerationStep('preview');
+      setStep('preview');
     } catch {
       setShowError(true);
       if (template) {
-        roleSkillStore.setSkillPreview({
-          content: template.defaultSkillContent,
-          suggestedName: template.displayName,
-          wordCount: template.defaultSkillContent.split(/\s+/).length,
+        setSkillPreview({
+          content: template.skill_content,
+          suggestedName: template.name,
+          wordCount: template.skill_content.split(/\s+/).length,
         });
-        setEditableRoleName(template.displayName);
+        setEditableRoleName(template.name);
       }
-      roleSkillStore.setGenerationStep('preview');
-    } finally {
-      roleSkillStore.setIsGenerating(false);
+      setStep('preview');
     }
-  }, [roleSkillStore, roleType, template, generateSkillMutation]);
+  }, [experienceDescription, roleType, template, generateSkillMutation]);
 
   const handleSave = useCallback(async () => {
-    const preview = roleSkillStore.skillPreview;
-    if (!preview) return;
+    if (!skillPreview) return;
 
     try {
       await createRoleSkillMutation.mutateAsync({
+        name: editableRoleName || skillPreview.suggestedName,
+        description: experienceDescription || '',
+        skill_content: skillPreview.content,
+        role_type: roleType,
         roleType: roleType,
-        roleName: editableRoleName || preview.suggestedName,
-        skillContent: preview.content,
-        experienceDescription: roleSkillStore.experienceDescription || undefined,
-        isPrimary: roleSkillStore.selectedRoles[0] === roleType,
+        roleName: editableRoleName || skillPreview.suggestedName,
+        isPrimary: isPrimary,
       });
-      roleSkillStore.clearSkillPreview();
-      roleSkillStore.setExperienceDescription('');
-      roleSkillStore.setGenerationStep(null);
+      setSkillPreview(null);
+      setExperienceDescription('');
+      setStep('form');
       onComplete();
     } catch {
       // Error toast handled by mutation hook
     }
-  }, [roleSkillStore, roleType, editableRoleName, createRoleSkillMutation, onComplete]);
+  }, [skillPreview, roleType, editableRoleName, experienceDescription, isPrimary, createRoleSkillMutation, onComplete]);
 
   const handleRetry = useCallback(() => {
     setShowError(false);
-    roleSkillStore.clearSkillPreview();
-    if (roleSkillStore.experienceDescription.length >= MIN_DESCRIPTION_CHARS) {
+    setSkillPreview(null);
+    if (experienceDescription.length >= MIN_DESCRIPTION_CHARS) {
       handleGenerate();
     } else {
-      roleSkillStore.setGenerationStep('form');
+      setStep('form');
     }
-  }, [roleSkillStore, handleGenerate]);
+  }, [experienceDescription, handleGenerate]);
 
   const headerText =
     totalRoles > 1
@@ -168,7 +178,7 @@ export const SkillGenerationWizard = observer(function SkillGenerationWizard({
           <button
             onClick={() => {
               if (step === 'preview') {
-                roleSkillStore.setGenerationStep('form');
+                setStep('form');
               } else {
                 onBack();
               }
@@ -183,13 +193,13 @@ export const SkillGenerationWizard = observer(function SkillGenerationWizard({
         </div>
       )}
 
-      {/* Skill Form — two-panel layout */}
+      {/* Skill Form -- two-panel layout */}
       {step === 'form' && (
         <SkillFormView
           roleName={roleName}
           roleType={roleType}
-          description={roleSkillStore.experienceDescription}
-          onDescriptionChange={(text) => roleSkillStore.setExperienceDescription(text)}
+          description={experienceDescription}
+          onDescriptionChange={(text) => setExperienceDescription(text)}
           onGenerate={handleGenerate}
           onUseDefault={handleUseDefault}
           hasTemplate={!!template}
@@ -200,9 +210,9 @@ export const SkillGenerationWizard = observer(function SkillGenerationWizard({
       {step === 'generating' && <GeneratingState roleName={roleName} />}
 
       {/* Preview */}
-      {step === 'preview' && roleSkillStore.skillPreview && (
+      {step === 'preview' && skillPreview && (
         <SkillPreviewView
-          preview={roleSkillStore.skillPreview}
+          preview={skillPreview}
           editableRoleName={editableRoleName}
           onRoleNameChange={setEditableRoleName}
           showError={showError}
@@ -214,7 +224,7 @@ export const SkillGenerationWizard = observer(function SkillGenerationWizard({
       )}
     </div>
   );
-});
+}
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -254,7 +264,7 @@ function SkillFormView({
 
       {/* Two-column layout */}
       <div className="flex flex-col md:flex-row gap-4">
-        {/* Left panel — Describe Expertise */}
+        {/* Left panel -- Describe Expertise */}
         <div className="flex-[3] flex flex-col gap-3">
           <label htmlFor="expertise-textarea" className="text-sm font-medium">
             Describe Your Expertise
@@ -303,7 +313,7 @@ function SkillFormView({
           </div>
         </div>
 
-        {/* Right panel — Role Examples */}
+        {/* Right panel -- Role Examples */}
         {examples.length > 0 && (
           <div className="flex-[2] flex flex-col gap-3">
             <p className="text-sm font-medium">

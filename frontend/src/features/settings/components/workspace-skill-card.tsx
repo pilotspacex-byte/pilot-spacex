@@ -1,8 +1,8 @@
 /**
- * WorkspaceSkillCard — Admin UI for a workspace-level role skill.
+ * WorkspaceSkillCard -- Admin UI for a workspace-level skill.
  * Shows pending/active state + activate/remove actions.
  *
- * NOTE: is_active is a one-way gate. No Deactivate button — remove and regenerate to revert.
+ * Migrated from WorkspaceRoleSkill to SkillTemplate type.
  * Source: Phase 16, WRSKL-01, WRSKL-02
  */
 
@@ -13,10 +13,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { ConfirmActionDialog } from './confirm-action-dialog';
-import type { WorkspaceRoleSkill } from '@/services/api/workspace-role-skills';
+import type { SkillTemplate } from '@/services/api/skill-templates';
 
 interface WorkspaceSkillCardProps {
-  skill: WorkspaceRoleSkill;
+  skill: SkillTemplate;
   onActivate: (skillId: string) => void;
   onRemove: (skillId: string) => void;
   isActivating?: boolean;
@@ -38,7 +38,7 @@ export function WorkspaceSkillCard({
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="font-medium">{skill.role_name}</span>
+              <span className="font-medium">{skill.name}</span>
               {skill.is_active ? (
                 <Badge variant="default" className="bg-green-500 hover:bg-green-500">
                   Active
@@ -49,7 +49,7 @@ export function WorkspaceSkillCard({
                 </Badge>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">{skill.role_type.replace(/_/g, ' ')}</p>
+            <p className="text-xs text-muted-foreground">{(skill.role_type ?? skill.name).replace(/_/g, ' ')}</p>
           </div>
           <div className="flex gap-2">
             {!skill.is_active && (
@@ -88,7 +88,7 @@ export function WorkspaceSkillCard({
             onRemove(skill.id);
             setConfirmRemoveOpen(false);
           }}
-          title={`Remove "${skill.role_name}" skill?`}
+          title={`Remove "${skill.name}" skill?`}
           description="This will permanently remove this workspace skill. This action cannot be undone."
           confirmLabel="Remove"
           variant="destructive"

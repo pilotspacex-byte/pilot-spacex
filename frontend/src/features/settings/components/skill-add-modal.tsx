@@ -30,7 +30,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { useGenerateSkill } from '@/features/onboarding/hooks';
-import { useGenerateWorkspaceSkill } from '@/services/api/workspace-role-skills';
+import { useCreateSkillTemplate } from '@/services/api/skill-templates';
 import { useCreateUserSkill } from '@/services/api/user-skills';
 import { WordCountBar } from './word-count-bar';
 import {
@@ -125,10 +125,10 @@ export function SkillAddModal({
 
   const createUserSkill = useCreateUserSkill(workspaceSlug ?? '');
   const generatePersonal = useGenerateSkill({ workspaceId });
-  const generateWorkspace = useGenerateWorkspaceSkill({ workspaceId });
+  const createWorkspaceTemplate = useCreateSkillTemplate(workspaceSlug ?? workspaceId);
 
   const isPending =
-    generatePersonal.isPending || generateWorkspace.isPending || createUserSkill.isPending;
+    generatePersonal.isPending || createWorkspaceTemplate.isPending || createUserSkill.isPending;
 
   React.useEffect(() => {
     if (open) {
@@ -238,38 +238,40 @@ export function SkillAddModal({
           experienceDescription: aiDescription.trim(),
         });
         setAiPreview({
-          content: r.skillContent,
-          suggestedName: r.suggestedRoleName,
-          suggestedTags: r.suggestedTags ?? [],
-          suggestedUsage: r.suggestedUsage ?? null,
-          wordCount: r.wordCount,
+          content: r.skill_content,
+          suggestedName: r.name,
+          suggestedTags: [],
+          suggestedUsage: r.description ?? null,
+          wordCount: r.skill_content.split(/\s+/).length,
         });
-        setAiEditableName(r.suggestedRoleName);
-        setAiEditableContent(r.skillContent);
-        setAiEditableTags(r.suggestedTags ?? []);
-        setAiEditableUsage(r.suggestedUsage ?? '');
+        setAiEditableName(r.name);
+        setAiEditableContent(r.skill_content);
+        setAiEditableTags([]);
+        setAiEditableUsage(r.description ?? '');
       } else {
-        const s = await generateWorkspace.mutateAsync({
-          experience_description: aiDescription.trim(),
+        const s = await createWorkspaceTemplate.mutateAsync({
+          name: 'Generated Skill',
+          description: aiDescription.trim(),
+          skill_content: '',
         });
         setAiPreview({
           content: s.skill_content,
-          suggestedName: s.role_name,
-          suggestedTags: s.tags ?? [],
-          suggestedUsage: s.usage ?? null,
+          suggestedName: s.name,
+          suggestedTags: [],
+          suggestedUsage: s.description ?? null,
           wordCount: s.skill_content.split(/\s+/).length,
         });
-        setAiEditableName(s.role_name);
+        setAiEditableName(s.name);
         setAiEditableContent(s.skill_content);
-        setAiEditableTags(s.tags ?? []);
-        setAiEditableUsage(s.usage ?? '');
+        setAiEditableTags([]);
+        setAiEditableUsage(s.description ?? '');
       }
       setAiStep('preview');
     } catch {
       setAiShowError(true);
       setAiStep('form');
     }
-  }, [canGenerate, mode, aiDescription, generatePersonal, generateWorkspace]);
+  }, [canGenerate, mode, aiDescription, generatePersonal, createWorkspaceTemplate]);
 
   const handleAiSave = React.useCallback(async () => {
     if (!aiPreview) return;

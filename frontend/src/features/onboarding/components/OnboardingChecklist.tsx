@@ -3,7 +3,7 @@
 /**
  * OnboardingChecklist - Onboarding modal dialog with role setup sub-flow.
  *
- * T021/T022: Create OnboardingChecklist with role_setup integration
+ * Migrated from RoleSkillStore to local React state.
  * Source: FR-001, FR-002, FR-003, FR-013, US1
  */
 import { observer } from 'mobx-react-lite';
@@ -26,8 +26,8 @@ import {
   selectNextIncompleteStep,
 } from '../hooks/useOnboardingState';
 import { useOnboardingActions } from '../hooks/useOnboardingActions';
-import { useRoleTemplates, useRoleSkills } from '../hooks/useRoleSkillActions';
-import { useOnboardingStore, useRoleSkillStore } from '@/stores/RootStore';
+import { useOnboardingStore } from '@/stores/RootStore';
+import { useSkillTemplates } from '@/services/api/skill-templates';
 import { ApiKeySetupStep } from './ApiKeySetupStep';
 import { OnboardingStepItem } from './OnboardingStepItem';
 import { OnboardingCelebration } from './OnboardingCelebration';
@@ -35,6 +35,7 @@ import { RoleSelectorStep } from './RoleSelectorStep';
 import { SkillGenerationWizard } from './SkillGenerationWizard';
 import { CustomRoleInput } from './CustomRoleInput';
 import type { OnboardingStep } from '@/services/api/onboarding';
+import type { SDLCRoleType } from '../constants/skill-wizard-constants';
 
 export interface OnboardingChecklistProps {
   /** Workspace ID (required) */
@@ -87,10 +88,10 @@ type RoleSetupView = 'checklist' | 'role_grid' | 'custom_role' | 'skill_wizard';
 /** Ordered step display */
 const STEP_ORDER: OnboardingStep[] = ['ai_providers', 'invite_members', 'role_setup', 'first_note'];
 
+const MAX_ROLES = 3;
+
 /**
  * Maps each onboarding step to its corresponding settings page path segment.
- * Used to render a secondary "Go to settings" link per step (ONBD-05).
- * first_note has no settings page so it is intentionally omitted.
  */
 const STEP_SETTINGS_PATH: Partial<Record<OnboardingStep, string>> = {
   ai_providers: 'settings/ai-providers',
@@ -98,21 +99,12 @@ const STEP_SETTINGS_PATH: Partial<Record<OnboardingStep, string>> = {
   role_setup: 'settings/skills',
 };
 
-/**
- * OnboardingChecklist - modal dialog for 4-step onboarding
- *
- * FR-001: Display onboarding checklist (owner/admin only)
- * FR-002: Persist onboarding state per workspace
- * FR-003: Dismiss checklist via "Skip setup" or close modal
- * FR-013: Celebration trigger when all steps complete
- */
 export const OnboardingChecklist = observer(function OnboardingChecklist({
   workspaceId,
   workspaceSlug,
 }: OnboardingChecklistProps) {
   const router = useRouter();
   const onboardingStore = useOnboardingStore();
-  const roleSkillStore = useRoleSkillStore();
   const { data, isLoading, error } = useOnboardingState({ workspaceId });
   const {
     dismiss,
@@ -123,12 +115,15 @@ export const OnboardingChecklist = observer(function OnboardingChecklist({
     workspaceId,
     workspaceSlug,
   });
-  const { data: templates } = useRoleTemplates();
-  const { data: existingSkills } = useRoleSkills(workspaceId);
+  const { data: templates, isLoading: isLoadingTemplates } = useSkillTemplates(workspaceSlug);
+
+  // Local state replacing RoleSkillStore
+  const [selectedRoles, setSelectedRoles] = useState<SDLCRoleType[]>([]);
+  const [customRoleDescription, setCustomRoleDescription] = useState('');
 
   const existingSkillRoleTypes = useMemo(
-    () => (existingSkills ?? []).map((s) => s.roleType),
-    [existingSkills]
+    () => (templates ?? []).filter(t => t.is_active).map((t) => t.role_type ?? t.name),
+    [templates]
   );
 
   // Sub-flow state for role_setup step
@@ -145,6 +140,20 @@ export const OnboardingChecklist = observer(function OnboardingChecklist({
   const resetSubFlow = useCallback(() => {
     setRoleSetupView('checklist');
     setCurrentWizardIndex(0);
+    setSelectedRoles([]);
+    setCustomRoleDescription('');
+  }, []);
+
+  const toggleRole = useCallback((roleType: SDLCRoleType) => {
+    setSelectedRoles(prev => {
+      const index = prev.indexOf(roleType);
+      if (index >= 0) {
+        return prev.filter(r => r !== roleType);
+      } else if (prev.length < MAX_ROLES) {
+        return [...prev, roleType];
+      }
+      return prev;
+    });
   }, []);
 
   // Don't render if loading, error, or no data
@@ -179,12 +188,12 @@ export const OnboardingChecklist = observer(function OnboardingChecklist({
 
     if (step === 'role_setup') {
       // Open the role selection sub-flow WITHIN the dialog
-      roleSkillStore.clearSelectedRoles();
+      setSelectedRoles([]);
       setRoleSetupView('role_grid');
     } else if (step === 'first_note') {
       createNote.mutate();
     } else if (step === 'ai_providers') {
-      // No navigation — ApiKeySetupStep renders inline below the step item (ONBD-03)
+      // No navigation -- ApiKeySetupStep renders inline below the step item
     } else if (step === 'invite_members') {
       onboardingStore.setInviteDialogFromOnboarding(true);
       onboardingStore.closeModal();
@@ -194,9 +203,8 @@ export const OnboardingChecklist = observer(function OnboardingChecklist({
 
   // Role selection flow handlers
   const handleRoleContinue = () => {
-    if (roleSkillStore.selectedRoles.length === 0) return;
+    if (selectedRoles.length === 0) return;
     setCurrentWizardIndex(0);
-    roleSkillStore.setGenerationStep('form');
     setRoleSetupView('skill_wizard');
   };
 
@@ -214,43 +222,41 @@ export const OnboardingChecklist = observer(function OnboardingChecklist({
 
   const handleCustomRoleGenerate = () => {
     // Add 'custom' to selected roles if not already there
-    if (!roleSkillStore.selectedRoles.includes('custom')) {
-      roleSkillStore.toggleRole('custom');
+    if (!selectedRoles.includes('custom')) {
+      toggleRole('custom');
     }
     // Advance to wizard for the custom role
-    setCurrentWizardIndex(roleSkillStore.selectedRoles.indexOf('custom'));
-    roleSkillStore.setGenerationStep('form');
-    roleSkillStore.setExperienceDescription(roleSkillStore.customRoleDescription);
+    const customIndex = selectedRoles.includes('custom')
+      ? selectedRoles.indexOf('custom')
+      : selectedRoles.length; // will be added by toggleRole
+    setCurrentWizardIndex(customIndex);
     setRoleSetupView('skill_wizard');
   };
 
   const handleWizardBack = () => {
     if (currentWizardIndex > 0) {
       setCurrentWizardIndex(currentWizardIndex - 1);
-      roleSkillStore.setGenerationStep('form');
     } else {
       setRoleSetupView('role_grid');
     }
   };
 
   const handleWizardComplete = () => {
-    const selectedRoles = roleSkillStore.selectedRoles;
     const nextIndex = currentWizardIndex + 1;
 
     if (nextIndex < selectedRoles.length) {
       // More roles to configure
       setCurrentWizardIndex(nextIndex);
-      roleSkillStore.setGenerationStep('form');
     } else {
-      // All roles configured — mark step complete
+      // All roles configured -- mark step complete
       updateStep.mutate({ step: 'role_setup', completed: true });
       resetSubFlow();
     }
   };
 
   // Find the current wizard role's template
-  const currentWizardRole = roleSkillStore.selectedRoles[currentWizardIndex];
-  const currentTemplate = templates?.find((t) => t.roleType === currentWizardRole);
+  const currentWizardRole = selectedRoles[currentWizardIndex];
+  const currentTemplate = templates?.find((t) => (t.role_type ?? t.name) === currentWizardRole);
 
   // Determine if we show the sub-flow or the checklist
   const showSubFlow = roleSetupView !== 'checklist';
@@ -270,6 +276,10 @@ export const OnboardingChecklist = observer(function OnboardingChecklist({
             {roleSetupView === 'role_grid' && (
               <RoleSelectorStep
                 existingSkillRoleTypes={existingSkillRoleTypes}
+                selectedRoles={selectedRoles}
+                onToggleRole={toggleRole}
+                templates={templates}
+                isLoadingTemplates={isLoadingTemplates}
                 onContinue={handleRoleContinue}
                 onSkip={handleRoleSkip}
                 onBack={resetSubFlow}
@@ -278,6 +288,8 @@ export const OnboardingChecklist = observer(function OnboardingChecklist({
             )}
             {roleSetupView === 'custom_role' && (
               <CustomRoleInput
+                description={customRoleDescription}
+                onDescriptionChange={setCustomRoleDescription}
                 onBack={handleCustomRoleBack}
                 onGenerate={handleCustomRoleGenerate}
               />
@@ -290,7 +302,8 @@ export const OnboardingChecklist = observer(function OnboardingChecklist({
                 onBack={handleWizardBack}
                 onComplete={handleWizardComplete}
                 currentIndex={currentWizardIndex + 1}
-                totalRoles={roleSkillStore.selectedRoles.length}
+                totalRoles={selectedRoles.length}
+                isPrimary={currentWizardIndex === 0}
               />
             )}
           </div>

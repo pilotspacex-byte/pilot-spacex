@@ -7,7 +7,20 @@
  * Source: FR-001, FR-002, FR-003, FR-004
  */
 
-import type { SDLCRoleType } from '@/services/api/role-skills';
+/**
+ * Predefined SDLC role types.
+ * Local definition replacing the deleted role-skills.ts import.
+ */
+export type SDLCRoleType =
+  | 'business_analyst'
+  | 'product_owner'
+  | 'developer'
+  | 'tester'
+  | 'architect'
+  | 'tech_lead'
+  | 'project_manager'
+  | 'devops'
+  | 'custom';
 
 /**
  * Pre-fill text for the "Describe Your Expertise" textarea per role.

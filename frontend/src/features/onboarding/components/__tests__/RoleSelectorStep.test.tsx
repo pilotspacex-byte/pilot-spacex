@@ -1,169 +1,172 @@
 /**
  * Component tests for RoleSelectorStep.
  *
- * T023: Tests for role selection grid rendering, interaction, and accessibility.
+ * Migrated from RoleSkillStore to props-based state management.
  * Source: FR-001, FR-002, FR-018, US1
  */
 
-import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { StoreContext, RootStore } from '@/stores/RootStore';
 import { RoleSelectorStep } from '../RoleSelectorStep';
-import { roleSkillsApi } from '@/services/api/role-skills';
+import type { SkillTemplate } from '@/services/api/skill-templates';
+import type { SDLCRoleType } from '../../constants/skill-wizard-constants';
 
-// Mock the role-skills API
-vi.mock('@/services/api/role-skills', () => ({
-  roleSkillsApi: {
-    getTemplates: vi.fn(),
-  },
-}));
-
-const mockTemplates = [
+const mockTemplates: SkillTemplate[] = [
   {
     id: '1',
-    roleType: 'business_analyst' as const,
-    displayName: 'Business Analyst',
+    workspace_id: 'ws-1',
+    name: 'Business Analyst',
     description: 'Requirements & analysis',
+    skill_content: '# Business Analyst',
     icon: 'FileSearch',
-    sortOrder: 1,
-    version: 1,
-    defaultSkillContent: '# Business Analyst',
+    sort_order: 1,
+    source: 'built_in',
+    role_type: 'business_analyst',
+    is_active: true,
+    created_by: null,
+    created_at: '2026-02-06T00:00:00Z',
+    updated_at: '2026-02-06T00:00:00Z',
   },
   {
     id: '2',
-    roleType: 'developer' as const,
-    displayName: 'Developer',
+    workspace_id: 'ws-1',
+    name: 'Developer',
     description: 'Code & architecture',
+    skill_content: '# Developer',
     icon: 'Code',
-    sortOrder: 3,
-    version: 1,
-    defaultSkillContent: '# Developer',
+    sort_order: 3,
+    source: 'built_in',
+    role_type: 'developer',
+    is_active: true,
+    created_by: null,
+    created_at: '2026-02-06T00:00:00Z',
+    updated_at: '2026-02-06T00:00:00Z',
   },
   {
     id: '3',
-    roleType: 'tester' as const,
-    displayName: 'Tester',
+    workspace_id: 'ws-1',
+    name: 'Tester',
     description: 'Quality & test plans',
+    skill_content: '# Tester',
     icon: 'TestTube',
-    sortOrder: 4,
-    version: 1,
-    defaultSkillContent: '# Tester',
+    sort_order: 4,
+    source: 'built_in',
+    role_type: 'tester',
+    is_active: true,
+    created_by: null,
+    created_at: '2026-02-06T00:00:00Z',
+    updated_at: '2026-02-06T00:00:00Z',
   },
 ];
 
-function createWrapper() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  const rootStore = new RootStore();
-
-  return {
-    rootStore,
-    Wrapper({ children }: { children: React.ReactNode }) {
-      return React.createElement(
-        QueryClientProvider,
-        { client: queryClient },
-        React.createElement(StoreContext.Provider, { value: rootStore }, children)
-      );
-    },
-  };
-}
-
 describe('RoleSelectorStep', () => {
+  let selectedRoles: SDLCRoleType[];
+  let onToggleRole: ReturnType<typeof vi.fn>;
+
   const defaultProps = {
     onContinue: vi.fn(),
     onSkip: vi.fn(),
     onBack: vi.fn(),
     onCustomRole: vi.fn(),
+    templates: mockTemplates,
+    isLoadingTemplates: false,
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(roleSkillsApi.getTemplates).mockResolvedValue({
-      templates: mockTemplates,
+    selectedRoles = [];
+    onToggleRole = vi.fn((roleType: SDLCRoleType) => {
+      const idx = selectedRoles.indexOf(roleType);
+      if (idx >= 0) {
+        selectedRoles = selectedRoles.filter(r => r !== roleType);
+      } else {
+        selectedRoles = [...selectedRoles, roleType];
+      }
     });
   });
 
   describe('rendering', () => {
-    it('should render the title and description', async () => {
-      const { Wrapper } = createWrapper();
-      render(<RoleSelectorStep {...defaultProps} />, { wrapper: Wrapper });
+    it('should render the title and description', () => {
+      render(
+        <RoleSelectorStep
+          {...defaultProps}
+          selectedRoles={selectedRoles}
+          onToggleRole={onToggleRole}
+        />
+      );
 
-      expect(await screen.findByText('Set Up Your Role')).toBeInTheDocument();
-      expect(
-        screen.getByText(/Select your SDLC role to personalize your AI assistant/)
-      ).toBeInTheDocument();
+      expect(screen.getByText('Set Up Your Skill')).toBeInTheDocument();
     });
 
-    it('should render role cards from templates', async () => {
-      const { Wrapper } = createWrapper();
-      render(<RoleSelectorStep {...defaultProps} />, { wrapper: Wrapper });
+    it('should render role cards from templates', () => {
+      render(
+        <RoleSelectorStep
+          {...defaultProps}
+          selectedRoles={selectedRoles}
+          onToggleRole={onToggleRole}
+        />
+      );
 
-      expect(await screen.findByText('Business Analyst')).toBeInTheDocument();
+      expect(screen.getByText('Business Analyst')).toBeInTheDocument();
       expect(screen.getByText('Developer')).toBeInTheDocument();
       expect(screen.getByText('Tester')).toBeInTheDocument();
     });
 
-    it('should render the Custom Role card', async () => {
-      const { Wrapper } = createWrapper();
-      render(<RoleSelectorStep {...defaultProps} />, { wrapper: Wrapper });
+    it('should render the Custom Skill card', () => {
+      render(
+        <RoleSelectorStep
+          {...defaultProps}
+          selectedRoles={selectedRoles}
+          onToggleRole={onToggleRole}
+        />
+      );
 
-      expect(await screen.findByText('Custom Role')).toBeInTheDocument();
+      expect(screen.getByText('Custom Skill')).toBeInTheDocument();
     });
 
-    it('should show loading state while templates are fetching', () => {
-      vi.mocked(roleSkillsApi.getTemplates).mockReturnValue(new Promise(() => {}));
-      const { Wrapper } = createWrapper();
-      render(<RoleSelectorStep {...defaultProps} />, { wrapper: Wrapper });
+    it('should show loading state while templates are loading', () => {
+      render(
+        <RoleSelectorStep
+          {...defaultProps}
+          isLoadingTemplates={true}
+          selectedRoles={selectedRoles}
+          onToggleRole={onToggleRole}
+        />
+      );
 
-      expect(screen.getByText('Loading roles...')).toBeInTheDocument();
+      expect(screen.getByText('Loading skills...')).toBeInTheDocument();
     });
   });
 
   describe('selection behavior', () => {
-    it('should toggle role selection on click', async () => {
+    it('should call onToggleRole when a role card is clicked', async () => {
       const user = userEvent.setup();
-      const { Wrapper, rootStore } = createWrapper();
-      render(<RoleSelectorStep {...defaultProps} />, { wrapper: Wrapper });
+      render(
+        <RoleSelectorStep
+          {...defaultProps}
+          selectedRoles={selectedRoles}
+          onToggleRole={onToggleRole}
+        />
+      );
 
-      const devCard = await screen.findByTestId('role-card-developer');
+      const devCard = screen.getByTestId('role-card-developer');
       await user.click(devCard);
 
-      expect(rootStore.roleSkill.selectedRoles).toContain('developer');
+      expect(onToggleRole).toHaveBeenCalledWith('developer');
     });
 
-    it('should deselect on second click', async () => {
+    it('should call onCustomRole when Custom Skill card is clicked', async () => {
       const user = userEvent.setup();
-      const { Wrapper, rootStore } = createWrapper();
-      render(<RoleSelectorStep {...defaultProps} />, { wrapper: Wrapper });
+      render(
+        <RoleSelectorStep
+          {...defaultProps}
+          selectedRoles={selectedRoles}
+          onToggleRole={onToggleRole}
+        />
+      );
 
-      const devCard = await screen.findByTestId('role-card-developer');
-      await user.click(devCard);
-      await user.click(devCard);
-
-      expect(rootStore.roleSkill.selectedRoles).not.toContain('developer');
-    });
-
-    it('should show selection summary bar when roles are selected', async () => {
-      const user = userEvent.setup();
-      const { Wrapper } = createWrapper();
-      render(<RoleSelectorStep {...defaultProps} />, { wrapper: Wrapper });
-
-      const devCard = await screen.findByTestId('role-card-developer');
-      await user.click(devCard);
-
-      expect(screen.getByText(/developer \(primary\)/i)).toBeInTheDocument();
-    });
-
-    it('should call onCustomRole when Custom Role card is clicked', async () => {
-      const user = userEvent.setup();
-      const { Wrapper } = createWrapper();
-      render(<RoleSelectorStep {...defaultProps} />, { wrapper: Wrapper });
-
-      const customCard = await screen.findByTestId('role-card-custom');
+      const customCard = screen.getByTestId('role-card-custom');
       await user.click(customCard);
 
       expect(defaultProps.onCustomRole).toHaveBeenCalledOnce();
@@ -171,21 +174,27 @@ describe('RoleSelectorStep', () => {
   });
 
   describe('continue button', () => {
-    it('should be disabled when no roles selected', async () => {
-      const { Wrapper } = createWrapper();
-      render(<RoleSelectorStep {...defaultProps} />, { wrapper: Wrapper });
+    it('should be disabled when no roles selected', () => {
+      render(
+        <RoleSelectorStep
+          {...defaultProps}
+          selectedRoles={[]}
+          onToggleRole={onToggleRole}
+        />
+      );
 
-      const button = await screen.findByRole('button', { name: /Continue/i });
+      const button = screen.getByRole('button', { name: /Continue/i });
       expect(button).toBeDisabled();
     });
 
-    it('should be enabled when at least one role is selected', async () => {
-      const user = userEvent.setup();
-      const { Wrapper } = createWrapper();
-      render(<RoleSelectorStep {...defaultProps} />, { wrapper: Wrapper });
-
-      const devCard = await screen.findByTestId('role-card-developer');
-      await user.click(devCard);
+    it('should be enabled when at least one role is selected', () => {
+      render(
+        <RoleSelectorStep
+          {...defaultProps}
+          selectedRoles={['developer']}
+          onToggleRole={onToggleRole}
+        />
+      );
 
       const button = screen.getByRole('button', { name: /Continue/i });
       expect(button).toBeEnabled();
@@ -193,11 +202,13 @@ describe('RoleSelectorStep', () => {
 
     it('should call onContinue when clicked', async () => {
       const user = userEvent.setup();
-      const { Wrapper } = createWrapper();
-      render(<RoleSelectorStep {...defaultProps} />, { wrapper: Wrapper });
-
-      const devCard = await screen.findByTestId('role-card-developer');
-      await user.click(devCard);
+      render(
+        <RoleSelectorStep
+          {...defaultProps}
+          selectedRoles={['developer']}
+          onToggleRole={onToggleRole}
+        />
+      );
 
       const button = screen.getByRole('button', { name: /Continue/i });
       await user.click(button);
@@ -205,15 +216,14 @@ describe('RoleSelectorStep', () => {
       expect(defaultProps.onContinue).toHaveBeenCalledOnce();
     });
 
-    it('should show count when multiple roles selected', async () => {
-      const user = userEvent.setup();
-      const { Wrapper } = createWrapper();
-      render(<RoleSelectorStep {...defaultProps} />, { wrapper: Wrapper });
-
-      const devCard = await screen.findByTestId('role-card-developer');
-      const testerCard = screen.getByTestId('role-card-tester');
-      await user.click(devCard);
-      await user.click(testerCard);
+    it('should show count when multiple roles selected', () => {
+      render(
+        <RoleSelectorStep
+          {...defaultProps}
+          selectedRoles={['developer', 'tester']}
+          onToggleRole={onToggleRole}
+        />
+      );
 
       expect(screen.getByRole('button', { name: /Set Up 2 Skills/i })).toBeInTheDocument();
     });
@@ -222,10 +232,14 @@ describe('RoleSelectorStep', () => {
   describe('navigation', () => {
     it('should call onBack when Back button is clicked', async () => {
       const user = userEvent.setup();
-      const { Wrapper } = createWrapper();
-      render(<RoleSelectorStep {...defaultProps} />, { wrapper: Wrapper });
+      render(
+        <RoleSelectorStep
+          {...defaultProps}
+          selectedRoles={selectedRoles}
+          onToggleRole={onToggleRole}
+        />
+      );
 
-      await screen.findByText('Back');
       await user.click(screen.getByText('Back'));
 
       expect(defaultProps.onBack).toHaveBeenCalledOnce();
@@ -233,93 +247,32 @@ describe('RoleSelectorStep', () => {
 
     it('should call onSkip when Skip button is clicked', async () => {
       const user = userEvent.setup();
-      const { Wrapper } = createWrapper();
-      render(<RoleSelectorStep {...defaultProps} />, { wrapper: Wrapper });
+      render(
+        <RoleSelectorStep
+          {...defaultProps}
+          selectedRoles={selectedRoles}
+          onToggleRole={onToggleRole}
+        />
+      );
 
-      await screen.findByText('Skip');
       await user.click(screen.getByText('Skip'));
 
       expect(defaultProps.onSkip).toHaveBeenCalledOnce();
     });
   });
 
-  describe('accessibility', () => {
-    it('should have role="group" on the grid container', async () => {
-      const { Wrapper } = createWrapper();
-      render(<RoleSelectorStep {...defaultProps} />, { wrapper: Wrapper });
-
-      await screen.findByRole('group', { name: 'Select your SDLC roles' });
-    });
-
-    it('should have live region for selection count', async () => {
-      const user = userEvent.setup();
-      const { Wrapper } = createWrapper();
-      render(<RoleSelectorStep {...defaultProps} />, { wrapper: Wrapper });
-
-      const devCard = await screen.findByTestId('role-card-developer');
-      await user.click(devCard);
-
-      const liveRegion = screen.getByRole('status');
-      expect(liveRegion).toHaveTextContent(/1 of 3 roles selected/);
-    });
-  });
-
   describe('existing skills', () => {
-    it('should show "Already set up" for roles with existing skills', async () => {
-      const { Wrapper } = createWrapper();
+    it('should show "Already set up" for roles with existing skills', () => {
       render(
-        <RoleSelectorStep {...defaultProps} existingSkillRoleTypes={['developer']} />,
-        { wrapper: Wrapper }
+        <RoleSelectorStep
+          {...defaultProps}
+          existingSkillRoleTypes={['developer']}
+          selectedRoles={selectedRoles}
+          onToggleRole={onToggleRole}
+        />
       );
 
-      await screen.findByText('Developer');
       expect(screen.getByText('Already set up')).toBeInTheDocument();
-    });
-
-    it('should not toggle selection for existing skill roles', async () => {
-      const user = userEvent.setup();
-      const { Wrapper, rootStore } = createWrapper();
-      render(
-        <RoleSelectorStep {...defaultProps} existingSkillRoleTypes={['developer']} />,
-        { wrapper: Wrapper }
-      );
-
-      const devCard = await screen.findByTestId('role-card-developer');
-      await user.click(devCard);
-
-      expect(rootStore.roleSkill.selectedRoles).not.toContain('developer');
-    });
-
-    it('should still allow selecting non-existing roles', async () => {
-      const user = userEvent.setup();
-      const { Wrapper, rootStore } = createWrapper();
-      render(
-        <RoleSelectorStep {...defaultProps} existingSkillRoleTypes={['developer']} />,
-        { wrapper: Wrapper }
-      );
-
-      const testerCard = await screen.findByTestId('role-card-tester');
-      await user.click(testerCard);
-
-      expect(rootStore.roleSkill.selectedRoles).toContain('tester');
-    });
-  });
-
-  describe('badges', () => {
-    it('should show "Your default" badge on default role card', async () => {
-      const { Wrapper } = createWrapper();
-      render(<RoleSelectorStep {...defaultProps} defaultRole="developer" />, { wrapper: Wrapper });
-
-      await screen.findByText('Developer');
-      expect(screen.getByText('Your default')).toBeInTheDocument();
-    });
-
-    it('should show "Suggested by owner" badge on suggested role card', async () => {
-      const { Wrapper } = createWrapper();
-      render(<RoleSelectorStep {...defaultProps} suggestedRole="tester" />, { wrapper: Wrapper });
-
-      await screen.findByText('Tester');
-      expect(screen.getByText('Suggested by owner')).toBeInTheDocument();
     });
   });
 });

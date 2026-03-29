@@ -32,7 +32,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { useGenerateSkill, useCreateRoleSkill } from '@/features/onboarding/hooks';
-import { useGenerateWorkspaceSkill } from '@/services/api/workspace-role-skills';
+import { useCreateSkillTemplate } from '@/services/api/skill-templates';
 import { useCreateUserSkill } from '@/services/api/user-skills';
 
 // ---------------------------------------------------------------------------
@@ -113,7 +113,7 @@ export function SkillGeneratorModal({
   const createPersonal = useCreateRoleSkill({ workspaceId });
 
   // Workspace skill mutation
-  const generateWorkspace = useGenerateWorkspaceSkill({ workspaceId });
+  const generateWorkspace = useCreateSkillTemplate(workspaceSlug || workspaceId);
 
   // New user_skills table mutation (Phase 20)
   const createUserSkill = useCreateUserSkill(workspaceSlug || workspaceId);
@@ -150,22 +150,24 @@ export function SkillGeneratorModal({
           experienceDescription: description,
         });
         setPreview({
-          content: result.skillContent,
-          suggestedName: result.suggestedRoleName,
-          wordCount: result.wordCount,
+          content: result.skill_content,
+          suggestedName: result.name,
+          wordCount: result.skill_content.split(/\s+/).length,
         });
-        setEditableName(result.suggestedRoleName);
-        setEditableContent(result.skillContent);
+        setEditableName(result.name);
+        setEditableContent(result.skill_content);
       } else {
         const skill = await generateWorkspace.mutateAsync({
-          experience_description: description,
+          name: 'Generated Skill',
+          description: description,
+          skill_content: '',
         });
         setPreview({
           content: skill.skill_content,
-          suggestedName: skill.role_name,
+          suggestedName: skill.name,
           wordCount: skill.skill_content.split(/\s+/).length,
         });
-        setEditableName(skill.role_name);
+        setEditableName(skill.name);
         setEditableContent(skill.skill_content);
       }
       setStep('preview');
