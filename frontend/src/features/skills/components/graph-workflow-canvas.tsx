@@ -28,7 +28,7 @@ import {
   type Connection,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { LayoutGrid } from 'lucide-react';
+import { Eye, LayoutGrid, Play, Square } from 'lucide-react';
 
 import {
   WorkflowNodeType,
@@ -53,9 +53,12 @@ interface GraphWorkflowInnerProps {
   initialNodes?: Node<WorkflowNodeData>[];
   initialEdges?: Edge[];
   onSave?: (data: { nodes: Node<WorkflowNodeData>[]; edges: Edge[] }) => void;
+  onPreview?: () => void;
+  onCompile?: (content: string) => void;
+  isCompiling?: boolean;
 }
 
-function GraphWorkflowInner({ store, initialNodes: initNodes, initialEdges: initEdges, onSave }: GraphWorkflowInnerProps) {
+function GraphWorkflowInner({ store, initialNodes: initNodes, initialEdges: initEdges, onSave, onPreview, onCompile, isCompiling }: GraphWorkflowInnerProps) {
   const { screenToFlowPosition } = useReactFlow();
   const {
     nodes,
@@ -286,18 +289,56 @@ function GraphWorkflowInner({ store, initialNodes: initNodes, initialEdges: init
         />
         <Controls position="bottom-left" className="!bottom-4 !left-4" />
         <Panel position="top-left">
-          <button
-            type="button"
-            onClick={() => {
-              applyLayout('TB');
-              store.markDirty();
-              requestAnimationFrame(() => pushHistory());
-            }}
-            className="flex items-center gap-1.5 rounded-md bg-[#1e1e2e]/90 px-2.5 py-1.5 text-xs text-zinc-300 backdrop-blur-sm border border-[#2a2a3e] hover:bg-[#2a2a3e] transition-colors"
-          >
-            <LayoutGrid className="h-3.5 w-3.5" />
-            Auto Layout
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                applyLayout('TB');
+                store.markDirty();
+                requestAnimationFrame(() => pushHistory());
+              }}
+              className="flex items-center gap-1.5 rounded-md bg-[#1e1e2e]/90 px-2.5 py-1.5 text-xs text-zinc-300 backdrop-blur-sm border border-[#2a2a3e] hover:bg-[#2a2a3e] transition-colors"
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+              Auto Layout
+            </button>
+            {store.isPreviewRunning ? (
+              <button
+                type="button"
+                onClick={() => store.stopPreview()}
+                className="flex items-center gap-1.5 rounded-md bg-red-900/60 px-2.5 py-1.5 text-xs text-red-200 backdrop-blur-sm border border-red-800/50 hover:bg-red-900/80 transition-colors"
+              >
+                <Square className="h-3.5 w-3.5" />
+                Stop
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onPreview}
+                disabled={!store.graphId || store.hasErrors}
+                className="flex items-center gap-1.5 rounded-md bg-[#1e1e2e]/90 px-2.5 py-1.5 text-xs text-zinc-300 backdrop-blur-sm border border-[#2a2a3e] hover:bg-[#2a2a3e] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <Eye className="h-3.5 w-3.5" />
+                Preview
+              </button>
+            )}
+            {onCompile && (
+              <button
+                type="button"
+                onClick={() => onCompile?.('')}
+                disabled={!store.graphId || store.hasErrors || isCompiling}
+                className="flex items-center gap-1.5 rounded-md bg-emerald-900/60 px-2.5 py-1.5 text-xs text-emerald-200 backdrop-blur-sm border border-emerald-800/50 hover:bg-emerald-900/80 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                data-testid="compile-btn"
+              >
+                {isCompiling ? (
+                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-emerald-200/30 border-t-emerald-200" />
+                ) : (
+                  <Play className="h-3.5 w-3.5" />
+                )}
+                Compile
+              </button>
+            )}
+          </div>
         </Panel>
         <Panel position="top-right">
           <GraphValidationBadge />
@@ -316,6 +357,9 @@ export interface GraphWorkflowCanvasProps {
   initialNodes?: Node<WorkflowNodeData>[];
   initialEdges?: Edge[];
   onSave?: (data: { nodes: Node<WorkflowNodeData>[]; edges: Edge[] }) => void;
+  onPreview?: () => void;
+  onCompile?: (content: string) => void;
+  isCompiling?: boolean;
 }
 
 export function GraphWorkflowCanvas({
@@ -323,6 +367,9 @@ export function GraphWorkflowCanvas({
   initialNodes,
   initialEdges,
   onSave,
+  onPreview,
+  onCompile,
+  isCompiling,
 }: GraphWorkflowCanvasProps) {
   const store = useMemo(() => {
     const s = new GraphWorkflowStore();
@@ -350,6 +397,9 @@ export function GraphWorkflowCanvas({
           initialNodes={initialNodes}
           initialEdges={initialEdges}
           onSave={onSave}
+          onPreview={onPreview}
+          onCompile={onCompile}
+          isCompiling={isCompiling}
         />
       </GraphWorkflowContext.Provider>
     </ReactFlowProvider>

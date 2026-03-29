@@ -19,12 +19,17 @@ from fastapi import APIRouter, status
 from pilot_space.api.middleware.request_context import WorkspaceId
 from pilot_space.api.v1.dependencies import GraphCompilerServiceDep, SkillGraphServiceDep
 from pilot_space.api.v1.schemas.skill_graph import (
+    ExecutionPreviewResponse,
+    ExecutionTraceStep,
     SkillGraphCompileResponse,
     SkillGraphCreate,
     SkillGraphResponse,
     SkillGraphUpdate,
 )
-from pilot_space.application.services.skill.graph_compiler_service import GraphCompilePayload
+from pilot_space.application.services.skill.graph_compiler_service import (
+    GraphCompilePayload,
+    GraphCompilerService,
+)
 from pilot_space.dependencies import CurrentUserId, DbSession
 from pilot_space.infrastructure.database.rls import set_rls_context
 
@@ -164,6 +169,77 @@ async def compile_skill_graph(
         graph_id=graph_id,
         template_id=result.skill_template_id,
     )
+
+
+@router.post(
+    "/{graph_id}/preview",
+    response_model=ExecutionPreviewResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Preview execution trace for a skill graph",
+)
+async def preview_skill_graph(
+    workspace_id: WorkspaceId,
+    graph_id: UUID,
+    session: DbSession,
+    current_user_id: CurrentUserId,
+    service: SkillGraphServiceDep,
+) -> ExecutionPreviewResponse:
+    """Return a step-by-step execution trace for the graph.
+
+    Loads the graph, performs topological sort, and returns ordered
+    trace steps for animated preview in the graph editor.
+    """
+    await set_rls_context(session, current_user_id, workspace_id)
+    graph = await service.get(graph_id)
+    graph_json = graph.graph_json  # type: ignore[union-attr]
+    nodes = graph_json.get("nodes", [])
+    edges = graph_json.get("edges", [])
+
+    # Use the static topological sort method for execution ordering
+    sorted_nodes = GraphCompilerService._topological_sort(nodes, edges)  # pyright: ignore[reportPrivateUsage]
+
+    trace: list[ExecutionTraceStep] = []
+    for step_num, node in enumerate(sorted_nodes, start=1):
+        data = node.get("data", {})
+        node_type = data.get("nodeType", node.get("type", "unknown"))
+        label = data.get("label", "Untitled")
+
+        # Build step description based on node type
+        description = _trace_description(node_type, label, data.get("config", {}))
+
+        trace.append(
+            ExecutionTraceStep(
+                node_id=node["id"],
+                node_type=node_type,
+                label=label,
+                step_number=step_num,
+                description=description,
+            )
+        )
+
+    return ExecutionPreviewResponse(trace=trace)
+
+
+def _trace_description(node_type: str, label: str, config: dict) -> str:  # type: ignore[type-arg]
+    """Generate a human-readable description for a trace step."""
+    match node_type:
+        case "input":
+            return f"Receive input: {label}"
+        case "output":
+            fmt = config.get("outputFormat", "text")
+            return f"Emit output ({fmt}): {label}"
+        case "prompt":
+            return f"Execute prompt: {label}"
+        case "skill":
+            skill = config.get("skillName", "unknown")
+            return f"Invoke skill '{skill}': {label}"
+        case "condition":
+            expr = config.get("conditionExpression", "")
+            return f"Evaluate condition: {expr or label}"
+        case "transform":
+            return f"Apply transformation: {label}"
+        case _:
+            return f"Execute: {label}"
 
 
 __all__ = ["router"]

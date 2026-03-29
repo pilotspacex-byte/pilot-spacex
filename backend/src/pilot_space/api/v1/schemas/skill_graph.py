@@ -55,9 +55,44 @@ class SkillGraphCompileResponse(BaseModel):
     template_id: UUID
 
 
+class ExecutionTraceStep(BaseModel):
+    """A single step in the execution preview trace."""
+
+    node_id: str
+    node_type: str
+    label: str
+    step_number: int
+    description: str
+
+
+class ExecutionPreviewResponse(BaseModel):
+    """Response schema for graph execution preview."""
+
+    trace: list[ExecutionTraceStep]
+
+
+class SkillGraphDecompileRequest(BaseModel):
+    """Payload for decompiling SKILL.md content into graph JSON."""
+
+    skill_content: str
+
+
+class SkillGraphDecompileResponse(BaseModel):
+    """Response schema for graph decompilation result."""
+
+    graph_json: dict[str, Any]
+    node_count: int
+    edge_count: int
+    confidence: str
+
+
 __all__ = [
+    "ExecutionPreviewResponse",
+    "ExecutionTraceStep",
     "SkillGraphCompileResponse",
     "SkillGraphCreate",
+    "SkillGraphDecompileRequest",
+    "SkillGraphDecompileResponse",
     "SkillGraphResponse",
     "SkillGraphUpdate",
 ]

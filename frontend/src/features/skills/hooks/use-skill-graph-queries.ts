@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 
 import {
   type SkillGraphUpdate,
+  type SkillGraphDecompileRequest,
   skillGraphsApi,
 } from '@/services/api/skill-graphs';
 
@@ -69,6 +70,50 @@ export function useSkillGraphMutation(workspaceId: string) {
       void qc.invalidateQueries({
         queryKey: skillGraphKeys.byTemplate(variables.templateId),
       });
+    },
+  });
+}
+
+/**
+ * Preview execution trace for a skill graph.
+ * Returns ordered list of nodes in topological execution order.
+ */
+export function usePreviewSkillGraph(workspaceId: string) {
+  return useMutation({
+    mutationFn: ({ graphId }: { graphId: string }) =>
+      skillGraphsApi.previewSkillGraph(workspaceId, graphId),
+  });
+}
+
+/**
+ * Decompile SKILL.md content into a graph representation.
+ * Returns React Flow-compatible nodes and edges.
+ */
+export function useDecompileSkillGraph(workspaceId: string) {
+  return useMutation({
+    mutationFn: (data: SkillGraphDecompileRequest) =>
+      skillGraphsApi.decompileSkillGraph(workspaceId, data),
+  });
+}
+
+/**
+ * Compile a skill graph to SKILL.md content via AI synthesis.
+ * Returns compiled content for preview.
+ */
+export function useCompileSkillGraph(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ graphId }: { graphId: string }) =>
+      skillGraphsApi.compileSkillGraph(workspaceId, graphId),
+    onSuccess: (_result, variables) => {
+      toast.success('Graph compiled to SKILL.md');
+      void qc.invalidateQueries({ queryKey: skillGraphKeys.all });
+      void qc.invalidateQueries({
+        queryKey: skillGraphKeys.byId(variables.graphId),
+      });
+    },
+    onError: () => {
+      toast.error('Compilation failed');
     },
   });
 }
