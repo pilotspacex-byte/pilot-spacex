@@ -1,6 +1,6 @@
 /**
  * Skills API client — generated skill save endpoint.
- * Used by SkillSaveDialog after conversational skill generation.
+ * Used by skill generation flows to save generated skills.
  * Source: Phase 051, P051-03
  */
 

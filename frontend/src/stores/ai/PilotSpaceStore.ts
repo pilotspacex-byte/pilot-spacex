@@ -25,7 +25,7 @@ import type {
 import type { SkillDefinition } from './types/skills';
 import { PilotSpaceStreamHandler } from './PilotSpaceStreamHandler';
 import { PilotSpaceActions } from './PilotSpaceActions';
-import { SkillGeneratorStore } from './SkillGeneratorStore';
+
 
 // Interfaces extracted to types/store-types.ts to keep this file under 700 lines.
 import type {
@@ -150,18 +150,12 @@ export class PilotSpaceStore {
   /** Loading state for fetching older messages */
   isLoadingMoreMessages: boolean = false;
 
-  // Sub-stores
-
-  /** Skill generation state (Phase 051) */
-  readonly skillGeneratorStore: SkillGeneratorStore;
-
   // Delegates
 
   private readonly streamHandler: PilotSpaceStreamHandler;
   private readonly actions: PilotSpaceActions;
 
   constructor(_rootStore: AIStore) {
-    this.skillGeneratorStore = new SkillGeneratorStore();
     this.streamHandler = new PilotSpaceStreamHandler(this);
     this.actions = new PilotSpaceActions(this, this.streamHandler);
 

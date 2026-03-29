@@ -433,7 +433,6 @@ export class PilotSpaceActions {
     this.store.pendingContentUpdates = [];
     this.store.pendingQuestion = null;
     this.store.error = null;
-    this.store.skillGeneratorStore.reset();
     // Reset pagination state
     this.store.setMessagePaginationState(false, 0);
     this.store.setIsLoadingMoreMessages(false);

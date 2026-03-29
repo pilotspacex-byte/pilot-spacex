@@ -49,7 +49,6 @@ import { ConfirmAllButton } from './ConfirmAllButton';
 import { QueueDepthIndicator } from './QueueDepthIndicator';
 import { useIntentRehydration } from './hooks/useIntentRehydration';
 import { useApprovals } from './hooks/useApprovals';
-import { SkillEditorPanel, SkillSaveDialog } from './SkillEditor';
 import type { HeadingItem } from '@/components/editor/AutoTOC';
 export { isDestructiveAction } from './utils';
 
@@ -375,8 +374,6 @@ const ChatViewInternal = observer<ChatViewProps>(
       await sessionListStore.loadMoreMessages(store.sessionId);
     }, [store.sessionId, store.hasMoreMessages, store.isLoadingMoreMessages, sessionListStore]);
 
-    const skillStore = store.skillGeneratorStore;
-
     return (
       <div className={cn('flex flex-col h-full bg-background', className)} data-testid="chat-view">
         {/* Compact header */}
@@ -386,14 +383,6 @@ const ChatViewInternal = observer<ChatViewProps>(
           onNewSession={handleNewSession}
           onClose={onClose}
         />
-
-        {/* Split-screen wrapper: editor LEFT, chat RIGHT */}
-        <div className="flex flex-1 overflow-hidden min-h-0">
-          {/* LEFT: Skill Editor Panel (conditional) */}
-          {skillStore.isPreviewVisible && <SkillEditorPanel />}
-
-          {/* RIGHT: Existing chat content */}
-          <div className="flex-1 flex flex-col overflow-hidden min-h-0">
 
         {/* Main content area - relative for floating abort button */}
         <div className="flex-1 flex flex-col overflow-hidden relative min-h-0">
@@ -622,11 +611,6 @@ const ChatViewInternal = observer<ChatViewProps>(
           </AlertDialogContent>
         </AlertDialog>
 
-          </div>{/* END RIGHT: Existing chat content */}
-        </div>{/* END Split-screen wrapper */}
-
-        {/* Save Dialog (portal, renders outside layout flow) */}
-        <SkillSaveDialog />
       </div>
     );
   }

@@ -29,7 +29,6 @@ import { CreateTemplateModal } from '../components/create-template-modal';
 import { EditTemplateModal } from '../components/edit-template-modal';
 import { PluginsTabContent } from '../components/plugins-tab-content';
 import { ActionButtonsTabContent } from '../components/action-buttons-tab-content';
-import { SkillAddModal } from '../components/skill-add-modal';
 import { ConfirmActionDialog } from '../components/confirm-action-dialog';
 import { PublishModal } from '@/features/skills/components/marketplace/PublishModal';
 
@@ -99,10 +98,6 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
   // Tab state
   const [activeTab, setActiveTab] = React.useState('skills');
   const [addPluginDialogOpen, setAddPluginDialogOpen] = React.useState(false);
-
-  // Skill generator modal state
-  const [generatorOpen, setGeneratorOpen] = React.useState(false);
-  const [selectedTemplate, setSelectedTemplate] = React.useState<SkillTemplate | null>(null);
 
   // Create/edit template modal state
   const [createTemplateOpen, setCreateTemplateOpen] = React.useState(false);
@@ -184,8 +179,7 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
   // ---------------------------------------------------------------------------
 
   const handleUseThis = (template: SkillTemplate) => {
-    setSelectedTemplate(template);
-    setGeneratorOpen(true);
+    router.push(`/${workspaceSlug}/skills/generator?templateId=${template.id}`);
   };
 
   const handleEditTemplate = (template: SkillTemplate) => {
@@ -303,11 +297,11 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => router.push(`/${workspaceSlug}/skills/graph/new`)}
+                  onClick={() => router.push(`/${workspaceSlug}/skills/generator`)}
                   data-testid="create-with-graph-btn"
                 >
                   <Network className="mr-1.5 h-4 w-4" />
-                  Create with Graph
+                  Create with Generator
                 </Button>
               )}
               {isAdmin && (
@@ -316,7 +310,7 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
                   Create Template
                 </Button>
               )}
-              <Button size="sm" onClick={() => setGeneratorOpen(true)}>
+              <Button size="sm" onClick={() => router.push(`/${workspaceSlug}/skills/generator`)}>
                 <Plus className="mr-1.5 h-4 w-4" />
                 Add Skill
               </Button>
@@ -394,21 +388,6 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
               />
             </section>
           </div>
-
-          {/* Add Skill Modal (dual-mode: Manual + AI Generate) */}
-          <SkillAddModal
-            open={generatorOpen}
-            onOpenChange={(v) => {
-              setGeneratorOpen(v);
-              if (!v) setTimeout(() => setSelectedTemplate(null), 200);
-            }}
-            defaultTab={selectedTemplate ? 'ai-generate' : 'manual'}
-            defaultMode="personal"
-            showModeToggle={isAdmin}
-            workspaceId={workspaceId}
-            workspaceSlug={workspaceSlug}
-            template={selectedTemplate}
-          />
 
           {/* Skill Detail Modal */}
           <SkillDetailModal

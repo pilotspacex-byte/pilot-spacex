@@ -19,9 +19,10 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 
+const mockRouterPush = vi.fn();
 vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceSlug: 'test-workspace' }),
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: mockRouterPush }),
   usePathname: () => '/',
 }));
 
@@ -138,6 +139,7 @@ const mockUserSkillsList = [
 describe('SkillsSettingsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRouterPush.mockClear();
     mockWorkspaceStore.currentUserRole = 'member';
     mockWorkspaceStore.isAdmin = false;
     mockWorkspaceStore.getWorkspaceBySlug.mockReturnValue({
@@ -268,6 +270,38 @@ describe('SkillsSettingsPage', () => {
 
       renderPage();
       expect(screen.queryByRole('button', { name: /Create Template/ })).not.toBeInTheDocument();
+    });
+  });
+
+  describe('navigation to generator', () => {
+    it('should navigate to /skills/generator when Add Skill is clicked', async () => {
+      const user = userEvent.setup();
+      mockUserSkills.mockReturnValue({
+        data: mockUserSkillsList,
+        isLoading: false,
+        isError: false,
+        error: null,
+      });
+
+      renderPage();
+      await user.click(screen.getByRole('button', { name: /Add Skill/ }));
+      expect(mockRouterPush).toHaveBeenCalledWith('/test-workspace/skills/generator');
+    });
+
+    it('should navigate to /skills/generator when Create with Generator is clicked (admin)', async () => {
+      const user = userEvent.setup();
+      mockWorkspaceStore.currentUserRole = 'admin';
+      mockWorkspaceStore.isAdmin = true;
+      mockUserSkills.mockReturnValue({
+        data: [],
+        isLoading: false,
+        isError: false,
+        error: null,
+      });
+
+      renderPage();
+      await user.click(screen.getByTestId('create-with-graph-btn'));
+      expect(mockRouterPush).toHaveBeenCalledWith('/test-workspace/skills/generator');
     });
   });
 

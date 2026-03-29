@@ -2,7 +2,7 @@
  * GraphWorkflowStore — MobX observable store for graph workflow editor state.
  *
  * Tracks selected node, validation errors, dirty/saving state, and graph ID.
- * Follows sub-store delegation pattern from SkillGeneratorStore.
+ * Follows sub-store delegation pattern.
  *
  * CRITICAL: The ReactFlow canvas component MUST NOT be wrapped in observer().
  * This store is accessed via GraphWorkflowContext (context bridge pattern).

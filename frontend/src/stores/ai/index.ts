@@ -23,8 +23,6 @@ export { PRReviewStore } from './PRReviewStore';
 export { MarginAnnotationStore } from './MarginAnnotationStore';
 export { CostStore } from './CostStore';
 export { PilotSpaceStore } from './PilotSpaceStore';
-export { SkillGeneratorStore } from './SkillGeneratorStore';
-export type { SkillDraft } from './SkillGeneratorStore';
 export { SessionListStore } from './SessionListStore';
 
 // Types
