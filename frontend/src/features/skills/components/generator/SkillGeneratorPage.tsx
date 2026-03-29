@@ -355,7 +355,7 @@ export function SkillGeneratorPage({ skillId }: SkillGeneratorPageProps) {
 
         {/* Right: Chat Panel */}
         <div className="w-[380px] shrink-0 border-l">
-          <GeneratorChatPanel store={store} />
+          <GeneratorChatPanel store={store} workspaceId={workspaceId} />
         </div>
       </div>
 

@@ -41,7 +41,6 @@ from pilot_space.ai.agents.pilotspace_stream_utils import (
     build_mcp_servers,
     capture_content_from_sse,
     classify_effort,
-    detect_skill_creation_intent,
     detect_skill_from_message,
     estimate_tokens,
     get_workspace_embedding_key,
@@ -277,7 +276,6 @@ class _ProviderConfig:
 class _StreamConfig:
     sdk_options: ClaudeAgentOptions
     ref_map: BlockRefMap | None
-    is_skill_creation: bool = False
 
 
 def _build_multimodal_prompt(
@@ -610,89 +608,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         finally:
             self._last_stream_usage = None
 
-    async def _emit_skill_generation_events(
-        self,
-        db_session: AsyncSession,
-        input_data: ChatInput,
-        context: AgentContext,
-        content_blocks: dict[str, dict[str, Any]],
-    ) -> AsyncIterator[str]:
-        """Call SkillGeneratorService and emit skill_draft/skill_preview SSE events.
-
-        Creates a per-request SkillGeneratorService (agent is singleton, must not
-        store request-scoped objects as instance attributes).
-
-        Phase 051: Conversational Skill Generator.
-        """
-        from pilot_space.application.services.skill.skill_generator_service import (
-            SkillGeneratorPayload,
-            SkillGeneratorService,
-        )
-
-        try:
-            # Resolve LLM gateway for the service
-            _llm_gw = getattr(self, "_llm_gateway", None)
-            generator = SkillGeneratorService(session=db_session, llm_gateway=_llm_gw)
-
-            _session_data = input_data.context.get("session_data") or {}
-            _turn_count = _session_data.get("turn_count", 0) + 1
-            _current_draft = _session_data.get("draft")
-
-            payload = SkillGeneratorPayload(
-                workspace_id=context.workspace_id,  # type: ignore[arg-type]
-                user_id=context.user_id or SYSTEM_USER_ID,
-                session_id=input_data.session_id or SYSTEM_USER_ID,
-                message=input_data.message,
-                turn_number=_turn_count,
-                current_draft=_current_draft,
-            )
-
-            result = await generator.generate_turn(payload)
-
-            # Emit skill_draft SSE event
-            draft_event = {
-                "type": "skill_draft",
-                "data": {
-                    "sessionId": str(input_data.session_id),
-                    "content": result.skill_content,
-                    "isPartial": not result.is_complete,
-                },
-            }
-            yield f"event: skill_draft\ndata: {json.dumps(draft_event)}\n\n"
-
-            # Emit skill_preview when generation is complete
-            if result.is_complete:
-                preview_event = {
-                    "type": "skill_preview",
-                    "data": {
-                        "sessionId": str(input_data.session_id),
-                        "name": result.name,
-                        "description": result.description,
-                        "category": result.category,
-                        "icon": result.icon,
-                        "skillContent": result.skill_content,
-                        "examplePrompts": result.example_prompts,
-                        "contextRequirements": result.context_requirements,
-                        "toolDeclarations": result.tool_declarations,
-                        "graphData": result.graph_data,
-                    },
-                }
-                yield f"event: skill_preview\ndata: {json.dumps(preview_event)}\n\n"
-
-            logger.info(
-                "skill_generation_events_emitted",
-                session_id=str(input_data.session_id),
-                turn=_turn_count,
-                is_complete=result.is_complete,
-            )
-
-        except Exception:
-            logger.warning(
-                "skill_generation_events_failed",
-                session_id=str(input_data.session_id),
-                exc_info=True,
-            )
-
     def transform_sdk_message(
         self,
         message: Message,
@@ -831,10 +746,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         mcp_servers.update(remote_servers)
 
         skill_name = detect_skill_from_message(input_data.message)
-        # Phase 051: Check if user wants to CREATE a new skill
-        is_skill_creation = (
-            detect_skill_creation_intent(input_data.message) if not skill_name else False
-        )
         output_format = get_skill_output_format(skill_name) if skill_name else None
         effort = classify_effort(input_data.message)
         streaming_input = estimate_tokens(input_data) > 30_000
@@ -861,23 +772,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 feature_toggles=_feature_toggles,
             )
         )
-
-        # Phase 051: Inject skill generation instructions when intent detected
-        if is_skill_creation:
-            from pilot_space.ai.prompts.skill_generator import (
-                get_skill_generation_system_prompt as _get_skill_gen_prompt,
-            )
-
-            _session_data = input_data.context.get("session_data") or {}
-            _turn_count = _session_data.get("turn_count", 0) + 1
-            _current_draft = _session_data.get("draft")
-            _skill_gen_prompt = _get_skill_gen_prompt(
-                turn_number=_turn_count,
-                current_draft=_current_draft,
-            )
-            assembled = assembled.model_copy(
-                update={"prompt": assembled.prompt + "\n\n" + _skill_gen_prompt}
-            )
 
         # Build env with workspace provider's API key and base URL.
         # When ai_proxy_enabled=True, route SDK calls through the built-in
@@ -988,7 +882,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         return _StreamConfig(
             sdk_options=sdk_options,
             ref_map=ref_map,
-            is_skill_creation=is_skill_creation,
         )
 
     async def stream(
@@ -1206,19 +1099,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                             tool_event_count += 1
                     except asyncio.QueueEmpty:
                         pass
-
-                    # Phase 051: Emit skill generation events after stream completes
-                    _session_data_ctx = input_data.context.get("session_data") or {}
-                    _is_skill_mode = _session_data_ctx.get("mode") == "skill_generation"
-                    if config.is_skill_creation or _is_skill_mode:
-                        async for _skill_evt in self._emit_skill_generation_events(
-                            db_session=db_session,
-                            input_data=input_data,
-                            context=context,
-                            content_blocks=content_blocks,
-                        ):
-                            yield _skill_evt
-                            capture_content_from_sse(_skill_evt, content_blocks)
 
                     stream_completed = True
                     duration_ms = round((time.monotonic() - stream_start) * 1000, 1)

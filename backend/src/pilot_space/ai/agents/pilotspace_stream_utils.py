@@ -204,35 +204,6 @@ def detect_skill_from_message(message: str) -> str | None:
     return None
 
 
-_SKILL_CREATION_PATTERNS = [
-    "create a skill",
-    "make a skill",
-    "build a skill",
-    "new skill that",
-    "generate a skill",
-    "skill for",
-    "i want a skill",
-    "design a skill",
-    "craft a skill",
-]
-
-
-def detect_skill_creation_intent(message: str) -> bool:
-    """Detect if user wants to CREATE a new skill (not invoke an existing one).
-
-    Uses simple pattern matching on the message text. Returns True if any
-    skill creation phrase is found.
-
-    Args:
-        message: User's message text.
-
-    Returns:
-        True if skill creation intent detected.
-    """
-    msg_lower = message.lower()
-    return any(pattern in msg_lower for pattern in _SKILL_CREATION_PATTERNS)
-
-
 def estimate_tokens(input_data: ChatInput) -> int:
     """Rough token estimate (~4 chars/token) for context size detection (T62)."""
     total_chars = len(input_data.message)
