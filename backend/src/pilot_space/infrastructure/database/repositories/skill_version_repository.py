@@ -12,7 +12,7 @@ Source: Phase 50, P50-03
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import and_, select
 
@@ -47,7 +47,7 @@ class SkillVersionRepository(BaseRepository[SkillVersion]):
         listing_id: UUID,
         version: str,
         skill_content: str,
-        graph_data: dict | None = None,
+        graph_data: dict[str, Any] | None = None,
         changelog: str | None = None,
     ) -> SkillVersion:
         """Create a new skill version.

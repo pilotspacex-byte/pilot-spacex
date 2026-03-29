@@ -204,6 +204,8 @@ class MarketplaceInstallService:
 
         updates: list[UpdateCheckResult] = []
         for template in templates:
+            if template.marketplace_listing_id is None:
+                continue
             listing = await self._listing_repo.get_by_id(template.marketplace_listing_id)
             if listing is None:
                 continue

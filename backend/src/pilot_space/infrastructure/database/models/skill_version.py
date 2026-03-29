@@ -9,6 +9,7 @@ Source: Phase 50, P50-02
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from sqlalchemy import ForeignKey, Index, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID
@@ -47,7 +48,7 @@ class SkillVersion(WorkspaceScopedModel):
         Text,
         nullable=False,
     )
-    graph_data: Mapped[dict | None] = mapped_column(
+    graph_data: Mapped[dict[str, Any] | None] = mapped_column(
         JSONBCompat,
         nullable=True,
     )

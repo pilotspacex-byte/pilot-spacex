@@ -9,7 +9,7 @@ Source: Phase 054, P54-01
 from __future__ import annotations
 
 import re
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import Field, field_validator
@@ -46,7 +46,7 @@ class MarketplaceListingResponse(EntitySchema):
     download_count: int = 0
     avg_rating: float | None = None
     screenshots: list[str] | None = None
-    graph_data: dict | None = None
+    graph_data: dict[str, Any] | None = None
     published_by: UUID | None = None
 
 
@@ -66,7 +66,7 @@ class MarketplaceListingCreate(BaseSchema):
     icon: str = "Wand2"
     tags: list[str] = Field(default_factory=list)
     screenshots: list[str] | None = None
-    graph_data: dict | None = None
+    graph_data: dict[str, Any] | None = None
 
     @field_validator("version")
     @classmethod
@@ -84,7 +84,7 @@ class MarketplaceVersionCreate(BaseSchema):
     version: str
     skill_content: str = Field(min_length=1)
     changelog: str | None = None
-    graph_data: dict | None = None
+    graph_data: dict[str, Any] | None = None
 
     @field_validator("version")
     @classmethod
@@ -100,7 +100,7 @@ class MarketplaceVersionResponse(EntitySchema):
     version: str
     skill_content: str
     changelog: str | None = None
-    graph_data: dict | None = None
+    graph_data: dict[str, Any] | None = None
 
 
 class MarketplaceSearchParams(BaseSchema):

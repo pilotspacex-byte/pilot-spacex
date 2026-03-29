@@ -9,7 +9,7 @@ Source: Phase 054, P54-01
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
@@ -55,7 +55,7 @@ class PublishListingPayload:
     icon: str = "Wand2"
     tags: list[str] = field(default_factory=list)
     screenshots: list[str] | None = None
-    graph_data: dict | None = None
+    graph_data: dict[str, Any] | None = None
 
 
 @dataclass
@@ -67,7 +67,7 @@ class CreateVersionPayload:
     version: str
     skill_content: str
     changelog: str | None = None
-    graph_data: dict | None = None
+    graph_data: dict[str, Any] | None = None
 
 
 @dataclass

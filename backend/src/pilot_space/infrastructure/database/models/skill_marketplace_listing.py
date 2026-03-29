@@ -11,6 +11,7 @@ Source: Phase 50, P50-02
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from sqlalchemy import Float, ForeignKey, Index, Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID
@@ -69,7 +70,7 @@ class SkillMarketplaceListing(WorkspaceScopedModel):
         String(50),
         nullable=False,
     )
-    tags: Mapped[list] = mapped_column(
+    tags: Mapped[list[str]] = mapped_column(
         JSONBCompat,
         nullable=False,
         default=list,
@@ -89,11 +90,11 @@ class SkillMarketplaceListing(WorkspaceScopedModel):
         Float,
         nullable=True,
     )
-    screenshots: Mapped[list | None] = mapped_column(
+    screenshots: Mapped[list[str] | None] = mapped_column(
         JSONBCompat,
         nullable=True,
     )
-    graph_data: Mapped[dict | None] = mapped_column(
+    graph_data: Mapped[dict[str, Any] | None] = mapped_column(
         JSONBCompat,
         nullable=True,
     )

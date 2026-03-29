@@ -110,8 +110,6 @@ def get_skill_refinement_prompt(
     Returns:
         Formatted user message for the LLM.
     """
-    import json
-
     draft_summary = current_draft.get("name", "Untitled Skill")
     return f"""\
 I'm refining the "{draft_summary}" skill.

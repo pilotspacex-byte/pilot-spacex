@@ -9,7 +9,7 @@ Source: Phase 50, P50-03
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import and_, select
 
@@ -37,7 +37,7 @@ class SkillGraphRepository(BaseRepository[SkillGraph]):
         *,
         workspace_id: UUID,
         skill_template_id: UUID,
-        graph_json: dict,
+        graph_json: dict[str, Any],
         node_count: int = 0,
         edge_count: int = 0,
     ) -> SkillGraph:

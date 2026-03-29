@@ -11,7 +11,7 @@ Source: Phase 50, P50-03
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import and_, or_, select
 
@@ -48,9 +48,9 @@ class SkillMarketplaceListingRepository(BaseRepository[SkillMarketplaceListing])
         version: str,
         long_description: str | None = None,
         icon: str = "Wand2",
-        tags: list | None = None,
-        screenshots: list | None = None,
-        graph_data: dict | None = None,
+        tags: list[str] | None = None,
+        screenshots: list[str] | None = None,
+        graph_data: dict[str, Any] | None = None,
         published_by: UUID | None = None,
     ) -> SkillMarketplaceListing:
         """Create a new marketplace listing.
@@ -155,18 +155,24 @@ class SkillMarketplaceListingRepository(BaseRepository[SkillMarketplaceListing])
         result = await self.session.execute(query)
         return result.scalars().all()
 
-    async def search(
+    async def search(  # type: ignore[override]
         self,
-        query_text: str,
+        search_term: str,
+        search_columns: list[str] | None = None,
         *,
+        include_deleted: bool = False,
         category: str | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> Sequence[SkillMarketplaceListing]:
         """Search listings by name or description text.
 
+        Overrides BaseRepository.search with marketplace-specific filtering.
+
         Args:
-            query_text: Text to search for (ILIKE match).
+            search_term: Text to search for (ILIKE match).
+            search_columns: Ignored - always searches name and description.
+            include_deleted: Whether to include soft-deleted listings.
             category: Optional category filter.
             limit: Maximum number of rows to return.
             offset: Number of rows to skip for pagination.
@@ -174,14 +180,18 @@ class SkillMarketplaceListingRepository(BaseRepository[SkillMarketplaceListing])
         Returns:
             Matching listings ordered by download_count descending.
         """
-        pattern = f"%{query_text}%"
+        _ = search_columns  # Always searches name + description
+        pattern = f"%{search_term}%"
         conditions = [
             or_(
                 SkillMarketplaceListing.name.ilike(pattern),
                 SkillMarketplaceListing.description.ilike(pattern),
             ),
-            SkillMarketplaceListing.is_deleted == False,  # noqa: E712
         ]
+        if not include_deleted:
+            conditions.append(
+                SkillMarketplaceListing.is_deleted == False,  # noqa: E712
+            )
         if category:
             conditions.append(SkillMarketplaceListing.category == category)
         query = (

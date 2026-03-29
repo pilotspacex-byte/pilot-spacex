@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, text
 from sqlalchemy.dialects.postgresql import UUID
@@ -41,7 +42,7 @@ class SkillGraph(WorkspaceScopedModel):
         ForeignKey("skill_templates.id", ondelete="CASCADE"),
         nullable=False,
     )
-    graph_json: Mapped[dict] = mapped_column(
+    graph_json: Mapped[dict[str, Any]] = mapped_column(
         JSONBCompat,
         nullable=False,
     )
