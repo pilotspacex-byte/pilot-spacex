@@ -6,27 +6,66 @@
  */
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useCallback, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { observer } from 'mobx-react-lite';
-import { ChevronLeft, Network, Save } from 'lucide-react';
+import { useParams } from 'next/navigation';
+import { ChevronLeft, Loader2, Save } from 'lucide-react';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useStore } from '@/stores/RootStore';
+import { useSkillGraphMutation } from '@/features/skills/hooks/use-skill-graph-queries';
 import { SkillMarkdownPreview } from './SkillMarkdownPreview';
+
+const GraphWorkflowCanvas = dynamic(
+  () =>
+    import('@/features/skills/components/graph-workflow-canvas').then(
+      (mod) => mod.GraphWorkflowCanvas,
+    ),
+  { ssr: false },
+);
 
 type ViewMode = 'text' | 'graph';
 
 export const SkillEditorPanel = observer(function SkillEditorPanel() {
-  const { aiStore } = useStore();
+  const { aiStore, workspaceStore } = useStore();
+  const params = useParams();
+  const workspaceSlug = params?.workspaceSlug as string;
+  const currentWorkspace = workspaceStore.getWorkspaceBySlug(workspaceSlug);
+  const workspaceId = currentWorkspace?.id || workspaceSlug;
+
   const skillStore = aiStore.pilotSpace.skillGeneratorStore;
   const draft = skillStore.currentDraft;
   const [viewMode, setViewMode] = useState<ViewMode>('text');
 
+  const graphMutation = useSkillGraphMutation(workspaceId);
+
+  const handleGraphSave = useCallback(
+    (data: { nodes: unknown[]; edges: unknown[] }) => {
+      if (!draft?.sessionId) return;
+      graphMutation.mutate(
+        {
+          templateId: draft.sessionId,
+          data: {
+            graph_json: { nodes: data.nodes, edges: data.edges },
+            node_count: data.nodes.length,
+            edge_count: data.edges.length,
+          },
+        },
+        {
+          onSuccess: () => toast.success('Graph saved'),
+          onError: () => toast.error('Failed to save graph'),
+        },
+      );
+    },
+    [draft?.sessionId, graphMutation],
+  );
+
   if (!draft || !skillStore.isPreviewVisible) return null;
 
-  const graphNodeCount = draft.graphData?.nodes?.length ?? 0;
-  const graphEdgeCount = draft.graphData?.edges?.length ?? 0;
+  // Graph stats available via draft.graphData?.nodes/edges
 
   return (
     <div
@@ -80,26 +119,34 @@ export const SkillEditorPanel = observer(function SkillEditorPanel() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto min-h-0 p-4">
-        {viewMode === 'text' ? (
+      {viewMode === 'text' ? (
+        <div className="flex-1 overflow-auto min-h-0 p-4">
           <SkillMarkdownPreview content={draft.skillContent} />
-        ) : (
-          <div className="flex flex-col items-center justify-center h-full text-center px-6">
-            <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
-              <Network className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
-            </div>
-            <p className="text-sm font-medium text-muted-foreground mb-1">
-              Graph view available in Phase 52
-            </p>
-            {(graphNodeCount > 0 || graphEdgeCount > 0) && (
-              <p className="text-xs text-muted-foreground">
-                {graphNodeCount} node{graphNodeCount !== 1 ? 's' : ''},{' '}
-                {graphEdgeCount} edge{graphEdgeCount !== 1 ? 's' : ''}
-              </p>
-            )}
+        </div>
+      ) : (
+        <div className="flex-1 flex min-h-0">
+          {/* Graph canvas (left) */}
+          <div className="flex-1 min-h-0">
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center h-full">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              }
+            >
+              <GraphWorkflowCanvas
+                initialNodes={draft.graphData?.nodes as never[] | undefined}
+                initialEdges={draft.graphData?.edges as never[] | undefined}
+                onSave={handleGraphSave}
+              />
+            </Suspense>
           </div>
-        )}
-      </div>
+          {/* SKILL.md preview (right) */}
+          <div className="w-[320px] shrink-0 border-l overflow-auto p-4">
+            <SkillMarkdownPreview content={draft.skillContent} />
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <div className="shrink-0 flex items-center gap-2 px-4 py-3 border-t">

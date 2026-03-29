@@ -24,6 +24,7 @@ import {
   addEdge,
   useReactFlow,
   type Node,
+  type Edge,
   type Connection,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -47,7 +48,14 @@ import { useDagreLayout } from '@/features/skills/hooks/use-dagre-layout';
 
 // ── Inner Component (NOT observer) ──────────────────────────────────────────
 
-function GraphWorkflowInner({ store }: { store: GraphWorkflowStore }) {
+interface GraphWorkflowInnerProps {
+  store: GraphWorkflowStore;
+  initialNodes?: Node<WorkflowNodeData>[];
+  initialEdges?: Edge[];
+  onSave?: (data: { nodes: Node<WorkflowNodeData>[]; edges: Edge[] }) => void;
+}
+
+function GraphWorkflowInner({ store, initialNodes: initNodes, initialEdges: initEdges, onSave }: GraphWorkflowInnerProps) {
   const { screenToFlowPosition } = useReactFlow();
   const {
     nodes,
@@ -60,7 +68,7 @@ function GraphWorkflowInner({ store }: { store: GraphWorkflowStore }) {
     undo,
     redo,
     pushHistory,
-  } = useGraphWorkflow();
+  } = useGraphWorkflow(initNodes, initEdges);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const { applyLayout } = useDagreLayout();
@@ -191,7 +199,7 @@ function GraphWorkflowInner({ store }: { store: GraphWorkflowStore }) {
 
       if (isCtrlOrMeta && event.key === 's') {
         event.preventDefault();
-        // TODO: save workflow
+        onSave?.({ nodes, edges });
         return;
       }
 
@@ -209,7 +217,7 @@ function GraphWorkflowInner({ store }: { store: GraphWorkflowStore }) {
         deleteSelected();
       }
     },
-    [undo, redo, deleteSelected, setNodes]
+    [undo, redo, deleteSelected, setNodes, onSave, nodes, edges]
   );
 
   // ── Update node data (for config panel) ──────────────────────────────────
@@ -305,9 +313,17 @@ function GraphWorkflowInner({ store }: { store: GraphWorkflowStore }) {
 
 export interface GraphWorkflowCanvasProps {
   graphId?: string;
+  initialNodes?: Node<WorkflowNodeData>[];
+  initialEdges?: Edge[];
+  onSave?: (data: { nodes: Node<WorkflowNodeData>[]; edges: Edge[] }) => void;
 }
 
-export function GraphWorkflowCanvas({ graphId }: GraphWorkflowCanvasProps) {
+export function GraphWorkflowCanvas({
+  graphId,
+  initialNodes,
+  initialEdges,
+  onSave,
+}: GraphWorkflowCanvasProps) {
   const store = useMemo(() => {
     const s = new GraphWorkflowStore();
     if (graphId) s.setGraphId(graphId);
@@ -329,7 +345,12 @@ export function GraphWorkflowCanvas({ graphId }: GraphWorkflowCanvasProps) {
   return (
     <ReactFlowProvider>
       <GraphWorkflowContext.Provider value={contextValue}>
-        <GraphWorkflowInner store={store} />
+        <GraphWorkflowInner
+          store={store}
+          initialNodes={initialNodes}
+          initialEdges={initialEdges}
+          onSave={onSave}
+        />
       </GraphWorkflowContext.Provider>
     </ReactFlowProvider>
   );
