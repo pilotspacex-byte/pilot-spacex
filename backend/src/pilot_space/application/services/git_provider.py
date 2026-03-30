@@ -11,7 +11,8 @@ from __future__ import annotations
 
 import base64
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from typing import Any
 
 import httpx
 
@@ -285,9 +286,9 @@ class GitHubGitProvider(GitProvider):
         method: str,
         path: str,
         *,
-        json: dict | None = None,
-        params: dict | None = None,
-    ) -> dict | list:
+        json: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+    ) -> dict[str, Any] | list[Any]:
         """Make a GitHub API request and map errors to domain exceptions."""
         response = await self._client.request(method, path, json=json, params=params)
 
@@ -358,7 +359,7 @@ class GitHubGitProvider(GitProvider):
         return data["sha"]
 
     async def _create_tree(
-        self, base_tree_sha: str, tree_entries: list[dict]
+        self, base_tree_sha: str, tree_entries: list[dict[str, Any]]
     ) -> str:
         """Create a tree and return its SHA."""
         data = await self._request(
@@ -485,7 +486,7 @@ class GitHubGitProvider(GitProvider):
         head_sha = await self._get_head_sha(branch)
         base_tree_sha = await self._get_commit_tree_sha(head_sha)
 
-        tree_entries: list[dict] = []
+        tree_entries: list[dict[str, Any]] = []
         for fc in files:
             if fc.action == "delete":
                 # Setting sha=None removes the file from the tree
@@ -572,7 +573,7 @@ class GitHubGitProvider(GitProvider):
         """Close the underlying HTTP client."""
         await self._client.aclose()
 
-    async def __aenter__(self) -> "GitHubGitProvider":
+    async def __aenter__(self) -> GitHubGitProvider:
         return self
 
     async def __aexit__(self, *args: object) -> None:
