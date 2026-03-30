@@ -183,7 +183,9 @@ async def list_workspace_notes(
     await set_rls_context(session, current_user_id, workspace.id)
 
     if project_ids:
-        project_ids = list(await rbac_svc.get_accessible_project_ids(workspace.id, current_user_id, project_ids))
+        project_ids = list(
+            await rbac_svc.get_accessible_project_ids(workspace.id, current_user_id, project_ids)
+        )
     else:
         accessible = await rbac_svc.get_my_project_ids(workspace.id, current_user_id)
         if accessible is not None:

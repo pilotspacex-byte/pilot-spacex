@@ -216,9 +216,7 @@ async def get_workspace_issue(
     if result.issue.workspace_id != workspace.id:
         raise NotFoundError("Issue not found")
 
-    await rbac_svc.check_project_access(
-        result.issue.project_id, workspace.id, current_user_id
-    )
+    await rbac_svc.check_project_access(result.issue.project_id, workspace.id, current_user_id)
 
     return IssueResponse.from_issue(result.issue)
 
