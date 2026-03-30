@@ -39,6 +39,7 @@ class ListIssuesPayload:
 
     # Filters
     project_id: UUID | None = None
+    project_ids: list[UUID] | None = None
     state_ids: list[UUID] | None = None
     state_groups: list[StateGroup] | None = None
     assignee_ids: list[UUID] | None = None
@@ -112,6 +113,7 @@ class ListIssuesService:
         # Build filters
         filters = IssueFilters(
             project_id=payload.project_id,
+            project_ids=payload.project_ids,
             state_ids=payload.state_ids,
             state_groups=payload.state_groups,
             assignee_ids=payload.assignee_ids,

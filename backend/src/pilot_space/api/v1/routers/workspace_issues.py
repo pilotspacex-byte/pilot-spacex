@@ -160,9 +160,14 @@ async def list_workspace_issues(
     if project_id is not None:
         await rbac_svc.check_project_access(project_id, workspace.id, current_user_id)
 
+    project_ids: list[UUID] | None = None
+    if project_id is None:
+        project_ids = await rbac_svc.get_my_project_ids(workspace.id, current_user_id)
+
     payload = ListIssuesPayload(
         workspace_id=workspace.id,
         project_id=project_id,
+        project_ids=project_ids,
         assignee_ids=[assignee_id] if assignee_id else None,
         search_term=search,
         cursor=cursor,

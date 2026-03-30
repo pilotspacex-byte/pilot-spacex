@@ -30,6 +30,7 @@ class IssueFilters:
     """
 
     project_id: UUID | None = None
+    project_ids: list[UUID] | None = None
     state_ids: list[UUID] | None = None
     state_groups: list[StateGroup] | None = None
     assignee_ids: list[UUID] | None = None
@@ -572,6 +573,8 @@ class IssueRepository(BaseRepository[Issue]):
 
         if filters.project_id:
             conditions.append(Issue.project_id == filters.project_id)
+        elif filters.project_ids is not None:
+            conditions.append(Issue.project_id.in_(filters.project_ids))
 
         if filters.state_ids:
             conditions.append(Issue.state_id.in_(filters.state_ids))

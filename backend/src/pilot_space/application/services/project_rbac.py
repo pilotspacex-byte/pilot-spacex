@@ -98,6 +98,21 @@ class ProjectRbacService:
         assigned = await self._project_member_repo.list_project_ids_for_user(user_id)
         return set(candidate_ids) & set(assigned)
 
+    async def get_my_project_ids(
+        self,
+        workspace_id: UUID,
+        user_id: UUID,
+    ) -> list[UUID] | None:
+        """Return project IDs the user can access, or None if unrestricted.
+
+        ADMIN/OWNER: returns None (no filter — can access all projects).
+        MEMBER/GUEST: returns their assigned project IDs (may be empty list).
+        """
+        role = await self._get_workspace_role(workspace_id, user_id)
+        if role in (WorkspaceRole.ADMIN, WorkspaceRole.OWNER):
+            return None
+        return await self._project_member_repo.list_project_ids_for_user(user_id)
+
     async def check_resource_permission(
         self,
         user_id: UUID,

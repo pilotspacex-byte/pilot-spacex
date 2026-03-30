@@ -184,6 +184,10 @@ async def list_workspace_notes(
 
     if project_ids:
         project_ids = list(await rbac_svc.get_accessible_project_ids(workspace.id, current_user_id, project_ids))
+    else:
+        accessible = await rbac_svc.get_my_project_ids(workspace.id, current_user_id)
+        if accessible is not None:
+            project_ids = accessible
 
     offset = int(cursor) if cursor and cursor.isdigit() else 0
     result = await list_service.execute(
