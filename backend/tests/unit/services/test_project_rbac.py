@@ -95,7 +95,9 @@ class TestCheckProjectAccess:
     @pytest.mark.asyncio
     async def test_non_member_role_none_denied(self) -> None:
         """User not in workspace (role=None) is denied."""
-        svc, project_id, workspace_id, user_id = _make_rbac_service(role=None, active_membership=False)
+        svc, project_id, workspace_id, user_id = _make_rbac_service(
+            role=None, active_membership=False
+        )
         with pytest.raises(ForbiddenError):
             await svc.check_project_access(project_id, workspace_id, user_id)
 
@@ -167,10 +169,13 @@ class TestCheckResourcePermission:
     @pytest.mark.asyncio
     async def test_permission_denied_raises_forbidden(self) -> None:
         svc, _, workspace_id, user_id = _make_rbac_service(role=WorkspaceRole.GUEST)
-        with patch(
-            "pilot_space.application.services.project_rbac.check_permission",
-            new=AsyncMock(return_value=False),
-        ), pytest.raises(ForbiddenError, match="Permission denied: notes:write"):
+        with (
+            patch(
+                "pilot_space.application.services.project_rbac.check_permission",
+                new=AsyncMock(return_value=False),
+            ),
+            pytest.raises(ForbiddenError, match="Permission denied: notes:write"),
+        ):
             await svc.check_resource_permission(user_id, workspace_id, "notes", "write")
 
     @pytest.mark.asyncio
@@ -181,22 +186,30 @@ class TestCheckResourcePermission:
             new=AsyncMock(return_value=True),
         ) as mock_check:
             await svc.check_resource_permission(user_id, workspace_id, "notes", "write")
-            mock_check.assert_called_once_with(svc._session, user_id, workspace_id, "notes", "write")
+            mock_check.assert_called_once_with(
+                svc._session, user_id, workspace_id, "notes", "write"
+            )
 
     @pytest.mark.asyncio
     async def test_guest_denied_notes_write(self) -> None:
         svc, _, workspace_id, user_id = _make_rbac_service(role=WorkspaceRole.GUEST)
-        with patch(
-            "pilot_space.application.services.project_rbac.check_permission",
-            new=AsyncMock(return_value=False),
-        ), pytest.raises(ForbiddenError):
+        with (
+            patch(
+                "pilot_space.application.services.project_rbac.check_permission",
+                new=AsyncMock(return_value=False),
+            ),
+            pytest.raises(ForbiddenError),
+        ):
             await svc.check_resource_permission(user_id, workspace_id, "notes", "write")
 
     @pytest.mark.asyncio
     async def test_guest_denied_issues_write(self) -> None:
         svc, _, workspace_id, user_id = _make_rbac_service(role=WorkspaceRole.GUEST)
-        with patch(
-            "pilot_space.application.services.project_rbac.check_permission",
-            new=AsyncMock(return_value=False),
-        ), pytest.raises(ForbiddenError, match="Permission denied: issues:write"):
+        with (
+            patch(
+                "pilot_space.application.services.project_rbac.check_permission",
+                new=AsyncMock(return_value=False),
+            ),
+            pytest.raises(ForbiddenError, match="Permission denied: issues:write"),
+        ):
             await svc.check_resource_permission(user_id, workspace_id, "issues", "write")
