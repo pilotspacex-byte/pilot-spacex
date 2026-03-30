@@ -7,6 +7,7 @@ import {
   ListTodo,
   RefreshCw,
   Brain,
+  Code2,
   MessageSquare,
   Settings,
   FolderKanban,
@@ -38,6 +39,10 @@ const NAV_ITEMS: readonly {
   { label: 'Cycles', icon: RefreshCw, segment: 'cycles', featureKey: 'issues' },
   { label: 'Knowledge', icon: Brain, segment: 'knowledge', featureKey: 'knowledge' },
   { label: 'Artifacts', icon: Paperclip, segment: 'artifacts' },
+  // TODO: hide Code nav when project has no artifacts AND no connected repo.
+  // Project type does not yet expose artifactCount or githubRepoUrl fields.
+  // Once those fields are available, filter with: project.artifactCount > 0 || !!project.githubRepoUrl
+  { label: 'Code', icon: Code2, segment: 'code' },
   { label: 'Chat', icon: MessageSquare, segment: 'chat', badge: 'Soon', featureKey: 'skills' },
   { label: 'Settings', icon: Settings, segment: 'settings' },
 ];
