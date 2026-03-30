@@ -14,6 +14,7 @@ import { RoleSkillStore } from './RoleSkillStore';
 import { TaskStore } from '@/stores/TaskStore';
 import { IssueViewStore } from './features/issues/IssueViewStore';
 import { ArtifactStore } from './features/artifacts/ArtifactStore';
+import { FileStore } from '@/features/code/stores/FileStore';
 import { workspacesApi } from '@/services/api/workspaces';
 
 export class RootStore {
@@ -30,6 +31,7 @@ export class RootStore {
   tasks: TaskStore;
   issueView: IssueViewStore;
   artifacts: ArtifactStore;
+  files: FileStore;
 
   constructor() {
     this.auth = new AuthStore();
@@ -45,6 +47,7 @@ export class RootStore {
     this.tasks = new TaskStore();
     this.issueView = new IssueViewStore();
     this.artifacts = new ArtifactStore();
+    this.files = new FileStore();
 
     // Wire cross-store references
     this.workspace.setAuthStore(this.auth);
@@ -64,6 +67,7 @@ export class RootStore {
     this.tasks.reset();
     this.issueView.reset();
     this.artifacts.reset();
+    this.files.reset();
   }
 
   dispose(): void {
@@ -141,6 +145,11 @@ export function useIssueViewStore(): IssueViewStore {
 /** Hook to access the ArtifactStore from context. */
 export function useArtifactStore(): ArtifactStore {
   return useStores().artifacts;
+}
+
+/** Hook to access the FileStore from context. */
+export function useFileStore(): FileStore {
+  return useStores().files;
 }
 
 /**
