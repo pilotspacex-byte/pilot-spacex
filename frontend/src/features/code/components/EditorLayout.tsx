@@ -151,7 +151,7 @@ export const EditorLayout = observer(function EditorLayout({
     });
   }, []);
 
-  // ─── Keyboard shortcut: Ctrl+Shift+G ─────────────────────────────────────
+  // ─── Keyboard shortcuts ──────────────────────────────────────────────────
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const platform =
@@ -160,17 +160,52 @@ export const EditorLayout = observer(function EditorLayout({
       const isMac = /mac/i.test(platform);
       const modifier = isMac ? e.metaKey : e.ctrlKey;
 
-      // ctrl+shift+g (or cmd+shift+g on Mac)
+      // Ctrl+Shift+G — toggle Source Control panel
       if (modifier && e.shiftKey && (e.key === 'g' || e.key === 'G')) {
-        if (!isConnected) return; // No git integration — shortcut is a no-op
+        if (!isConnected) return;
         e.preventDefault();
         toggleRightPanel();
+      }
+
+      // Ctrl+Shift+D — view unsaved changes diff for active file
+      if (modifier && e.shiftKey && (e.key === 'd' || e.key === 'D')) {
+        e.preventDefault();
+        const active = fileStore.activeFile;
+        if (active?.isDirty && active.originalContent != null && active.content != null) {
+          setDiffView({
+            filePath: active.path,
+            originalContent: active.originalContent,
+            modifiedContent: active.content,
+            language: active.language,
+          });
+        }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [isConnected, toggleRightPanel]);
+  }, [isConnected, toggleRightPanel, fileStore]);
+
+  // ─── Listen for view-diff custom event from BreadcrumbBar ─────────────────
+  useEffect(() => {
+    const handleViewDiff = (e: Event) => {
+      const detail = (e as CustomEvent).detail as {
+        filePath: string;
+        language: string;
+        originalContent: string;
+        modifiedContent: string;
+      } | undefined;
+      if (!detail) return;
+      setDiffView({
+        filePath: detail.filePath,
+        originalContent: detail.originalContent,
+        modifiedContent: detail.modifiedContent,
+        language: detail.language,
+      });
+    };
+    window.addEventListener('file-editor:view-diff', handleViewDiff);
+    return () => window.removeEventListener('file-editor:view-diff', handleViewDiff);
+  }, []);
 
   // ─── Open diff view when clicking a changed file ─────────────────────────
   const handleDiffFileSelect = useCallback(
