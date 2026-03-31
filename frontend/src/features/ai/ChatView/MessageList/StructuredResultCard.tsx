@@ -31,6 +31,8 @@ import type {
 import Link from 'next/link';
 import { ContextNotesResultCard, ContextIssuesResultCard } from './ContextCards';
 import { StandupResultCard } from './StandupResultCard';
+import { SkillCreatorCard } from './SkillCreatorCard';
+import { SkillTestResultCard } from './SkillTestResultCard';
 import type { CreatedIssueData } from './AssistantMessage';
 
 // Re-export so existing barrel imports continue to work
@@ -47,6 +49,12 @@ interface StructuredResultCardProps {
   isCreatingIssues?: boolean;
   createdIssues?: CreatedIssueData[] | null;
   workspaceSlug?: string;
+  /** Called when user saves a skill from SkillCreatorCard */
+  onSkillSave?: (content: string) => void;
+  /** Called when user tests a skill from SkillCreatorCard */
+  onSkillTest?: (content: string) => void;
+  /** Called when user refines a skill from SkillTestResultCard */
+  onSkillRefine?: () => void;
 }
 
 const PRIORITY_OPTIONS = ['urgent', 'high', 'medium', 'low', 'none'] as const;
@@ -536,6 +544,9 @@ export const StructuredResultCard = memo<StructuredResultCardProps>(
     isCreatingIssues,
     createdIssues,
     workspaceSlug,
+    onSkillSave,
+    onSkillTest,
+    onSkillRefine,
   }) => {
     const renderContent = () => {
       switch (schemaType) {
@@ -559,6 +570,29 @@ export const StructuredResultCard = memo<StructuredResultCardProps>(
           return <ContextNotesResultCard data={data} />;
         case 'context_issues_result':
           return <ContextIssuesResultCard data={data} />;
+        case 'skill_preview':
+          return (
+            <SkillCreatorCard
+              skillName={(data['skillName'] as string) ?? ''}
+              frontmatter={(data['frontmatter'] as Record<string, string>) ?? {}}
+              content={(data['content'] as string) ?? ''}
+              isUpdate={(data['isUpdate'] as boolean) ?? false}
+              onSave={onSkillSave}
+              onTest={onSkillTest}
+            />
+          );
+        case 'test_result':
+          return (
+            <SkillTestResultCard
+              skillName={(data['skillName'] as string) ?? ''}
+              score={(data['score'] as number) ?? 0}
+              passed={(data['passed'] as string[]) ?? []}
+              failed={(data['failed'] as string[]) ?? []}
+              suggestions={(data['suggestions'] as string[]) ?? []}
+              sampleOutput={(data['sampleOutput'] as string) ?? ''}
+              onRefine={onSkillRefine}
+            />
+          );
         default:
           return (
             <div className="text-xs text-muted-foreground">Unknown result type: {schemaType}</div>

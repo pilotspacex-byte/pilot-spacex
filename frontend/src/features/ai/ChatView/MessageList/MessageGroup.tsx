@@ -7,6 +7,7 @@ import { memo } from 'react';
 import type { ChatMessage } from '@/stores/ai/types/conversation';
 import { UserMessage } from './UserMessage';
 import { AssistantMessage } from './AssistantMessage';
+import { SystemMessage } from './SystemMessage';
 
 interface MessageGroupProps {
   messages: ChatMessage[];
@@ -23,7 +24,7 @@ export const MessageGroup = memo<MessageGroupProps>(({ messages, userName, userA
   return (
     <div className="space-y-0">
       {messages.map((message) => {
-        if (role === 'user') {
+        if (message.role === 'user') {
           return (
             <UserMessage
               key={message.id}
@@ -34,16 +35,12 @@ export const MessageGroup = memo<MessageGroupProps>(({ messages, userName, userA
           );
         }
 
-        if (role === 'assistant') {
+        if (message.role === 'assistant') {
           return <AssistantMessage key={message.id} message={message} />;
         }
 
-        // System messages (if any)
-        return (
-          <div key={message.id} className="px-4 py-2 text-xs text-center text-muted-foreground">
-            {message.content}
-          </div>
-        );
+        // System messages — render structured results (skill cards) or plain text
+        return <SystemMessage key={message.id} message={message} />;
       })}
     </div>
   );

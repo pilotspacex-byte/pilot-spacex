@@ -4,6 +4,9 @@
  * @module stores/ai/PilotSpaceStore
  */
 import { makeAutoObservable, runInAction, computed } from 'mobx';
+
+/** Monotonic counter for generating unique skill message IDs within the same millisecond. */
+let _skillMsgCounter = 0;
 import type { AIStore } from './AIStore';
 import type {
   ChatMessage,
@@ -480,7 +483,7 @@ export class PilotSpaceStore {
   handleSkillPreview(event: SkillPreviewEvent): void {
     this.skillPreview = event.data;
     this.messages.push({
-      id: `skill_preview_${Date.now()}`,
+      id: `skill_preview_${Date.now()}_${++_skillMsgCounter}`,
       role: 'system',
       content: '',
       timestamp: new Date(),
@@ -499,7 +502,7 @@ export class PilotSpaceStore {
   handleTestResult(event: TestResultEvent): void {
     this.skillTestResult = event.data;
     this.messages.push({
-      id: `test_result_${Date.now()}`,
+      id: `test_result_${Date.now()}_${++_skillMsgCounter}`,
       role: 'system',
       content: '',
       timestamp: new Date(),
