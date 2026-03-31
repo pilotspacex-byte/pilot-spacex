@@ -13,7 +13,6 @@ import pytest
 
 from pilot_space.application.services.git_provider import (
     BranchInfo,
-    ChangedFile,
     CommitResult,
     FileChange,
     FileContent,
@@ -26,7 +25,6 @@ from pilot_space.application.services.git_provider import (
     PullRequestResult,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -34,8 +32,7 @@ from pilot_space.application.services.git_provider import (
 
 def _make_provider() -> GitHubGitProvider:
     """Create a GitHubGitProvider with a mocked httpx client."""
-    provider = GitHubGitProvider(token="test-token", owner="acme", repo="widget")
-    return provider
+    return GitHubGitProvider(token="test-token", owner="acme", repo="widget")
 
 
 def _mock_response(status_code: int, data: dict | list, headers: dict | None = None) -> MagicMock:
@@ -83,7 +80,7 @@ async def test_get_branches_returns_branch_list() -> None:
     ]
 
     with patch.object(provider._client, "request", new_callable=AsyncMock) as mock_req:
-        mock_req.side_effect = [r for r in responses]
+        mock_req.side_effect = responses
         result = await provider.get_branches()
 
     assert len(result) == 2

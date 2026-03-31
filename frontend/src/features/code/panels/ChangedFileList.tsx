@@ -67,6 +67,7 @@ function ChangedFileItem({ file, onToggleStage, onSelect, isSelected }: ChangedF
         checked={file.staged}
         onCheckedChange={() => onToggleStage(file.path)}
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
         className="h-3.5 w-3.5"
         aria-label={file.staged ? `Unstage ${basename}` : `Stage ${basename}`}
       />

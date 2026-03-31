@@ -199,13 +199,15 @@ class TestListBranches:
         mock_provider = AsyncMock()
         mock_provider.get_branches = AsyncMock(side_effect=GitProviderAuthError("Bad token"))
 
-        with patch(
-            "pilot_space.api.v1.routers.git_proxy._get_provider",
-            new_callable=AsyncMock,
-            return_value=mock_provider,
+        with (
+            patch(
+                "pilot_space.api.v1.routers.git_proxy._get_provider",
+                new_callable=AsyncMock,
+                return_value=mock_provider,
+            ),
+            pytest.raises(GitProviderAuthError),
         ):
-            with pytest.raises(GitProviderAuthError):
-                await list_branches(session, current_user, WORKSPACE_ID, OWNER, REPO)
+            await list_branches(session, current_user, WORKSPACE_ID, OWNER, REPO)
 
 
 # ---------------------------------------------------------------------------
@@ -276,15 +278,17 @@ class TestDeleteBranch:
             side_effect=GitProviderNotFoundError("Branch not found")
         )
 
-        with patch(
-            "pilot_space.api.v1.routers.git_proxy._get_provider",
-            new_callable=AsyncMock,
-            return_value=mock_provider,
+        with (
+            patch(
+                "pilot_space.api.v1.routers.git_proxy._get_provider",
+                new_callable=AsyncMock,
+                return_value=mock_provider,
+            ),
+            pytest.raises(GitProviderNotFoundError),
         ):
-            with pytest.raises(GitProviderNotFoundError):
-                await delete_branch(
-                    session, current_user, WORKSPACE_ID, OWNER, REPO, "nonexistent"
-                )
+            await delete_branch(
+                session, current_user, WORKSPACE_ID, OWNER, REPO, "nonexistent"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -361,15 +365,17 @@ class TestGetFileContent:
             return_value=FileContent(content=big_content, sha="sha", size=len(big_content))
         )
 
-        with patch(
-            "pilot_space.api.v1.routers.git_proxy._get_provider",
-            new_callable=AsyncMock,
-            return_value=mock_provider,
+        with (
+            patch(
+                "pilot_space.api.v1.routers.git_proxy._get_provider",
+                new_callable=AsyncMock,
+                return_value=mock_provider,
+            ),
+            pytest.raises(HTTPException) as exc_info,
         ):
-            with pytest.raises(HTTPException) as exc_info:
-                await get_file_content(
-                    session, current_user, WORKSPACE_ID, OWNER, REPO, "big.py", ref="main"
-                )
+            await get_file_content(
+                session, current_user, WORKSPACE_ID, OWNER, REPO, "big.py", ref="main"
+            )
 
         assert exc_info.value.status_code == 413
 
@@ -467,13 +473,15 @@ class TestCreateCommit:
             side_effect=GitProviderRateLimitError("Rate limited", retry_after=30)
         )
 
-        with patch(
-            "pilot_space.api.v1.routers.git_proxy._get_provider",
-            new_callable=AsyncMock,
-            return_value=mock_provider,
+        with (
+            patch(
+                "pilot_space.api.v1.routers.git_proxy._get_provider",
+                new_callable=AsyncMock,
+                return_value=mock_provider,
+            ),
+            pytest.raises(GitProviderRateLimitError),
         ):
-            with pytest.raises(GitProviderRateLimitError):
-                await create_commit(session, current_user, WORKSPACE_ID, OWNER, REPO, body)
+            await create_commit(session, current_user, WORKSPACE_ID, OWNER, REPO, body)
 
 
 # ---------------------------------------------------------------------------

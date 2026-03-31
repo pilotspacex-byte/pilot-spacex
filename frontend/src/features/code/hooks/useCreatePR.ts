@@ -51,7 +51,6 @@ export function useCreatePR(
           onClick: () => window.open(data.htmlUrl, '_blank'),
         },
       });
-      window.open(data.htmlUrl, '_blank');
     },
     onError: (error) => {
       toast.error('Failed to create pull request', {

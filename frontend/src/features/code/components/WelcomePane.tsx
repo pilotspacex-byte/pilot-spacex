@@ -14,9 +14,12 @@ export const WelcomePane = observer(function WelcomePane() {
   const fileStore = useFileStore();
 
   // Recent files: last 5 from tabOrder (most recently accessed last in LRU order → reverse)
-  const recentFiles = fileStore.tabOrder
-    .map((id) => fileStore.openFiles.get(id)!)
-    .filter(Boolean)
+  const recentFiles = [...fileStore.tabOrder]
+    .reverse()
+    .flatMap((id) => {
+      const file = fileStore.openFiles.get(id);
+      return file ? [file] : [];
+    })
     .slice(0, 5);
 
   return (

@@ -72,6 +72,11 @@ export function useAutoSaveEditor(
     }, 2000);
   }, [clearTimer, doSave]);
 
+  // Reset first-render flag when fileId changes so we skip the initial content load
+  useEffect(() => {
+    isFirstRenderRef.current = true;
+  }, [fileId]);
+
   // Watch content changes (debounce auto-save, skip initial mount)
   useEffect(() => {
     if (!fileId) return;

@@ -365,27 +365,32 @@ export const CommandPalette = observer(function CommandPalette() {
     setIsLoading(true);
     setFetchError(null);
 
+    let cancelled = false;
+
     const timer = setTimeout(async () => {
       try {
-        // Pass query to backend for server-side filtering so results are not
-        // limited to the first page of items.
         const [notesRes, issuesRes] = await Promise.all([
           notesApi.list(workspaceId, { search: eQuery }, 1, MAX_RESULTS_PER_GROUP),
           issuesApi.list(workspaceId, { search: eQuery }, 1, MAX_RESULTS_PER_GROUP),
         ]);
+        if (cancelled) return;
 
         setResults({
           notes: notesRes.items.slice(0, MAX_RESULTS_PER_GROUP),
           issues: issuesRes.items.slice(0, MAX_RESULTS_PER_GROUP),
         });
       } catch {
+        if (cancelled) return;
         setFetchError('Search failed. Try again.');
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     }, DEBOUNCE_MS);
 
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [eQuery, open, workspaceId, mode]);
 
   // Register Cmd+P as alias for Cmd+K (opens palette)

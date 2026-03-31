@@ -7,18 +7,15 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import type * as monacoNs from 'monaco-editor';
 import { Columns2, Rows2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useMonacoTheme } from '../hooks/useMonacoTheme';
+import { definePilotSpaceThemes, PILOT_SPACE_DARK } from '../themes/pilotSpaceTheme';
 
 /**
  * DiffViewer — Monaco-based diff editor for viewing file changes.
  *
- * Renders inline or side-by-side diff with syntax highlighting and warm
- * Pilot Space diff colors:
- *   Added   background: rgba(41, 163, 134, 0.08)  — teal green
- *   Removed background: rgba(217, 83, 79, 0.06)   — warm red
- *
- * NOT an observer — receives data via props (plain component).
- * Must be dynamically imported with ssr:false:
- *   const DiffViewer = dynamic(() => import('./DiffViewer'), { ssr: false })
+ * Warm Pilot Space diff colors overlaid on the active theme:
+ *   Added   background: rgba(41, 163, 134, 0.08) — teal green
+ *   Removed background: rgba(217, 83, 79, 0.06) — warm red
  */
 interface DiffViewerProps {
   originalContent: string;
@@ -28,6 +25,9 @@ interface DiffViewerProps {
   onClose: () => void;
 }
 
+const DIFF_LIGHT = 'pilot-space-diff-light';
+const DIFF_DARK = 'pilot-space-diff-dark';
+
 export function DiffViewer({
   originalContent,
   modifiedContent,
@@ -36,9 +36,9 @@ export function DiffViewer({
   onClose,
 }: DiffViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  // useState (not useRef) for editor instance — React 19 compliance
   const [diffEditor, setDiffEditor] = useState<monacoNs.editor.IStandaloneDiffEditor | null>(null);
   const [sideBySide, setSideBySide] = useState(true);
+  const { theme } = useMonacoTheme();
 
   // ─── Create diff editor on mount ──────────────────────────────────────────
   useEffect(() => {
@@ -51,6 +51,34 @@ export function DiffViewer({
     void import('monaco-editor').then((monaco) => {
       if (disposed || !container) return;
 
+      // Register base themes first
+      definePilotSpaceThemes(monaco);
+
+      // Define diff overlay themes with warm diff colors on top of base themes
+      const diffColors = {
+        'diffEditor.insertedLineBackground': '#29A38614',
+        'diffEditor.insertedTextBackground': '#29A38625',
+        'diffEditor.removedLineBackground': '#D9534F0F',
+        'diffEditor.removedTextBackground': '#D9534F20',
+        'diffEditor.diagonalFill': '#29A38614',
+      };
+
+      monaco.editor.defineTheme(DIFF_LIGHT, {
+        base: 'vs',
+        inherit: true,
+        rules: [],
+        colors: diffColors,
+      });
+
+      monaco.editor.defineTheme(DIFF_DARK, {
+        base: 'vs-dark',
+        inherit: true,
+        rules: [],
+        colors: diffColors,
+      });
+
+      const activeDiffTheme = theme === PILOT_SPACE_DARK ? DIFF_DARK : DIFF_LIGHT;
+
       editor = monaco.editor.createDiffEditor(container, {
         readOnly: true,
         renderSideBySide: true,
@@ -59,17 +87,9 @@ export function DiffViewer({
         scrollBeyondLastLine: false,
         automaticLayout: true,
         renderOverviewRuler: false,
-        // Warm diff colors via Monaco editor options
-        // These are applied as CSS overrides below (Monaco uses CSS vars for diff colors)
       });
 
-      // Apply warm diff colors via CSS custom properties on the container
-      // Monaco uses these classes for diff highlighting:
-      //   .monaco-editor .line-insert, .monaco-editor .char-insert
-      //   .monaco-editor .line-delete, .monaco-editor .char-delete
-      container.style.setProperty('--diff-added-bg', 'rgba(41, 163, 134, 0.08)');
-      container.style.setProperty('--diff-removed-bg', 'rgba(217, 83, 79, 0.06)');
-
+      monaco.editor.setTheme(activeDiffTheme);
       setDiffEditor(editor);
     });
 
@@ -80,7 +100,17 @@ export function DiffViewer({
       }
       setDiffEditor(null);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ─── Sync theme when light/dark changes ───────────────────────────────────
+  useEffect(() => {
+    if (!diffEditor) return;
+    void import('monaco-editor').then((monaco) => {
+      const activeDiffTheme = theme === PILOT_SPACE_DARK ? DIFF_DARK : DIFF_LIGHT;
+      monaco.editor.setTheme(activeDiffTheme);
+    });
+  }, [theme, diffEditor]);
 
   // ─── Update models when content or language changes ────────────────────────
   useEffect(() => {
@@ -96,22 +126,6 @@ export function DiffViewer({
       diffEditor.setModel({
         original: originalModel,
         modified: modifiedModel,
-      });
-
-      // Override diff colors after model is set via Monaco theme tokens
-      // Added lines: rgba(41, 163, 134, 0.08) — warm teal
-      // Removed lines: rgba(217, 83, 79, 0.06) — warm red
-      monaco.editor.defineTheme('pilot-diff-overlay', {
-        base: 'vs',
-        inherit: true,
-        rules: [],
-        colors: {
-          'diffEditor.insertedLineBackground': '#29A38614',  // rgba(41,163,134,0.08) in hex-alpha
-          'diffEditor.insertedTextBackground': '#29A38625',
-          'diffEditor.removedLineBackground': '#D9534F0F',   // rgba(217,83,79,0.06) in hex-alpha
-          'diffEditor.removedTextBackground': '#D9534F20',
-          'diffEditor.diagonalFill': '#29A38614',
-        },
       });
     });
 
@@ -160,16 +174,7 @@ export function DiffViewer({
       </div>
 
       {/* Diff editor container */}
-      <div
-        ref={containerRef}
-        className="flex-1"
-        style={{
-          // Warm diff colors injected as CSS custom properties
-          // Monaco reads these via its internal theming layer
-          // rgba(41, 163, 134, 0.08) = added
-          // rgba(217, 83, 79, 0.06) = removed
-        }}
-      />
+      <div ref={containerRef} className="flex-1" />
     </div>
   );
 }

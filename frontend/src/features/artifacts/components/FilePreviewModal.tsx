@@ -202,13 +202,13 @@ export const FilePreviewModal = observer(function FilePreviewModal({
     );
   }, [rendererType]);
 
+  const canEditInIde = Boolean(params.workspaceSlug) && Boolean(resolvedProjectId);
+
   const handleEditInIde = React.useCallback(() => {
-    const workspaceSlug = params.workspaceSlug ?? '';
-    if (workspaceSlug && resolvedProjectId) {
-      router.push(`/${workspaceSlug}/projects/${resolvedProjectId}/code/${filename}`);
-      onOpenChange(false);
-    }
-  }, [params.workspaceSlug, resolvedProjectId, filename, router, onOpenChange]);
+    if (!canEditInIde) return;
+    router.push(`/${params.workspaceSlug}/projects/${resolvedProjectId}/code/${filename}`);
+    onOpenChange(false);
+  }, [canEditInIde, params.workspaceSlug, resolvedProjectId, filename, router, onOpenChange]);
 
   /** Legacy Office formats (.doc, .ppt) degrade to download — skip content fetch */
   const isLegacyOffice = React.useMemo(() => isLegacyOfficeFormat(filename), [filename]);
@@ -565,7 +565,7 @@ export const FilePreviewModal = observer(function FilePreviewModal({
               )}
 
               {/* Edit button — shown for code/text/markdown files */}
-              {isEditableFile && (
+              {isEditableFile && canEditInIde && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button

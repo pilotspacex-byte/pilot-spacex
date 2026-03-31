@@ -114,7 +114,7 @@ export function definePilotSpaceThemes(monacoInstance: typeof monaco): void {
       // Scrollbar
       'scrollbarSlider.background': '#D4CDC5',
       'scrollbarSlider.hoverBackground': '#BCB5AD',
-      'scrollbarSlider.activeBackground': '#A8A0989',
+      'scrollbarSlider.activeBackground': '#A8A098',
 
       // Gutter / minimap
       'editorGutter.background': '#FAF9F7',

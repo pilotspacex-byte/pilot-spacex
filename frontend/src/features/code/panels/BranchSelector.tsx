@@ -162,7 +162,7 @@ export const BranchSelector = observer(function BranchSelector({
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-5 w-5 opacity-0 group-hover:opacity-100"
+                        className="h-5 w-5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
                         onClick={(e) => {
                           e.stopPropagation();
                           setDeletingBranch(branch);

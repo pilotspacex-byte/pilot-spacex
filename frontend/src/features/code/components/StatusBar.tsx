@@ -3,7 +3,7 @@
 import { observer } from 'mobx-react-lite';
 import { useTheme } from 'next-themes';
 import { Moon, Sun, Monitor } from 'lucide-react';
-import { useFileStore } from '@/stores/RootStore';
+import { useFileStore, useGitStore } from '@/stores/RootStore';
 import { getLanguageLabel } from '../types';
 
 interface StatusBarProps {
@@ -32,11 +32,12 @@ export const StatusBar = observer(function StatusBar({
   isSaving = false,
 }: StatusBarProps) {
   const fileStore = useFileStore();
+  const gitStore = useGitStore();
   const activeFile = fileStore.activeFile;
   const { theme, setTheme } = useTheme();
 
   const language = activeFile ? getLanguageLabel(activeFile.name) : '';
-  const branch = 'main';
+  const branch = gitStore.currentBranch ?? 'main';
 
   const currentTheme = (theme ?? 'system') as (typeof THEME_CYCLE)[number];
   const ThemeIcon = THEME_ICON[currentTheme] ?? Monitor;

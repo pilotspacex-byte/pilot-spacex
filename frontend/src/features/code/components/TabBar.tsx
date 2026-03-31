@@ -129,7 +129,6 @@ export const TabBar = observer(function TabBar() {
     checkOverflow();
 
     return () => observer.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabs.length, activeFileId]);
 
   // Progressive disclosure: hidden when no tabs are open

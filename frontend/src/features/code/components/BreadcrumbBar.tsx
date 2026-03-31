@@ -58,7 +58,7 @@ export const BreadcrumbBar = observer(function BreadcrumbBar() {
                   'rounded px-1 py-0.5 text-xs',
                   isLast
                     ? 'font-medium text-foreground'
-                    : 'cursor-pointer text-muted-foreground hover:bg-muted hover:text-foreground transition-colors'
+                    : 'text-muted-foreground'
                 )}
                 title={isLast ? undefined : segmentPath}
               >

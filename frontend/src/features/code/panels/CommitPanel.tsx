@@ -73,6 +73,7 @@ export const CommitPanel = observer(function CommitPanel({
           disabled={!canCommit}
           onClick={handleCommit}
           className="h-7 text-xs"
+          aria-busy={isCommitting}
         >
           {isCommitting ? (
             <>

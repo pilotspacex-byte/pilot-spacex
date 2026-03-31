@@ -81,6 +81,7 @@ export const FileTree = observer(function FileTree({
   return (
     <div
       role="tree"
+      aria-label="Files"
       className={cn('flex h-full flex-col bg-muted/30', className)}
       onKeyDown={handleKeyDown as unknown as React.KeyboardEventHandler}
       tabIndex={0}
