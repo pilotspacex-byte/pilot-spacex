@@ -113,7 +113,7 @@ export function useInlinePreviewContent(
 
   return {
     containerRef,
-    content: fileContent.content as string | undefined,
+    content: fileContent.content,
     signedUrl,
     isLoading: (urlLoading && isVisible) || fileContent.isLoading,
     isError: fileContent.isError,
