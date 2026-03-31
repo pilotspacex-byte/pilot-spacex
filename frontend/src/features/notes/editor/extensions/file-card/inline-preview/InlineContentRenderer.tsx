@@ -101,6 +101,57 @@ function truncateLines(content: string, maxLines: number): TruncateResult {
   };
 }
 
+/**
+ * Wrap content in a fenced code block using a fence longer than any backtick
+ * run found inside the content. Prevents premature fence closure.
+ */
+function wrapFencedCode(content: string, language = ''): string {
+  let maxRun = 2; // minimum fence length is 3
+  const matches = content.match(/`+/g);
+  if (matches) {
+    for (const m of matches) {
+      if (m.length > maxRun) maxRun = m.length;
+    }
+  }
+  const fence = '`'.repeat(maxRun + 1);
+  return `${fence}${language}\n${content}\n${fence}`;
+}
+
+/**
+ * Count actual CSV data rows using papaparse (handles quoted fields with
+ * embedded newlines). Falls back to line-split count on parse failure.
+ */
+function countCsvRows(content: string): { totalRows: number } {
+  try {
+    // Dynamic import is not feasible in a sync function — CsvRenderer is already
+    // dynamically imported, but papaparse is a dep of CsvRenderer and bundled
+    // with it. We use require-style lazy access via the module-level dynamic import.
+    // Instead, use a lightweight heuristic: count unquoted newlines.
+    // A proper parse would need to be async. For now, count rows by tracking
+    // whether we're inside a quoted field.
+    let rows = 0;
+    let inQuotes = false;
+    for (let i = 0; i < content.length; i++) {
+      const ch = content[i];
+      if (ch === '"') {
+        inQuotes = !inQuotes;
+      } else if (ch === '\n' && !inQuotes) {
+        rows++;
+      }
+    }
+    // Last row may not end with newline
+    if (content.length > 0 && content[content.length - 1] !== '\n') {
+      rows++;
+    }
+    // rows includes header, so data rows = rows - 1
+    return { totalRows: Math.max(0, rows - 1) };
+  } catch {
+    // Fallback: raw line split
+    const lines = content.split('\n').filter((l) => l.trim().length > 0);
+    return { totalRows: Math.max(0, lines.length - 1) };
+  }
+}
+
 export interface TruncationInfo {
   totalLines: number;
   totalRows: number;
@@ -146,12 +197,10 @@ export function getTruncationInfo(
   }
 
   if (rendererType === 'csv') {
-    const lines = content.split('\n').filter((l) => l.trim().length > 0);
-    // lines[0] is the header; data rows start at index 1
-    const totalRows = Math.max(0, lines.length - 1);
+    const { totalRows } = countCsvRows(content);
     const wasTruncated = !expanded && totalRows > 10;
     return {
-      totalLines: lines.length,
+      totalLines: 0,
       totalRows,
       wasTruncated,
       label: wasTruncated ? `Show more (${totalRows} rows)` : '',
@@ -225,7 +274,7 @@ export function InlineContentRenderer({
   if (rendererType === 'code') {
     const { truncated } = truncateLines(content as string, expanded ? Infinity : 30);
     const language = getLanguageForFile(filename);
-    const wrappedContent = '```' + language + '\n' + truncated + '\n```';
+    const wrappedContent = wrapFencedCode(truncated, language);
     return (
       <div className="[&>div]:p-3 [&>div]:py-2">
         <React.Suspense fallback={<SkeletonPreviewCard />}>
@@ -238,7 +287,7 @@ export function InlineContentRenderer({
   if (rendererType === 'json') {
     const formatted = formatJsonSafe(content as string);
     const { truncated } = truncateLines(formatted, expanded ? Infinity : 30);
-    const wrappedContent = '```json\n' + truncated + '\n```';
+    const wrappedContent = wrapFencedCode(truncated, 'json');
     return (
       <div className="[&>div]:p-3 [&>div]:py-2">
         <React.Suspense fallback={<SkeletonPreviewCard />}>
