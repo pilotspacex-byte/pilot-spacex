@@ -9,14 +9,20 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
-from pilot_space.domain.exceptions import ConflictError, ForbiddenError, NotFoundError
+from pilot_space.domain.exceptions import (
+    AppError,
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    ValidationError,
+)
 from pilot_space.infrastructure.database.models.activity import Activity, ActivityType
 from pilot_space.infrastructure.database.models.cycle import Cycle, CycleStatus
 from pilot_space.infrastructure.database.models.integration import IntegrationLink
@@ -43,19 +49,16 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-# ===== Custom Exceptions =====
+# ===== Exception aliases for backward compatibility =====
+# These names are kept so routers and tests can import them, but they now
+# extend the shared domain hierarchy so the global app_error_handler catches them.
 
-
-class WorkspaceNotFoundError(NotFoundError):
-    """Raised when the workspace does not exist."""
-
-
-class MemberNotFoundError(NotFoundError):
-    """Raised when the target member is not in the workspace."""
-
-
-class UnauthorizedError(ForbiddenError):
-    """Raised when the actor lacks required permissions."""
+WorkspaceMemberError = AppError
+WorkspaceNotFoundError = NotFoundError
+WorkspaceMemberNotFoundError = NotFoundError
+WorkspaceMemberForbiddenError = ForbiddenError
+WorkspaceMemberConflictError = ConflictError
+WorkspaceMemberValidationError = ValidationError
 
 
 # ===== Payloads & Results =====
@@ -67,6 +70,11 @@ class ListMembersPayload:
 
     workspace_id: UUID
     requesting_user_id: UUID
+    project_id: UUID | None = None
+    search: str | None = None
+    role: str | None = None
+    page: int = 1
+    page_size: int = 20
 
 
 @dataclass
@@ -75,6 +83,8 @@ class ListMembersResult:
 
     members: list[WorkspaceMember]
     workspace: Workspace
+    total: int = 0
+    project_chips: dict[UUID, list[dict[str, Any]]] = field(default_factory=dict)
 
 
 @dataclass
@@ -98,6 +108,35 @@ class UpdateMemberRoleResult:
 
 
 @dataclass
+class BulkUpdateMemberAssignmentsPayload:
+    """Payload for bulk-updating workspace role and/or project assignments."""
+
+    workspace_id: UUID
+    target_user_id: UUID
+    requesting_user_id: UUID
+    workspace_role: str | None = None
+    project_assignments: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass
+class BulkUpdateMemberAssignmentsWarning:
+    """Warning returned from bulk update operation."""
+
+    code: str
+    message: str
+
+
+@dataclass
+class BulkUpdateMemberAssignmentsResult:
+    """Result of bulk_update_assignments operation."""
+
+    user_id: UUID
+    workspace_role: str
+    project_assignments_updated: int
+    warnings: list[BulkUpdateMemberAssignmentsWarning] = field(default_factory=list)
+
+
+@dataclass
 class RemoveMemberPayload:
     """Payload for removing workspace member."""
 
@@ -113,6 +152,7 @@ class RemoveMemberResult:
     removed_user_id: UUID
     workspace_id: UUID
     removed_at: datetime
+    project_memberships_deactivated: int = 0
 
 
 @dataclass
@@ -149,19 +189,216 @@ class WorkspaceMemberService:
     async def list_members(
         self,
         payload: ListMembersPayload,
+        pm_repo: Any = None,
     ) -> ListMembersResult:
-        """List workspace members with role info."""
+        """List workspace members with filtering, sorting, and pagination.
+
+        Args:
+            payload: List members payload with optional filters/pagination.
+            pm_repo: ProjectMemberRepository for project_id filter and chip queries.
+
+        Returns:
+            Paginated list of workspace members with chips.
+        """
+
         workspace = await self.workspace_repo.get_with_members(payload.workspace_id)
         if not workspace:
             raise WorkspaceNotFoundError("Workspace not found")
 
         is_member = any(m.user_id == payload.requesting_user_id for m in (workspace.members or []))
         if not is_member:
-            raise UnauthorizedError("Not a member of this workspace")
+            raise WorkspaceMemberForbiddenError("Not a member of this workspace")
+
+        _ROLE_ORDER = {"owner": 1, "admin": 2, "member": 3, "guest": 4}
+
+        members = sorted(
+            workspace.members or [],
+            key=lambda m: (
+                _ROLE_ORDER.get(m.role.value.lower(), 5),
+                m.created_at or "",
+            ),
+        )
+
+        if payload.project_id is not None and pm_repo is not None:
+            project_user_ids = {
+                m.user_id
+                for m in (
+                    await pm_repo.list_members(payload.project_id, is_active=True, page_size=500)
+                ).items
+            }
+            members = [m for m in members if m.user_id in project_user_ids]
+
+        if payload.search:
+            q = payload.search.lower()
+            members = [
+                m
+                for m in members
+                if m.user
+                and (q in (m.user.full_name or "").lower() or q in (m.user.email or "").lower())
+            ]
+
+        if payload.role:
+            role_lower = payload.role.lower()
+            members = [m for m in members if m.role.value.lower() == role_lower]
+
+        total = len(members)
+        offset = (payload.page - 1) * payload.page_size
+        page_members = members[offset : offset + payload.page_size]
+
+        # Build project chips per page member
+        project_chips: dict[UUID, list[dict[str, Any]]] = {}
+        if pm_repo is not None:
+            for member in page_members:
+                chips = await pm_repo.get_project_chips_for_user(
+                    payload.workspace_id, member.user_id
+                )
+                project_chips[member.user_id] = chips
 
         return ListMembersResult(
-            members=workspace.members or [],
+            members=page_members,
             workspace=workspace,
+            total=total,
+            project_chips=project_chips,
+        )
+
+    async def bulk_update_assignments(
+        self,
+        payload: BulkUpdateMemberAssignmentsPayload,
+        session: AsyncSession,
+    ) -> BulkUpdateMemberAssignmentsResult:
+        """Bulk-update workspace role and/or project assignments for a member (FR-04).
+
+        Requires caller to be ADMIN or OWNER of the workspace.
+        Updating workspace_role to OWNER is restricted to current OWNERs.
+
+        Args:
+            payload: Bulk update payload.
+            session: AsyncSession for workspace-role flush.
+
+        Returns:
+            BulkUpdateMemberAssignmentsResult with updated counts and warnings.
+
+        Raises:
+            ForbiddenError: If caller is not admin/owner or attempts invalid role upgrade.
+            NotFoundError: If target member is not in the workspace.
+            ValidationError: If a submitted project_id does not belong to this workspace.
+        """
+        from sqlalchemy import select as sa_select
+
+        from pilot_space.application.services.project_member import (
+            BulkUpdatePayload,
+            ProjectMemberService,
+            UnauthorizedError as PMUnauthorizedError,
+        )
+        from pilot_space.infrastructure.database.models.project import Project as ProjectModel
+        from pilot_space.infrastructure.database.models.workspace_member import (
+            WorkspaceRole as WsRole,
+        )
+        from pilot_space.infrastructure.database.repositories.project_member import (
+            ProjectMemberRepository,
+        )
+
+        # Auth: caller must be ADMIN or OWNER
+        from pilot_space.infrastructure.database.repositories.workspace_member_repository import (
+            WorkspaceMemberRepository,
+        )
+
+        wm_repo = WorkspaceMemberRepository(session=session)
+        caller = await wm_repo.get_by_user_workspace(
+            payload.requesting_user_id, payload.workspace_id
+        )
+        if not caller or caller.role.value not in ("ADMIN", "OWNER"):
+            raise WorkspaceMemberForbiddenError(
+                "Only workspace admins or owners can modify assignments"
+            )
+
+        target = await wm_repo.get_by_user_workspace(payload.target_user_id, payload.workspace_id)
+        if not target:
+            raise WorkspaceMemberNotFoundError("Member not found in workspace")
+
+        # Validate all submitted project_ids belong to this workspace
+        if payload.project_assignments:
+            submitted_ids = [UUID(str(a["project_id"])) for a in payload.project_assignments]
+            rows = await session.execute(
+                sa_select(ProjectModel.id).where(
+                    ProjectModel.id.in_(submitted_ids),
+                    ProjectModel.workspace_id == payload.workspace_id,
+                    ProjectModel.is_deleted == False,  # noqa: E712
+                )
+            )
+            found_ids = {row.id for row in rows.all()}
+            invalid = [str(pid) for pid in submitted_ids if pid not in found_ids]
+            if invalid:
+                raise WorkspaceMemberValidationError(
+                    f"Project(s) not found in workspace: {', '.join(invalid)}"
+                )
+
+        pm_repo = ProjectMemberRepository(session=session)
+        pm_svc = ProjectMemberService(project_member_repository=pm_repo)
+
+        try:
+            pm_result = await pm_svc.bulk_update_assignments(
+                BulkUpdatePayload(
+                    workspace_id=payload.workspace_id,
+                    target_user_id=payload.target_user_id,
+                    requesting_user_id=payload.requesting_user_id,
+                    requesting_user_role=caller.role.value,
+                    current_workspace_role=target.role.value,
+                    workspace_role=payload.workspace_role,
+                    project_assignments=payload.project_assignments,
+                )
+            )
+        except PMUnauthorizedError as e:
+            raise WorkspaceMemberForbiddenError(str(e)) from e
+
+        # Apply workspace role change if requested
+        if payload.workspace_role and payload.workspace_role != target.role.value:
+            try:
+                new_role = WsRole(payload.workspace_role)
+            except ValueError as e:
+                raise WorkspaceMemberValidationError(
+                    f"Invalid role: {payload.workspace_role}"
+                ) from e
+
+            # Guard: only OWNER can promote to OWNER
+            if new_role == WsRole.OWNER and caller.role != WsRole.OWNER:
+                raise WorkspaceMemberForbiddenError(
+                    "Only the workspace owner can transfer ownership"
+                )
+
+            # Guard: prevent demoting the last admin
+            new_role_is_non_admin = new_role not in (WsRole.OWNER, WsRole.ADMIN)
+            if target.role in (WsRole.OWNER, WsRole.ADMIN) and new_role_is_non_admin:
+                from sqlalchemy import func as sa_func
+
+                from pilot_space.infrastructure.database.models.workspace_member import (
+                    WorkspaceMember as WsMemberModel,
+                )
+
+                result = await session.execute(
+                    sa_select(sa_func.count()).where(
+                        WsMemberModel.workspace_id == payload.workspace_id,
+                        WsMemberModel.role.in_([WsRole.OWNER, WsRole.ADMIN]),
+                        WsMemberModel.is_deleted == False,  # noqa: E712
+                    )
+                )
+                admin_count = result.scalar_one()
+                if admin_count <= 1:
+                    raise WorkspaceMemberConflictError(
+                        "Cannot demote the only admin from workspace"
+                    )
+
+            target.role = new_role
+            await session.flush()
+
+        return BulkUpdateMemberAssignmentsResult(
+            user_id=payload.target_user_id,
+            workspace_role=pm_result.workspace_role or target.role.value,
+            project_assignments_updated=pm_result.project_assignments_updated,
+            warnings=[
+                BulkUpdateMemberAssignmentsWarning(code=w.code, message=w.message)
+                for w in pm_result.warnings
+            ],
         )
 
     async def update_member_role(
@@ -193,11 +430,11 @@ class WorkspaceMemberService:
             None,
         )
         if not actor_member or not actor_member.is_admin:
-            raise UnauthorizedError("Admin role required")
+            raise WorkspaceMemberForbiddenError("Admin role required")
 
         # Guard: prevent owner from changing their own role (must use ownership transfer)
         if payload.actor_id == payload.target_user_id and actor_member.is_owner:
-            raise UnauthorizedError(
+            raise WorkspaceMemberForbiddenError(
                 "Cannot change own role. Use ownership transfer to reassign ownership."
             )
 
@@ -206,7 +443,7 @@ class WorkspaceMemberService:
             None,
         )
         if not target_member:
-            raise MemberNotFoundError("Member not found")
+            raise WorkspaceMemberNotFoundError("Member not found")
 
         old_role = target_member.role.value
         new_role_enum = WorkspaceRole(payload.new_role)
@@ -220,12 +457,14 @@ class WorkspaceMemberService:
             admin_count = sum(1 for m in (workspace.members or []) if m.is_admin)
             if admin_count <= 1:
                 msg = "Cannot demote the only admin from workspace"
-                raise ConflictError(msg)
+                raise WorkspaceMemberConflictError(msg)
 
         # Ownership transfer guard (FR-017, T020a)
         if new_role_enum == WorkspaceRole.OWNER:
             if not actor_member.is_owner:
-                raise UnauthorizedError("Only the workspace owner can transfer ownership")
+                raise WorkspaceMemberForbiddenError(
+                    "Only the workspace owner can transfer ownership"
+                )
 
             await self.workspace_repo.update_member_role(
                 payload.workspace_id,
@@ -241,7 +480,7 @@ class WorkspaceMemberService:
         )
 
         if not updated_member:
-            raise MemberNotFoundError("Member not found")
+            raise WorkspaceMemberNotFoundError("Member not found")
 
         logger.info(
             "Member role updated",
@@ -274,6 +513,7 @@ class WorkspaceMemberService:
     async def remove_member(
         self,
         payload: RemoveMemberPayload,
+        session: AsyncSession,
     ) -> RemoveMemberResult:
         """Remove member from workspace.
 
@@ -282,8 +522,12 @@ class WorkspaceMemberService:
         - Owner cannot remove themselves (M-5)
         - Cannot remove the only admin
 
+        Also deactivates all project memberships for the removed user within
+        this workspace (same transaction).
+
         Args:
             payload: Remove member payload.
+            session: AsyncSession for project membership cleanup.
 
         Returns:
             Removed member info.
@@ -305,27 +549,54 @@ class WorkspaceMemberService:
         is_self = payload.target_user_id == payload.actor_id
 
         if not (is_admin or is_self):
-            raise UnauthorizedError("Admin role required to remove other members")
+            raise WorkspaceMemberForbiddenError("Admin role required to remove other members")
 
         # M-5 fix: prevent owner from removing themselves
         if is_self and actor_member and actor_member.is_owner:
-            raise UnauthorizedError(
+            raise WorkspaceMemberForbiddenError(
                 "Workspace owner cannot remove themselves. Transfer ownership first."
             )
 
-        # Prevent removing the last admin/owner regardless of who initiates the removal
+        # Role-hierarchy guard: admins can only remove members with a lower role.
+        # Owners can remove anyone (except themselves, caught above).
         target_member = next(
             (m for m in (workspace.members or []) if m.user_id == payload.target_user_id),
             None,
         )
+        if (
+            not is_self
+            and actor_member is not None
+            and not actor_member.is_owner
+            and target_member is not None
+            and target_member.is_admin
+        ):
+            raise WorkspaceMemberForbiddenError(
+                "Admins cannot remove members with equal or higher role"
+            )
+
+        # Prevent removing the last admin/owner regardless of who initiates the removal
         if target_member and target_member.is_admin:
             admin_count = sum(1 for m in (workspace.members or []) if m.is_admin)
             if admin_count <= 1:
-                raise UnauthorizedError("Cannot remove the only admin from workspace")
+                raise WorkspaceMemberConflictError("Cannot remove the only admin from workspace")
 
         await self.workspace_repo.remove_member(
             payload.workspace_id,
             payload.target_user_id,
+        )
+
+        from pilot_space.infrastructure.database.repositories.project_member import (
+            ProjectMemberRepository as _PMRepo,
+        )
+
+        _pm_repo = _PMRepo(session=session)
+        _deactivated = await _pm_repo.deactivate_all_for_user_in_workspace(
+            user_id=payload.target_user_id,
+            workspace_id=payload.workspace_id,
+        )
+        logger.info(
+            "Project memberships deactivated on workspace member removal",
+            extra={"count": _deactivated, "user_id": str(payload.target_user_id)},
         )
 
         logger.info(
@@ -350,6 +621,7 @@ class WorkspaceMemberService:
             removed_user_id=payload.target_user_id,
             workspace_id=payload.workspace_id,
             removed_at=datetime.now(tz=UTC),
+            project_memberships_deactivated=_deactivated,
         )
 
     async def update_availability(
@@ -375,7 +647,9 @@ class WorkspaceMemberService:
         is_admin = actor_member is not None and actor_member.is_admin
 
         if not (is_self or is_admin):
-            raise UnauthorizedError("Only admins or the member themselves can update availability")
+            raise WorkspaceMemberForbiddenError(
+                "Only admins or the member themselves can update availability"
+            )
 
         result = await session.execute(
             select(WMModel)
@@ -387,7 +661,7 @@ class WorkspaceMemberService:
         )
         member = result.scalar_one_or_none()
         if not member:
-            raise MemberNotFoundError("Member not found")
+            raise WorkspaceMemberNotFoundError("Member not found")
 
         member.weekly_available_hours = payload.weekly_available_hours
         await session.flush()
@@ -480,14 +754,14 @@ class MemberProfileService:
 
         is_member = any(m.user_id == payload.requesting_user_id for m in (workspace.members or []))
         if not is_member:
-            raise UnauthorizedError("Not a member of this workspace")
+            raise WorkspaceMemberForbiddenError("Not a member of this workspace")
 
         member = next(
             (m for m in (workspace.members or []) if m.user_id == payload.user_id),
             None,
         )
         if not member:
-            raise MemberNotFoundError("Member not found")
+            raise WorkspaceMemberNotFoundError("Member not found")
 
         # Group 1: all independent queries run in parallel
         (
@@ -633,7 +907,7 @@ class MemberProfileService:
 
         is_member = any(m.user_id == payload.requesting_user_id for m in (workspace.members or []))
         if not is_member:
-            raise UnauthorizedError("Not a member of this workspace")
+            raise WorkspaceMemberForbiddenError("Not a member of this workspace")
 
         page_size = min(payload.page_size, 50)
         offset = (payload.page - 1) * page_size
@@ -676,21 +950,27 @@ class MemberProfileService:
 
 
 __all__ = [
+    "BulkUpdateMemberAssignmentsPayload",
+    "BulkUpdateMemberAssignmentsResult",
+    "BulkUpdateMemberAssignmentsWarning",
     "GetMemberActivityPayload",
     "GetMemberActivityResult",
     "GetMemberProfilePayload",
     "GetMemberProfileResult",
     "ListMembersPayload",
     "ListMembersResult",
-    "MemberNotFoundError",
     "MemberProfileService",
     "RemoveMemberPayload",
     "RemoveMemberResult",
-    "UnauthorizedError",
     "UpdateMemberAvailabilityPayload",
     "UpdateMemberAvailabilityResult",
     "UpdateMemberRolePayload",
     "UpdateMemberRoleResult",
+    "WorkspaceMemberConflictError",
+    "WorkspaceMemberError",
+    "WorkspaceMemberForbiddenError",
+    "WorkspaceMemberNotFoundError",
     "WorkspaceMemberService",
+    "WorkspaceMemberValidationError",
     "WorkspaceNotFoundError",
 ]

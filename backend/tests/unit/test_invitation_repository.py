@@ -142,7 +142,7 @@ class TestStatusTransitions:
 
         # Assert
         assert result is not None
-        assert result.status == InvitationStatus.CANCELLED
+        assert result.status == InvitationStatus.REVOKED
         session.flush.assert_awaited_once()
 
     async def test_cancel_non_pending_returns_none(self) -> None:

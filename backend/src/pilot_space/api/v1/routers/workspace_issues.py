@@ -24,6 +24,7 @@ from pilot_space.api.v1.dependencies import (
     IssueRepositoryDep,
     ListIssuesServiceDep,
     NoteIssueLinkRepositoryDep,
+    ProjectRbacServiceDep,
     UpdateIssueServiceDep,
     WorkspaceRepositoryDep,
 )
@@ -140,6 +141,7 @@ async def list_workspace_issues(
     current_user_id: SyncedUserId,
     list_service: ListIssuesServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
+    rbac_svc: ProjectRbacServiceDep,
     session: SessionDep,
     project_id: Annotated[UUID | None, Query(description="Filter by project")] = None,
     state: Annotated[str | None, Query(description="Filter by state")] = None,
@@ -155,9 +157,17 @@ async def list_workspace_issues(
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
     await set_rls_context(session, current_user_id, workspace.id)
 
+    if project_id is not None:
+        await rbac_svc.check_project_access(project_id, workspace.id, current_user_id)
+
+    project_ids: list[UUID] | None = None
+    if project_id is None:
+        project_ids = await rbac_svc.get_my_project_ids(workspace.id, current_user_id)
+
     payload = ListIssuesPayload(
         workspace_id=workspace.id,
         project_id=project_id,
+        project_ids=project_ids,
         assignee_ids=[assignee_id] if assignee_id else None,
         search_term=search,
         cursor=cursor,
@@ -193,6 +203,7 @@ async def get_workspace_issue(
     current_user_id: SyncedUserId,
     get_service: GetIssueServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
+    rbac_svc: ProjectRbacServiceDep,
 ) -> IssueResponse:
     """Get a specific issue by ID."""
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
@@ -204,6 +215,8 @@ async def get_workspace_issue(
 
     if result.issue.workspace_id != workspace.id:
         raise NotFoundError("Issue not found")
+
+    await rbac_svc.check_project_access(result.issue.project_id, workspace.id, current_user_id)
 
     return IssueResponse.from_issue(result.issue)
 
@@ -390,6 +403,7 @@ async def update_workspace_issue(
     current_user_id: SyncedUserId,
     update_service: UpdateIssueServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
+    rbac_svc: ProjectRbacServiceDep,
     session: SessionDep,
     response: Response = Response(),
 ) -> IssueResponse:
@@ -418,6 +432,14 @@ async def update_workspace_issue(
         raise NotFoundError("Issue not found")
     if issue_workspace_id != workspace.id:
         raise ForbiddenError("Access denied")
+
+    await rbac_svc.check_resource_permission(current_user_id, workspace.id, "issues", "write")
+    issue_project_row = await session.execute(
+        select(Issue.project_id).where(Issue.id == issue_id, Issue.is_deleted == False)  # noqa: E712
+    )
+    issue_project_id = issue_project_row.scalar_one_or_none()
+    if issue_project_id:
+        await rbac_svc.check_project_access(issue_project_id, workspace.id, current_user_id)
 
     priority = UNCHANGED
     if issue_data.priority is not None:

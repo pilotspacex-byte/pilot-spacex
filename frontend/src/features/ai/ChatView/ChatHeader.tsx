@@ -3,11 +3,12 @@
  * Single line: [Bot Icon] · Title · [New] · [Close]
  */
 
-import { observer } from 'mobx-react-lite';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { Bot, X, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Bot, Plus, X } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
+import { AIChatProjectSelector } from './AIChatProjectSelector';
 import { ModelSelector } from './ModelSelector';
 
 interface ChatHeaderProps {
@@ -47,8 +48,9 @@ export const ChatHeader = observer<ChatHeaderProps>(
             </span>
           </div>
 
-          {/* Spacer with model selector */}
-          <div className="flex-1 min-w-2 flex justify-center">
+          {/* Spacer with project selector + model selector */}
+          <div className="flex-1 min-w-2 flex justify-center items-center gap-1.5">
+            <AIChatProjectSelector />
             <ModelSelector />
           </div>
 

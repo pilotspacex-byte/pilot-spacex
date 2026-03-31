@@ -9,7 +9,7 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     DateTime,
@@ -23,6 +23,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from pilot_space.infrastructure.database.base import BaseModel
 from pilot_space.infrastructure.database.models.workspace_member import WorkspaceRole
+from pilot_space.infrastructure.database.types import JSONBCompat
 
 if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.user import User
@@ -36,6 +37,7 @@ class InvitationStatus(StrEnum):
     ACCEPTED = "accepted"
     EXPIRED = "expired"
     CANCELLED = "cancelled"
+    REVOKED = "revoked"  # Added in migration 104; use for new admin cancellations
 
 
 def _default_expires_at() -> datetime:
@@ -101,6 +103,22 @@ class WorkspaceInvitation(BaseModel):
     suggested_sdlc_role: Mapped[str | None] = mapped_column(
         String(50),
         nullable=True,
+    )
+
+    # Project assignments for RBAC — list of {project_id, role} dicts (FR-03)
+    # Null for pre-RBAC invitations (backward-compatible).
+    project_assignments: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSONBCompat,
+        nullable=True,
+        default=None,
+    )
+
+    # Supabase magic-link tracking (Amendment 1 — FR-08)
+    # Set when inviteUserByEmail() is called; prevents duplicate magic links on retry.
+    supabase_invite_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        default=None,
     )
 
     # Relationships

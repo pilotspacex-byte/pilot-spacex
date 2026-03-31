@@ -18,7 +18,6 @@ from uuid import UUID
 from pilot_space.domain.exceptions import ConflictError, ForbiddenError, NotFoundError
 from pilot_space.infrastructure.database.models.workspace import Workspace
 from pilot_space.infrastructure.database.models.workspace_invitation import (
-    InvitationStatus,
     WorkspaceInvitation,
 )
 from pilot_space.infrastructure.database.models.workspace_member import (
@@ -533,14 +532,14 @@ class WorkspaceService:
         existing_user = await self.user_repo.get_by_email(normalized_email)
 
         if existing_user:
-            # Check if already a member
+            # Check if already an active member — return 409 for active duplicates
             is_member = await self.workspace_repo.is_member(workspace_id, existing_user.id)
             if is_member:
                 msg = "User is already a member of this workspace"
                 raise ConflictError(msg)
 
-            # Add immediately
-            member = await self.workspace_repo.add_member(
+            # Upsert — handles both new members and re-invite of removed (soft-deleted) members
+            member = await self.workspace_repo.upsert_member(
                 workspace_id=workspace_id,
                 user_id=existing_user.id,
                 role=workspace_role,
@@ -557,22 +556,20 @@ class WorkspaceService:
 
             return InviteMemberResult(is_immediate=True, member=member)
 
-        # User doesn't exist — check for duplicate pending invitation
+        # User doesn't exist — check for active pending invitation before upserting
         has_pending = await self.invitation_repo.exists_pending(workspace_id, normalized_email)
         if has_pending:
             msg = "An invitation is already pending for this email"
             raise ConflictError(msg)
 
-        # Create pending invitation
-        invitation = WorkspaceInvitation(
+        # Upsert — handles both new invitations and re-invite of cancelled/expired invitations
+        invitation = await self.invitation_repo.upsert_invitation(
             workspace_id=workspace_id,
             email=normalized_email,
             role=workspace_role,
             invited_by=invited_by,
-            status=InvitationStatus.PENDING,
             expires_at=datetime.now(tz=UTC) + timedelta(days=7),
         )
-        invitation = await self.invitation_repo.create(invitation)
 
         logger.info(
             "Invitation created",

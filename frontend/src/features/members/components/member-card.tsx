@@ -7,24 +7,33 @@
 
 'use client';
 
-import { Crown, Loader2, MoreHorizontal, Shield, ShieldAlert, Trash2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import type { WorkspaceMember } from '@/features/issues/hooks/use-workspace-members';
-import type { WorkspaceRole } from '@/stores/WorkspaceStore';
-import { getInitials, formatJoinDate } from '@/features/members/utils/member-utils';
+import { formatJoinDate, getInitials } from '@/features/members/utils/member-utils';
 import { cn } from '@/lib/utils';
+import type { WorkspaceRole } from '@/stores/WorkspaceStore';
+import {
+  Crown,
+  FolderKanban,
+  Loader2,
+  MoreHorizontal,
+  Shield,
+  ShieldAlert,
+  Trash2,
+} from 'lucide-react';
 import { MemberRoleBadge } from './member-role-badge';
+import { ProjectChips } from './project-chips';
 
 interface MemberCardProps {
   member: WorkspaceMember;
@@ -35,6 +44,7 @@ interface MemberCardProps {
   onRemove: (userId: string) => void;
   onTransferOwnership?: (userId: string) => void;
   onAvailabilityChange?: (userId: string, hours: number) => void;
+  onEditAssignments?: (userId: string) => void;
   isUpdating?: boolean;
   onNavigate: (userId: string) => void;
 }
@@ -54,6 +64,7 @@ export function MemberCard({
   onTransferOwnership,
   onAvailabilityChange: _onAvailabilityChange,
   isUpdating = false,
+  onEditAssignments,
   onNavigate,
 }: MemberCardProps) {
   const isAdmin = currentUserRole === 'admin' || currentUserRole === 'owner';
@@ -63,7 +74,8 @@ export function MemberCard({
   const canRemove = isAdmin && !isMemberOwner && !isCurrentUser;
   const removeDisabled = isLastAdmin;
   const canTransferOwnership = isOwner && !isCurrentUser && !isMemberOwner;
-  const showActions = canEditRole || canRemove || canTransferOwnership;
+  const canEditAssignments = isAdmin && !isMemberOwner && !isCurrentUser && !!onEditAssignments;
+  const showActions = canEditRole || canRemove || canTransferOwnership || canEditAssignments;
 
   const initials = getInitials(member.fullName, member.email);
   const displayName = member.fullName || member.email.split('@')[0] || member.email;
@@ -109,6 +121,15 @@ export function MemberCard({
         </div>
         {member.fullName && (
           <p className="truncate text-xs text-muted-foreground">{member.email}</p>
+        )}
+        {member.projects && member.projects.length > 0 && (
+          <div
+            className="mt-1"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            <ProjectChips projects={member.projects} maxVisible={3} />
+          </div>
         )}
       </div>
 
@@ -168,6 +189,12 @@ export function MemberCard({
                     </DropdownMenuItem>
                   </DropdownMenuSubContent>
                 </DropdownMenuSub>
+              )}
+              {canEditAssignments && (
+                <DropdownMenuItem onClick={() => onEditAssignments!(member.userId)}>
+                  <FolderKanban className="mr-2 h-4 w-4" />
+                  Edit Assignments
+                </DropdownMenuItem>
               )}
               {canTransferOwnership && onTransferOwnership && (
                 <DropdownMenuItem onClick={() => onTransferOwnership(member.userId)}>

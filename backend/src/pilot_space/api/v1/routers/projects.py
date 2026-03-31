@@ -13,6 +13,7 @@ from fastapi import APIRouter, Query, status
 
 from pilot_space.api.v1.dependencies import (
     ProjectDetailServiceDep,
+    ProjectRbacServiceDep,
     ProjectRepositoryDep,
 )
 from pilot_space.api.v1.schemas.base import DeleteResponse, PaginatedResponse
@@ -83,6 +84,7 @@ async def list_projects(
     current_user: CurrentUser,
     project_repo: ProjectRepositoryDep,
     detail_service: ProjectDetailServiceDep,
+    rbac_svc: ProjectRbacServiceDep,
     cursor: Annotated[str | None, Query(description="Pagination cursor")] = None,
     page_size: Annotated[int, Query(ge=1, le=100, description="Items per page")] = 20,
 ) -> PaginatedResponse[ProjectResponse]:
@@ -96,7 +98,11 @@ async def list_projects(
     )
 
     project_ids = [proj.id for proj in page.items]
-    batch_counts = await detail_service.get_batch_issue_counts(project_ids)
+    accessible_ids = await rbac_svc.get_accessible_project_ids(
+        workspace_id, current_user.user_id, project_ids
+    )
+    accessible_projects = [proj for proj in page.items if proj.id in accessible_ids]
+    batch_counts = await detail_service.get_batch_issue_counts([p.id for p in accessible_projects])
 
     items = [
         ProjectResponse(
@@ -119,7 +125,7 @@ async def list_projects(
             issue_count=batch_counts.get(proj.id, (0, 0))[0],
             open_issue_count=batch_counts.get(proj.id, (0, 0))[1],
         )
-        for proj in page.items
+        for proj in accessible_projects
     ]
 
     return PaginatedResponse(
@@ -190,10 +196,12 @@ async def get_project(
     session: SessionDep,
     current_user: CurrentUser,
     detail_service: ProjectDetailServiceDep,
+    rbac_svc: ProjectRbacServiceDep,
 ) -> ProjectDetailResponse:
     """Get project by ID."""
     project = await detail_service.get_project_or_raise(project_id)
     await detail_service.check_workspace_access(project.workspace_id, current_user.user_id)
+    await rbac_svc.check_project_access(project_id, project.workspace_id, current_user.user_id)
 
     total_count, open_count = await detail_service.get_issue_counts(project.id)
     return _build_detail_response(project, total_count, open_count)

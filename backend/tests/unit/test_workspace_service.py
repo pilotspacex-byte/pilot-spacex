@@ -88,7 +88,7 @@ class TestInviteMember:
 
         user_repo.get_by_email.return_value = existing_user
         workspace_repo.is_member.return_value = False
-        workspace_repo.add_member.return_value = member
+        workspace_repo.upsert_member.return_value = member
 
         # Act
         result = await workspace_service.invite_member(
@@ -102,7 +102,7 @@ class TestInviteMember:
         assert result.is_immediate is True
         assert result.member is member
         assert result.invitation is None
-        workspace_repo.add_member.assert_awaited_once_with(
+        workspace_repo.upsert_member.assert_awaited_once_with(
             workspace_id=workspace_id,
             user_id=existing_user.id,
             role=WorkspaceRole.MEMBER,
@@ -144,11 +144,14 @@ class TestInviteMember:
         user_repo.get_by_email.return_value = None
         invitation_repo.exists_pending.return_value = False
 
-        # Make create return the invitation it receives
-        async def return_invitation(inv: WorkspaceInvitation) -> WorkspaceInvitation:
-            return inv
-
-        invitation_repo.create.side_effect = return_invitation
+        fake_inv = WorkspaceInvitation(
+            workspace_id=workspace_id,
+            email="new@example.com",
+            role=WorkspaceRole.MEMBER,
+            invited_by=invited_by,
+            status=InvitationStatus.PENDING,
+        )
+        invitation_repo.upsert_invitation.return_value = fake_inv
 
         # Act
         result = await workspace_service.invite_member(
@@ -200,10 +203,8 @@ class TestInviteMember:
         user_repo.get_by_email.return_value = None
         invitation_repo.exists_pending.return_value = False
 
-        async def return_invitation(inv: WorkspaceInvitation) -> WorkspaceInvitation:
-            return inv
-
-        invitation_repo.create.side_effect = return_invitation
+        fake_inv = WorkspaceInvitation(email="test@example.com", role=WorkspaceRole.MEMBER)
+        invitation_repo.upsert_invitation.return_value = fake_inv
 
         # Act
         result = await workspace_service.invite_member(

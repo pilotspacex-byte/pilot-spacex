@@ -45,6 +45,7 @@ from pilot_space.api.v1.routers.homepage import (
 )
 from pilot_space.api.v1.routers.integrations import router as integrations_router
 from pilot_space.api.v1.routers.intents import router as intents_router
+from pilot_space.api.v1.routers.invitations_public import router as invitations_public_router
 from pilot_space.api.v1.routers.issue_implement import router as issue_implement_router
 from pilot_space.api.v1.routers.issues import router as issues_router
 from pilot_space.api.v1.routers.issues_ai import router as issues_ai_router
@@ -70,6 +71,7 @@ from pilot_space.api.v1.routers.pm_dependency_graph import router as pm_dependen
 from pilot_space.api.v1.routers.pm_release_notes import router as pm_release_notes_router
 from pilot_space.api.v1.routers.pm_sprint_board import router as pm_sprint_board_router
 from pilot_space.api.v1.routers.project_artifacts import router as project_artifacts_router
+from pilot_space.api.v1.routers.project_members import router as project_members_router
 from pilot_space.api.v1.routers.projects import router as projects_router
 from pilot_space.api.v1.routers.related_issues import router as related_issues_router
 from pilot_space.api.v1.routers.role_skills import (
@@ -191,6 +193,7 @@ __all__ = [
     "integrations_router",
     "intents_router",
     "invitation_router",
+    "invitations_public_router",
     "issue_implement_router",
     "issues_ai_context_router",
     "issues_ai_context_streaming_router",
@@ -214,6 +217,7 @@ __all__ = [
     "pm_release_notes_router",
     "pm_sprint_board_router",
     "project_artifacts_router",
+    "project_members_router",
     "projects_router",
     "related_issues_router",
     "role_skills_router",

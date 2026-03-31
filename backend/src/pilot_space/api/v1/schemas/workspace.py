@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import EmailStr, Field, model_validator
+from pydantic import EmailStr, Field, field_validator, model_validator
 
 from pilot_space.api.v1.schemas.base import BaseSchema, EntitySchema
 
@@ -131,10 +131,16 @@ class WorkspaceMemberUpdate(BaseSchema):
         role: New role for member.
     """
 
-    role: str = Field(
-        pattern="^(OWNER|ADMIN|MEMBER|GUEST)$",
-        description="New role for member",
-    )
+    role: str = Field(description="New role for member")
+
+    @field_validator("role", mode="before")
+    @classmethod
+    def normalise_role(cls, v: str) -> str:
+        """Normalise role string to uppercase; reject unknown values."""
+        upper = str(v).upper()
+        if upper not in ("OWNER", "ADMIN", "MEMBER", "GUEST"):
+            raise ValueError(f"Invalid role: {v!r}")
+        return upper
 
 
 class WorkspaceMemberAvailabilityUpdate(BaseSchema):
@@ -175,6 +181,54 @@ class InvitationResponse(BaseSchema):
     )
     expires_at: datetime = Field(description="Invitation expiry timestamp")
     created_at: datetime = Field(description="Invitation creation timestamp")
+
+
+class InvitationPreviewResponse(BaseSchema):
+    """Public preview of an invitation (no auth required).
+
+    Returns enough information for the /invite page to render the
+    workspace name and detect already-used/expired invitations.
+
+    Attributes:
+        invitation_id: Invitation UUID.
+        status: Current invitation status.
+        workspace_name: Display name of the workspace being joined.
+        workspace_slug: Workspace URL slug (used for post-accept redirect).
+        invited_email_masked: Email with local-part masked (e.g. j***@example.com).
+        expires_at: When the invitation expires.
+    """
+
+    invitation_id: UUID = Field(description="Invitation UUID")
+    status: str = Field(
+        description="Invitation status (pending/accepted/expired/revoked/cancelled)"
+    )
+    workspace_name: str = Field(description="Display name of the workspace")
+    workspace_slug: str = Field(description="Workspace URL slug")
+    invited_email_masked: str = Field(description="Email with local-part masked")
+    expires_at: datetime = Field(description="Invitation expiry timestamp")
+
+
+class RequestMagicLinkRequest(BaseSchema):
+    """Request to send a magic link for an invitation.
+
+    Attributes:
+        email: The email address that should receive the magic link.
+               Must match the invited email address.
+    """
+
+    email: EmailStr = Field(description="Email address to send the magic link to")
+
+
+class RequestMagicLinkResponse(BaseSchema):
+    """Response after requesting a magic link.
+
+    Attributes:
+        message: Human-readable confirmation message.
+        expires_in_minutes: How long the magic link is valid for.
+    """
+
+    message: str = Field(description="Confirmation message")
+    expires_in_minutes: int = Field(description="Magic link validity in minutes")
 
 
 class InvitationPublicDetailResponse(BaseSchema):
@@ -221,6 +275,7 @@ class InvitationCreateRequest(BaseSchema):
     Attributes:
         email: Email address to invite.
         role: Role to assign (admin, member, guest).
+        project_assignments: Required project assignments for new member (FR-03).
     """
 
     email: EmailStr = Field(
@@ -237,6 +292,10 @@ class InvitationCreateRequest(BaseSchema):
         max_length=50,
         description="Suggested SDLC role for invitee",
     )
+    project_assignments: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Project assignments: [{project_id, role}]. Optional — member starts with no project assignment if omitted (FR-03-3, Amendment 1).",
+    )
 
 
 class WorkspaceMemberResponse(BaseSchema):
@@ -249,6 +308,7 @@ class WorkspaceMemberResponse(BaseSchema):
         avatar_url: Member profile image.
         role: Member role.
         joined_at: When member joined.
+        projects: Project chips for the member (RBAC — FR-02).
     """
 
     user_id: UUID = Field(description="Member user ID")
@@ -261,6 +321,30 @@ class WorkspaceMemberResponse(BaseSchema):
         default=40.0,
         description="Hours available per week for capacity planning",
     )
+    projects: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Project chips (id, name, identifier, is_archived) for FR-02",
+    )
+
+
+class PaginatedMembersResponse(BaseSchema):
+    """Paginated workspace member list response (E-05)."""
+
+    items: list[WorkspaceMemberResponse]
+    total: int = Field(ge=0, description="Total matching member count")
+    page: int = Field(ge=1, description="Current page (1-indexed)")
+    page_size: int = Field(ge=1, description="Items per page")
+    total_pages: int = Field(ge=0, description="Total number of pages")
+
+
+class PaginatedInvitationsResponse(BaseSchema):
+    """Paginated workspace invitations list response (E-05)."""
+
+    items: list[InvitationResponse]
+    total: int = Field(ge=0, description="Total pending invitation count")
+    page: int = Field(ge=1, description="Current page (1-indexed)")
+    page_size: int = Field(ge=1, description="Items per page")
+    total_pages: int = Field(ge=0, description="Total number of pages")
 
 
 class MemberContributionStats(BaseSchema):
@@ -565,6 +649,7 @@ __all__ = [
     "APIKeyUpdate",
     "InvitationAcceptResponse",
     "InvitationCreateRequest",
+    "InvitationPreviewResponse",
     "InvitationPublicDetailResponse",
     "InvitationResponse",
     "KeyValidationResult",
@@ -572,7 +657,11 @@ __all__ = [
     "MemberActivityResponse",
     "MemberContributionStats",
     "MemberProfileResponse",
+    "PaginatedInvitationsResponse",
+    "PaginatedMembersResponse",
     "ProviderStatus",
+    "RequestMagicLinkRequest",
+    "RequestMagicLinkResponse",
     "WorkspaceAISettingsResponse",
     "WorkspaceAISettingsUpdate",
     "WorkspaceAISettingsUpdateResponse",

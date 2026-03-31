@@ -214,7 +214,8 @@ export function AuditSettingsPage() {
   const { workspaceStore } = useStore();
   const workspaceId = workspaceStore.getWorkspaceBySlug?.(workspaceSlug)?.id ?? workspaceSlug;
 
-  const { data: members = [] } = useWorkspaceMembers(workspaceId);
+  const { data: membersData } = useWorkspaceMembers(workspaceId);
+  const members = membersData?.items ?? [];
   const actorNameMap = React.useMemo(
     () => new Map(members.map((m) => [m.userId, m.fullName ?? m.email.split('@')[0] ?? m.email])),
     [members]

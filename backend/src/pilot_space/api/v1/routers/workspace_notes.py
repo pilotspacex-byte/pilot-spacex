@@ -18,6 +18,7 @@ from pilot_space.api.v1.dependencies import (
     ListNotesServiceDep,
     NoteRepositoryDep,
     PinNoteServiceDep,
+    ProjectRbacServiceDep,
     ProjectRepositoryDep,
     ReorderPageServiceDep,
     UpdateAnnotationServiceDep,
@@ -168,6 +169,7 @@ async def list_workspace_notes(
     current_user_id: CurrentUserId,
     list_service: ListNotesServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
+    rbac_svc: ProjectRbacServiceDep,
     project_ids: list[UUID] = Query(default=[], description="Filter by one or more projects"),
     is_pinned: Annotated[bool | None, Query(description="Filter by pin status")] = None,
     search: Annotated[str | None, Query(description="Search query")] = None,
@@ -179,6 +181,15 @@ async def list_workspace_notes(
 
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
     await set_rls_context(session, current_user_id, workspace.id)
+
+    if project_ids:
+        project_ids = list(
+            await rbac_svc.get_accessible_project_ids(workspace.id, current_user_id, project_ids)
+        )
+    else:
+        accessible = await rbac_svc.get_my_project_ids(workspace.id, current_user_id)
+        if accessible is not None:
+            project_ids = accessible
 
     offset = int(cursor) if cursor and cursor.isdigit() else 0
     result = await list_service.execute(
@@ -219,6 +230,7 @@ async def get_workspace_note(
     current_user_id: CurrentUserId,
     get_service: GetNoteServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
+    rbac_svc: ProjectRbacServiceDep,
 ) -> NoteDetailResponse:
     """Get a specific note by ID."""
     from pilot_space.application.services.note import GetNoteOptions
@@ -236,6 +248,9 @@ async def get_workspace_note(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Note not found",
         )
+
+    if note.project_id is not None:
+        await rbac_svc.check_project_access(note.project_id, workspace.id, current_user_id)
 
     return _note_to_detail_response(note)
 
@@ -318,6 +333,8 @@ async def update_workspace_note(
     session: SessionDep,
     update_service: UpdateNoteServiceDep,
     workspace_repo: WorkspaceRepositoryDep,
+    rbac_svc: ProjectRbacServiceDep,
+    note_repo: NoteRepositoryDep,
     response: Response = Response(),
 ) -> NoteResponse:
     """Update an existing note."""
@@ -328,6 +345,17 @@ async def update_workspace_note(
 
     workspace = await _resolve_workspace(workspace_id, workspace_repo)
     await set_rls_context(session, current_user_id, workspace.id)
+
+    existing_note = await note_repo.get_by_id(note_id)
+    if not existing_note or existing_note.workspace_id != workspace.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Note not found",
+        )
+
+    await rbac_svc.check_resource_permission(current_user_id, workspace.id, "notes", "write")
+    if existing_note.project_id is not None:
+        await rbac_svc.check_project_access(existing_note.project_id, workspace.id, current_user_id)
 
     update_data = note_data.model_dump(exclude_unset=True)
     content_dict: dict[str, Any] | None = None

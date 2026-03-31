@@ -128,9 +128,9 @@ services:
       REDIS_MAX_CONNECTIONS: ${REDIS_MAX_CONNECTIONS:-10}
 
       # Supabase (when using external Supabase)
-      SUPABASE_URL: ${SUPABASE_URL:-http://kong:8000}
+      SUPABASE_URL: ${MIGRATION_SUPABASE_URL:-http://kong:8000}
       SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
-      # SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_KEY:-}
       SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-}
 
       # Meilisearch

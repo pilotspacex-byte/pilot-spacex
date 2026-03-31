@@ -11,7 +11,16 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, status
 
-from pilot_space.api.v1.dependencies import MemberProfileServiceDep, WorkspaceMemberServiceDep
+from pilot_space.api.v1.dependencies import (
+    MemberProfileServiceDep,
+    WorkspaceMemberServiceDep,
+)
+from pilot_space.api.v1.schemas.base import PaginatedResponse
+from pilot_space.api.v1.schemas.project_member import (
+    BulkAssignmentRequest,
+    BulkAssignmentResponse,
+    BulkAssignmentWarning,
+)
 from pilot_space.api.v1.schemas.workspace import (
     MemberActivityItem,
     MemberActivityResponse,
@@ -22,6 +31,7 @@ from pilot_space.api.v1.schemas.workspace import (
     WorkspaceMemberUpdate,
 )
 from pilot_space.application.services.workspace_member import (
+    BulkUpdateMemberAssignmentsPayload,
     GetMemberActivityPayload,
     GetMemberProfilePayload,
     ListMembersPayload,
@@ -31,6 +41,9 @@ from pilot_space.application.services.workspace_member import (
 )
 from pilot_space.dependencies.auth import CurrentUser, CurrentUserId, SessionDep
 from pilot_space.infrastructure.database.models.activity import ActivityType
+from pilot_space.infrastructure.database.repositories.project_member import (
+    ProjectMemberRepository,
+)
 from pilot_space.infrastructure.database.rls import set_rls_context
 from pilot_space.infrastructure.logging import get_logger
 
@@ -50,7 +63,7 @@ def _strip_html(value: str | None) -> str | None:
 
 @router.get(
     "/{workspace_id}/members",
-    response_model=list[WorkspaceMemberResponse],
+    response_model=PaginatedResponse[WorkspaceMemberResponse],
     tags=["workspaces"],
 )
 async def list_workspace_members(
@@ -58,32 +71,48 @@ async def list_workspace_members(
     session: SessionDep,
     current_user_id: CurrentUserId,
     service: WorkspaceMemberServiceDep,
-) -> list[WorkspaceMemberResponse]:
-    """List workspace members.
+    project_id: UUID | None = Query(default=None, description="Filter to members of this project"),
+    search: str | None = Query(
+        default=None, description="Case-insensitive filter on full_name and email"
+    ),
+    role: str | None = Query(
+        default=None, description="Filter by workspace role (owner/admin/member/guest)"
+    ),
+    page: int = Query(default=1, ge=1, description="Page number (1-based)"),
+    page_size: int = Query(default=20, ge=1, le=100, description="Items per page"),
+) -> PaginatedResponse[WorkspaceMemberResponse]:
+    """List workspace members, optionally filtered by project membership.
 
     Args:
         workspace_id: Workspace identifier.
         session: Database session (triggers ContextVar).
         current_user_id: Authenticated user ID.
         service: Workspace member service.
+        project_id: Optional filter — only return members assigned to this project.
+        search: Optional case-insensitive filter on full_name and email.
+        role: Optional filter by workspace role (owner/admin/member/guest).
+        page: Page number (1-based).
+        page_size: Items per page.
 
     Returns:
-        List of workspace members.
-
-    Raises:
-        WorkspaceNotFoundError: If workspace not found.
-        MemberNotFoundError: If user not a member.
-        UnauthorizedError: If user not authorized.
+        Paginated list of workspace members with their project chips.
     """
     await set_rls_context(session, current_user_id, workspace_id)
+    pm_repo = ProjectMemberRepository(session=session)
     result = await service.list_members(
         ListMembersPayload(
             workspace_id=workspace_id,
             requesting_user_id=current_user_id,
-        )
+            project_id=project_id,
+            search=search,
+            role=role,
+            page=page,
+            page_size=page_size,
+        ),
+        pm_repo=pm_repo,
     )
 
-    return [
+    items = [
         WorkspaceMemberResponse(
             user_id=member.user_id,
             email=member.user.email if member.user else "",
@@ -92,9 +121,18 @@ async def list_workspace_members(
             role=member.role.value,
             joined_at=member.created_at,
             weekly_available_hours=float(member.weekly_available_hours),
+            projects=result.project_chips.get(member.user_id, []),
         )
         for member in result.members
     ]
+
+    return PaginatedResponse(
+        items=items,
+        total=result.total,
+        has_next=(page - 1) * page_size + page_size < result.total,
+        has_prev=page > 1,
+        page_size=page_size,
+    )
 
 
 @router.patch(
@@ -186,7 +224,8 @@ async def remove_workspace_member(
             workspace_id=workspace_id,
             target_user_id=user_id,
             actor_id=current_user.user_id,
-        )
+        ),
+        session=session,
     )
 
 
@@ -392,6 +431,51 @@ async def get_workspace_member_activity(
         total=result.total,
         page=result.page,
         page_size=result.page_size,
+    )
+
+
+@router.patch(
+    "/{workspace_id}/members/{uid}/assignments",
+    tags=["workspaces"],
+    response_model=BulkAssignmentResponse,
+)
+async def bulk_update_member_assignments(
+    workspace_id: UUID,
+    uid: UUID,
+    body: BulkAssignmentRequest,
+    session: SessionDep,
+    current_user_id: CurrentUserId,
+    service: WorkspaceMemberServiceDep,
+) -> BulkAssignmentResponse:
+    """Bulk update workspace role and/or project assignments for a member (FR-04).
+
+    Requires caller to be ADMIN or OWNER of the workspace.
+    Updating workspace_role to OWNER is restricted to current OWNERs.
+    A soft demotion warning is returned when role is downgraded.
+    """
+    await set_rls_context(session, current_user_id, workspace_id)
+
+    project_assignments = [
+        {"project_id": str(a.project_id), "action": a.action}
+        for a in (body.project_assignments or [])
+    ]
+
+    result = await service.bulk_update_assignments(
+        BulkUpdateMemberAssignmentsPayload(
+            workspace_id=workspace_id,
+            target_user_id=uid,
+            requesting_user_id=current_user_id,
+            workspace_role=body.workspace_role,
+            project_assignments=project_assignments,
+        ),
+        session=session,
+    )
+
+    return BulkAssignmentResponse(
+        user_id=uid,
+        workspace_role=result.workspace_role,
+        project_assignments_updated=result.project_assignments_updated,
+        warnings=[BulkAssignmentWarning(code=w.code, message=w.message) for w in result.warnings],
     )
 
 

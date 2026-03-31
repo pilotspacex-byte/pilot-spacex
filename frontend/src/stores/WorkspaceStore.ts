@@ -12,6 +12,7 @@ import type {
 } from '@/types';
 import { DEFAULT_FEATURE_TOGGLES } from '@/types';
 import type { AuthStore } from './AuthStore';
+import { ApiError } from '@/services/api/client';
 
 export type {
   WorkspaceRole,
@@ -100,6 +101,17 @@ export class WorkspaceStore {
   get currentUserRole(): WorkspaceRole | null {
     const userId = this.authStore?.user?.id;
     if (!userId || !this.currentWorkspaceId) return null;
+
+    // Prefer membership data from /auth/me (always includes all pages)
+    const memberships = this.authStore?.user?.workspaceMemberships;
+    if (memberships && memberships.length > 0) {
+      const membership = memberships.find((m) => m.workspaceId === this.currentWorkspaceId);
+      if (membership) {
+        return membership.role.toLowerCase() as WorkspaceRole;
+      }
+    }
+
+    // Fallback: derive from paginated member list (may miss current user if not on page 1)
     const members = this.members.get(this.currentWorkspaceId);
     if (!members) return null;
     const member = members.find((m) => m.userId === userId);
@@ -381,7 +393,11 @@ export class WorkspaceStore {
       return result;
     } catch (err) {
       runInAction(() => {
-        this.error = err instanceof Error ? err.message : 'Failed to invite member';
+        if (err instanceof ApiError && err.status === 409) {
+          this.error = 'conflict:already_member_or_invited';
+        } else {
+          this.error = err instanceof Error ? err.message : 'Failed to invite member';
+        }
         this.isSaving = false;
       });
       return null;
@@ -404,7 +420,7 @@ export class WorkspaceStore {
         const currentMembers = this.members.get(workspaceId) || [];
         this.members.set(
           workspaceId,
-          currentMembers.filter((m) => m.id !== memberId)
+          currentMembers.filter((m) => m.userId !== memberId)
         );
         this.isSaving = false;
       });

@@ -27,13 +27,11 @@ from pilot_space.ai.tools.entity_resolver import (
     EntityResolutionError,
     resolve_entity_id_strict,
 )
-from pilot_space.ai.tools.mcp_server import (
-    ToolContext,
-    check_approval_from_db,
-)
+from pilot_space.ai.tools.mcp_server import ToolContext, check_approval_from_db
 
 if TYPE_CHECKING:
     from pilot_space.ai.mcp.event_publisher import EventPublisher
+
 from pilot_space.infrastructure.database.repositories.issue_link_repository import (
     IssueLinkRepository,
 )
@@ -278,7 +276,13 @@ def create_issue_tools_server(
                 },
                 "state_group": {
                     "type": "string",
-                    "enum": ["backlog", "unstarted", "started", "completed", "cancelled"],
+                    "enum": [
+                        "backlog",
+                        "unstarted",
+                        "started",
+                        "completed",
+                        "cancelled",
+                    ],
                     "description": "Filter by state group",
                 },
                 "priority": {
@@ -311,12 +315,13 @@ def create_issue_tools_server(
         # Build filters
         filters = IssueFilters()
 
-        # Resolve project_id if provided
-        if args.get("project_id"):
+        # Resolve project_id: explicit arg → active_project_id context fallback
+        raw_project_id = args.get("project_id") or tool_context.extra.get("active_project_id")
+        if raw_project_id:
             try:
                 filters.project_id = await resolve_entity_id_strict(
                     "project",
-                    args["project_id"],
+                    raw_project_id,
                     tool_context,
                 )
             except EntityResolutionError as e:
@@ -466,13 +471,17 @@ def create_issue_tools_server(
 
         if approval_level.value != "auto_execute":
             logger.info(
-                "[IssueTools] create_issue deferred (approval_required): '%s'", args["title"]
+                "[IssueTools] create_issue deferred (approval_required): '%s'",
+                args["title"],
             )
             return _operation_payload(
                 "create_issue",
                 payload,
                 status="approval_required",
-                preview={"title": args["title"], "priority": args.get("priority", "medium")},
+                preview={
+                    "title": args["title"],
+                    "priority": args.get("priority", "medium"),
+                },
             )
 
         # Auto-approved: execute creation via service
@@ -561,7 +570,9 @@ def create_issue_tools_server(
         }
 
         logger.info(
-            "[IssueTools] create_issue executed: '%s' -> %s", args["title"], issue_data["id"]
+            "[IssueTools] create_issue executed: '%s' -> %s",
+            args["title"],
+            issue_data["id"],
         )
         return _text_result(
             json.dumps({"status": "executed", "operation": "create_issue", "issue": issue_data})
@@ -720,7 +731,9 @@ def create_issue_tools_server(
         if "add_label_ids" in args or "remove_label_ids" in args:
             from sqlalchemy import delete, insert, select
 
-            from pilot_space.infrastructure.database.models.issue_label import issue_labels
+            from pilot_space.infrastructure.database.models.issue_label import (
+                issue_labels,
+            )
 
             result = await tool_context.db_session.execute(
                 select(issue_labels.c.label_id).where(issue_labels.c.issue_id == issue_uuid)

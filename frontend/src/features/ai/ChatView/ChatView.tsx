@@ -11,11 +11,7 @@
  * - Session persistence (T075-T079)
  */
 
-import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import type React from 'react';
-import { observer } from 'mobx-react-lite';
-import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
+import type { HeadingItem } from '@/components/editor/AutoTOC';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,30 +22,34 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Square, AlertCircle, X } from 'lucide-react';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { Button } from '@/components/ui/button';
 import { FilePreviewModal } from '@/features/artifacts/components/FilePreviewModal';
-import { useAttachmentPreview } from './hooks/useAttachmentPreview';
-import type { PilotSpaceStore } from '@/stores/ai/PilotSpaceStore';
+import { cn } from '@/lib/utils';
 import type { ApprovalStore } from '@/stores/ai/ApprovalStore';
+import type { PilotSpaceStore } from '@/stores/ai/PilotSpaceStore';
 import { SessionListStore } from '@/stores/ai/SessionListStore';
-import type { AgentTask } from './types';
-import { ChatHeader } from './ChatHeader';
-import { ConversationLoadingSkeleton } from './MessageList/ConversationLoadingSkeleton';
-import { MessageList } from './MessageList/MessageList';
-import { TaskPanel } from './TaskPanel/TaskPanel';
+import { AlertCircle, Square, X } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import type React from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DestructiveApprovalModal } from './ApprovalOverlay/DestructiveApprovalModal';
+import { ChatHeader } from './ChatHeader';
 import { ChatInput } from './ChatInput/ChatInput';
-import { InlineApprovalCard } from './MessageList/InlineApprovalCard';
-import { ApprovalCardGroup } from './MessageList/ApprovalCardGroup';
-import { WaitingIndicator } from './WaitingIndicator';
 import { ChatViewErrorBoundary } from './ChatViewErrorBoundary';
-import { IntentMessageRenderer } from './MessageList/IntentMessageRenderer';
 import { ConfirmAllButton } from './ConfirmAllButton';
+import { ApprovalCardGroup } from './MessageList/ApprovalCardGroup';
+import { ConversationLoadingSkeleton } from './MessageList/ConversationLoadingSkeleton';
+import { InlineApprovalCard } from './MessageList/InlineApprovalCard';
+import { IntentMessageRenderer } from './MessageList/IntentMessageRenderer';
+import { MessageList } from './MessageList/MessageList';
 import { QueueDepthIndicator } from './QueueDepthIndicator';
-import { useIntentRehydration } from './hooks/useIntentRehydration';
+import { TaskPanel } from './TaskPanel/TaskPanel';
+import { WaitingIndicator } from './WaitingIndicator';
 import { useApprovals } from './hooks/useApprovals';
-import type { HeadingItem } from '@/components/editor/AutoTOC';
+import { useAttachmentPreview } from './hooks/useAttachmentPreview';
+import { useIntentRehydration } from './hooks/useIntentRehydration';
+import type { AgentTask } from './types';
 export { isDestructiveAction } from './utils';
 
 interface ChatViewProps {
@@ -559,7 +559,15 @@ const ChatViewInternal = observer<ChatViewProps>(
                 }
               : null
           }
-          projectContext={null}
+          projectContext={
+            store.projectContext
+              ? {
+                  projectId: store.projectContext.projectId,
+                  name: store.projectContext.name ?? '',
+                  identifier: store.projectContext.slug ?? '',
+                }
+              : null
+          }
           tokenBudgetPercent={store.tokenBudgetPercent}
           tokensUsed={store.sessionState?.totalTokens}
           tokenBudget={8000}

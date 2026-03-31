@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS workspace_members (
     weekly_available_hours INTEGER,
     custom_role_id TEXT,
     is_active BOOLEAN DEFAULT 1 NOT NULL,
+    last_active_project_id TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     is_deleted BOOLEAN DEFAULT 0 NOT NULL,

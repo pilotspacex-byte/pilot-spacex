@@ -46,6 +46,7 @@ from pilot_space.api.v1.routers import (
     integrations_router,
     intents_router,
     invitation_router,
+    invitations_public_router,
     issue_implement_router,
     issues_ai_context_router,
     issues_ai_context_streaming_router,
@@ -65,6 +66,7 @@ from pilot_space.api.v1.routers import (
     onboarding_router,
     pm_blocks_router,
     project_artifacts_router,
+    project_members_router,
     projects_router,
     related_issues_router,
     role_skills_router,
@@ -174,14 +176,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     queue_client = container.queue_client()
     if queue_client and redis_client:
         from pilot_space.infrastructure.queue.models import QueueName
-        from pilot_space.infrastructure.queue.supabase_queue import QueueConnectionError
+        from pilot_space.infrastructure.queue.supabase_queue import (
+            QueueConnectionError,
+            QueueOperationError,
+        )
 
         try:
             await queue_client.create_queue(QueueName.AI_LOW)
             await queue_client.create_queue(QueueName.AI_NORMAL)
             await queue_client.create_queue(QueueName.NOTIFICATIONS)
             await queue_client.create_queue(QueueName.DEAD_LETTER)
-        except QueueConnectionError:
+        except (QueueConnectionError, QueueOperationError):
             logger.warning("Queue unavailable — workers will not start (degraded mode)")
             queue_client = None
 
@@ -303,6 +308,9 @@ app.include_router(health_router)
 # Mount all routers under /api/v1
 API_V1_PREFIX = "/api/v1"
 
+# Public invitation endpoints — no auth required; must be mounted BEFORE authenticated routers
+app.include_router(invitations_public_router, prefix=API_V1_PREFIX)
+
 # Super-admin operator dashboard (TENANT-04) — separate from workspace JWT auth
 app.include_router(admin_router, prefix=f"{API_V1_PREFIX}/admin")
 
@@ -364,6 +372,7 @@ app.include_router(workspace_issue_branches_router, prefix=f"{API_V1_PREFIX}/wor
 app.include_router(workspace_invitations_router, prefix=API_V1_PREFIX)
 app.include_router(invitation_router, prefix=API_V1_PREFIX)
 app.include_router(workspace_members_router, prefix=f"{API_V1_PREFIX}/workspaces")
+app.include_router(project_members_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_sessions_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_note_issue_links_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_note_links_router, prefix=f"{API_V1_PREFIX}/workspaces")

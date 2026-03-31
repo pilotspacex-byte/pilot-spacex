@@ -48,7 +48,10 @@ def create_note_query_server(
         {
             "type": "object",
             "properties": {
-                "query": {"type": "string", "description": "Search query for note title"},
+                "query": {
+                    "type": "string",
+                    "description": "Search query for note title",
+                },
                 "project_id": {
                     "type": "string",
                     "description": "Optional project UUID to filter by",
@@ -80,7 +83,8 @@ def create_note_query_server(
         try:
             workspace_id = UUID(tool_context.workspace_id)
             query = args["query"]
-            project_id_str = args.get("project_id")
+            # Explicit project_id → active_project_id context fallback (T043)
+            project_id_str = args.get("project_id") or tool_context.extra.get("active_project_id")
             project_id = UUID(project_id_str) if project_id_str else None
             limit = min(args.get("limit", 20), 100)
             include_content = args.get("include_content", False)
@@ -116,7 +120,10 @@ def create_note_query_server(
                 results.append(result_item)
 
             logger.info(
-                "mcp_tool_invoked", tool="search_notes", query=query[:50], found=len(results)
+                "mcp_tool_invoked",
+                tool="search_notes",
+                query=query[:50],
+                found=len(results),
             )
             return _text_result(
                 json.dumps(

@@ -2,6 +2,7 @@
  * useWorkspaceMembers hook tests.
  *
  * T015: Verifies workspace member fetching via apiClient.
+ * A4-E05: Updated for PaginatedWorkspaceMembers return type.
  */
 
 import React from 'react';
@@ -39,6 +40,14 @@ const mockMembers: WorkspaceMember[] = [
   },
 ];
 
+const mockPaginatedResponse = {
+  items: mockMembers,
+  total: 2,
+  has_next: false,
+  has_prev: false,
+  page_size: 20,
+};
+
 function createWrapper() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -54,7 +63,7 @@ describe('useWorkspaceMembers', () => {
   });
 
   it('fetches workspace members', async () => {
-    vi.mocked(apiClient.get).mockResolvedValue(mockMembers);
+    vi.mocked(apiClient.get).mockResolvedValue(mockPaginatedResponse);
 
     const { result } = renderHook(() => useWorkspaceMembers('ws-1'), {
       wrapper: createWrapper(),
@@ -62,9 +71,10 @@ describe('useWorkspaceMembers', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(apiClient.get).toHaveBeenCalledWith('/workspaces/ws-1/members');
-    expect(result.current.data).toHaveLength(2);
-    expect(result.current.data?.[0]!.role).toBe('owner');
+    expect(apiClient.get).toHaveBeenCalledWith(expect.stringContaining('/workspaces/ws-1/members'));
+    expect(result.current.data?.items).toHaveLength(2);
+    expect(result.current.data?.items[0]!.role).toBe('owner');
+    expect(result.current.data?.total).toBe(2);
   });
 
   it('is disabled when workspaceId is empty', () => {

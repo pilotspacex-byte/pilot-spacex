@@ -11,16 +11,25 @@ from __future__ import annotations
 
 import asyncio
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from pydantic import BaseModel, Field
+from sqlalchemy import select
 
 from pilot_space.api.v1.dependencies import AuthServiceDep
 from pilot_space.api.v1.dependencies_pilot import ValidateAPIKeyServiceDep
+from pilot_space.api.v1.repository_deps import (
+    InvitationRepositoryDep,
+    UserRepositoryDep,
+    WorkspaceRepositoryDep,
+)
 from pilot_space.api.v1.schemas.auth import (
     AiSettingsSchema,
     LoginRequest,
     UserProfileResponse,
     UserProfileUpdateRequest,
+    WorkspaceMembershipInfo,
 )
 from pilot_space.application.services.auth import (
     UNSET,
@@ -30,10 +39,26 @@ from pilot_space.application.services.auth import (
     UpdateProfilePayload,
     ValidateAPIKeyPayload,
 )
+from pilot_space.application.services.workspace_invitation import (
+    AcceptInvitationPayload,
+    WorkspaceInvitationService,
+)
 from pilot_space.dependencies import CurrentUser
-from pilot_space.dependencies.auth import SessionDep
+from pilot_space.dependencies.auth import SessionDep, SyncedUserId
+from pilot_space.domain.exceptions import ConflictError, NotFoundError
+from pilot_space.infrastructure.database.models.workspace_invitation import InvitationStatus
+from pilot_space.infrastructure.database.models.workspace_member import WorkspaceMember
+from pilot_space.infrastructure.supabase_client import get_supabase_client
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+class CompleteSignupRequest(BaseModel):
+    """Request body for POST /auth/complete-signup."""
+
+    invitation_id: UUID
+    full_name: str = Field(min_length=2, max_length=255)
+    password: str = Field(min_length=8, description="Password for the new account")
 
 
 @router.get("/login", tags=["auth"])
@@ -86,6 +111,17 @@ async def get_current_user_profile(
         GetProfilePayload(user_id=current_user.user_id),
     )
 
+    # Fetch workspace memberships for the current user inline.
+    # Querying workspace_members directly avoids coupling the auth service to
+    # workspace domain logic, consistent with how ai_settings is fetched separately.
+    memberships_result = await session.execute(
+        select(WorkspaceMember).where(
+            WorkspaceMember.user_id == UUID(str(current_user.user_id)),
+            WorkspaceMember.is_deleted == False,  # noqa: E712
+        )
+    )
+    memberships = memberships_result.scalars().all()
+
     user = result.user
     return UserProfileResponse(
         id=user.id,
@@ -96,6 +132,13 @@ async def get_current_user_profile(
         default_sdlc_role=user.default_sdlc_role,
         ai_settings=AiSettingsSchema.model_validate(user.ai_settings) if user.ai_settings else None,
         created_at=user.created_at,
+        workspace_memberships=[
+            WorkspaceMembershipInfo(
+                workspace_id=m.workspace_id,
+                role=m.role.value.lower(),
+            )
+            for m in memberships
+        ],
     )
 
 
@@ -287,6 +330,78 @@ async def validate_api_key(
     finally:
         await asyncio.sleep(0.05)  # constant-time regardless of success/failure
     return {"workspace_slug": result.workspace_slug}
+
+
+@router.post(
+    "/complete-signup",
+    tags=["auth", "invitations"],
+    status_code=status.HTTP_200_OK,
+)
+async def complete_signup(
+    request: CompleteSignupRequest,
+    session: SessionDep,
+    synced_user_id: SyncedUserId,
+    service: AuthServiceDep,
+    invitation_repo: InvitationRepositoryDep,
+    workspace_repo: WorkspaceRepositoryDep,
+    user_repo: UserRepositoryDep,
+) -> dict[str, str]:
+    """Complete signup for a new user arriving via workspace invitation.
+
+    Atomically updates the user's full name, sets password via Supabase Admin API,
+    and accepts the workspace invitation. For new users, the invitation is
+    auto-accepted by SyncedUserId before this body executes. For existing users
+    whose invitation is still PENDING, explicit acceptance is performed here.
+
+    Returns:
+        workspace_slug: Slug to redirect to after completion.
+
+    Raises:
+        NotFoundError (404): Invitation not found or workspace not found.
+        ConflictError (409): Invitation already accepted or cancelled.
+    """
+    # Preflight: validate invitation exists and is still pending before touching external systems
+    invitation = await invitation_repo.get_by_id(request.invitation_id)
+    if invitation is None:
+        raise NotFoundError("Invitation not found")
+    if invitation.status not in (InvitationStatus.PENDING, InvitationStatus.ACCEPTED):
+        raise ConflictError("Invitation has been cancelled or expired")
+
+    await service.update_profile(
+        UpdateProfilePayload(
+            user_id=synced_user_id,
+            full_name=request.full_name,
+        )
+    )
+
+    supabase_client = await get_supabase_client()
+    await supabase_client.auth.admin.update_user_by_id(
+        str(synced_user_id),
+        {"password": request.password},
+    )
+
+    if invitation.status == InvitationStatus.PENDING:
+        svc = WorkspaceInvitationService(
+            workspace_repo=workspace_repo,
+            invitation_repo=invitation_repo,
+            user_repo=user_repo,
+        )
+        result = await svc.accept_invitation(
+            AcceptInvitationPayload(
+                invitation_id=request.invitation_id,
+                user_id=synced_user_id,
+            )
+        )
+        workspace_slug = result.workspace_slug
+    else:
+        workspace = await workspace_repo.get_by_id(invitation.workspace_id)
+        if workspace is None:
+            raise NotFoundError("Workspace not found")
+        workspace_slug = workspace.slug
+
+    await session.commit()
+
+    return {"workspace_slug": workspace_slug}
 
 
 __all__ = ["router"]

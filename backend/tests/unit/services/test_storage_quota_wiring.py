@@ -215,6 +215,7 @@ async def test_update_issue_507_when_quota_exceeded() -> None:
             session=mock_session,
             update_service=mock_update_service,
             workspace_repo=mock_workspace_repo,
+            rbac_svc=AsyncMock(),
         )
 
     assert exc_info.value.status_code == 507

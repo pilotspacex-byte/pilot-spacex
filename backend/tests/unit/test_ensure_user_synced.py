@@ -26,6 +26,11 @@ def mock_session() -> AsyncMock:
     """Create mock async session."""
     session = AsyncMock()
     session.commit = AsyncMock()
+    # Support `async with session.begin_nested():` (savepoint context manager)
+    _savepoint = AsyncMock()
+    _savepoint.__aenter__ = AsyncMock(return_value=_savepoint)
+    _savepoint.__aexit__ = AsyncMock(return_value=False)
+    session.begin_nested = MagicMock(return_value=_savepoint)
     return session
 
 
@@ -205,7 +210,9 @@ class TestEnsureUserSyncedAutoAccept:
         invitation_repo.mark_accepted.assert_any_await(inv_id_1)
         invitation_repo.mark_accepted.assert_any_await(inv_id_2)
 
-        mock_session.commit.assert_awaited_once()
+        # ensure_user_synced commits twice: once after user creation, once after
+        # invitation acceptance loop.
+        assert mock_session.commit.await_count == 2
 
     @pytest.mark.asyncio
     async def test_new_user_uses_placeholder_email_when_missing(

@@ -67,9 +67,15 @@ if TYPE_CHECKING:
     from pilot_space.ai.sdk.permission_handler import PermissionHandler
     from pilot_space.ai.sdk.session_handler import SessionHandler
     from pilot_space.ai.tools.mcp_server import ToolRegistry
-    from pilot_space.application.services.intent.detection_service import IntentDetectionService
-    from pilot_space.application.services.memory.memory_save_service import MemorySaveService
-    from pilot_space.application.services.memory.memory_search_service import MemorySearchService
+    from pilot_space.application.services.intent.detection_service import (
+        IntentDetectionService,
+    )
+    from pilot_space.application.services.memory.memory_save_service import (
+        MemorySaveService,
+    )
+    from pilot_space.application.services.memory.memory_search_service import (
+        MemorySearchService,
+    )
     from pilot_space.infrastructure.queue.supabase_queue import SupabaseQueueClient
     from pilot_space.spaces.base import SpaceContext
 
@@ -112,7 +118,9 @@ async def _background_graph_extraction(
             ConversationExtractionPayload,
             GraphExtractionService,
         )
-        from pilot_space.application.services.memory.graph_write_service import GraphWritePayload
+        from pilot_space.application.services.memory.graph_write_service import (
+            GraphWritePayload,
+        )
         from pilot_space.infrastructure.database import get_db_session
         from pilot_space.infrastructure.database.rls import set_rls_context
 
@@ -386,7 +394,8 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
 
         from pilot_space.ai.exceptions import AINotConfiguredError
 
-        if workspace_id is not None:
+        _NIL_UUID = UUID("00000000-0000-0000-0000-000000000000")
+        if workspace_id is not None and workspace_id != _NIL_UUID:
             try:
                 from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
                 from pilot_space.config import get_settings
@@ -618,7 +627,9 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
     ) -> str | None:
         # Capture usage from ResultMessage for cost tracking
         if isinstance(message, ResultMessage):
-            from pilot_space.ai.infrastructure.cost_tracker import extract_response_usage
+            from pilot_space.ai.infrastructure.cost_tracker import (
+                extract_response_usage,
+            )
 
             input_tokens, output_tokens = extract_response_usage(message)
             if (input_tokens or output_tokens) and stream_usage_holder is not None:
@@ -742,6 +753,9 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             workspace_id=str(context.workspace_id),
             user_id=str(context.user_id) if context.user_id else None,
             user_role=_ws_member_role,
+            extra={
+                "active_project_id": context.metadata.get("active_project_id"),
+            },
         )
 
         # MCP-04: pre-fetch async before sync build_mcp_servers, then merge
@@ -892,6 +906,11 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         input_data: ChatInput,
         context: AgentContext,
     ) -> AsyncIterator[str]:
+        if not (self._space_manager and context.workspace_id and context.user_id):
+            from pilot_space.ai.exceptions import AIConfigurationError
+
+            msg = "SpaceManager, workspace_id, and user_id are required."
+            raise AIConfigurationError(msg)
         try:
             self._resolved_model = input_data.resolved_model  # AIPR-04
             provider_config = await self._get_provider_config(context.workspace_id)
@@ -902,9 +921,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             if input_data.resume_session_id and session_id_str:
                 resume_id = session_id_str
                 logger.info("Resuming SDK session: %s", resume_id)
-
-            if not (self._space_manager and context.workspace_id and context.user_id):
-                raise ValueError("SpaceManager, workspace_id, and user_id are required.")  # noqa: TRY301
             async for chunk in self._stream_with_space(
                 input_data=input_data,
                 context=context,
@@ -1158,8 +1174,14 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                                         workspace_id=context.workspace_id,
                                         user_id=context.user_id,
                                         messages=[
-                                            {"role": "user", "content": input_data.message},
-                                            {"role": "assistant", "content": assistant_texts[-1]},
+                                            {
+                                                "role": "user",
+                                                "content": input_data.message,
+                                            },
+                                            {
+                                                "role": "assistant",
+                                                "content": assistant_texts[-1],
+                                            },
                                         ],
                                         issue_id=_issue_id_uuid,
                                         anthropic_api_key=provider_config.api_key,
@@ -1202,5 +1224,8 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             response="".join(chunks),
             session_id=sid,
             tasks=[],
-            metadata={"agent": self.AGENT_NAME, "model": self.DEFAULT_MODEL_TIER.model_id},
+            metadata={
+                "agent": self.AGENT_NAME,
+                "model": self.DEFAULT_MODEL_TIER.model_id,
+            },
         )

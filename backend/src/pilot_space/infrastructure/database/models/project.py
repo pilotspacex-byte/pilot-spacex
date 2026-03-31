@@ -6,9 +6,18 @@ Project is a workspace-scoped container for issues, notes, cycles, and modules.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import ForeignKey, Index, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -20,6 +29,7 @@ if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.issue import Issue
     from pilot_space.infrastructure.database.models.label import Label
     from pilot_space.infrastructure.database.models.module import Module
+    from pilot_space.infrastructure.database.models.project_member import ProjectMember
     from pilot_space.infrastructure.database.models.state import State
     from pilot_space.infrastructure.database.models.user import User
     from pilot_space.infrastructure.database.models.workspace import Workspace
@@ -62,6 +72,18 @@ class Project(WorkspaceScopedModel):
     )
     icon: Mapped[str | None] = mapped_column(
         String(50),
+        nullable=True,
+    )
+
+    # Archive support (FR-031, RBAC)
+    is_archived: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+    )
+    archived_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
         nullable=True,
     )
 
@@ -119,6 +141,13 @@ class Project(WorkspaceScopedModel):
         back_populates="project",
         cascade="all, delete-orphan",
         lazy="raise",
+    )
+    members: Mapped[list[ProjectMember]] = relationship(
+        "ProjectMember",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        lazy="select",
+        primaryjoin="and_(ProjectMember.project_id == Project.id, ProjectMember.is_active == True)",
     )
 
     # Indexes and constraints

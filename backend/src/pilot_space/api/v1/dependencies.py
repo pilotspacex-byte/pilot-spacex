@@ -86,9 +86,7 @@ from pilot_space.application.services.note import (
     UpdateAnnotationService,
     UpdateNoteService,
 )
-from pilot_space.application.services.note.ai_update_service import (
-    NoteAIUpdateService,
-)
+from pilot_space.application.services.note.ai_update_service import NoteAIUpdateService
 from pilot_space.application.services.note.move_page_service import MovePageService
 from pilot_space.application.services.note.reorder_page_service import ReorderPageService
 from pilot_space.application.services.note_template import NoteTemplateService
@@ -101,6 +99,8 @@ from pilot_space.application.services.onboarding import (
 from pilot_space.application.services.plugin_lifecycle import PluginLifecycleService
 from pilot_space.application.services.pm_block_insight_service import PMBlockInsightService
 from pilot_space.application.services.project_detail import ProjectDetailService
+from pilot_space.application.services.project_member import ProjectMemberService
+from pilot_space.application.services.project_rbac import ProjectRbacService
 from pilot_space.application.services.rate_limit import RateLimitService
 from pilot_space.application.services.rbac_service import RbacService
 from pilot_space.application.services.related_issues import RelatedIssuesSuggestionService
@@ -124,6 +124,7 @@ from pilot_space.application.services.workspace_member import (
 )
 from pilot_space.container import Container
 from pilot_space.dependencies.ai import get_key_storage
+from pilot_space.infrastructure.cache.invite_rate_limiter import InviteRateLimiter
 
 # ===== Action Button Service Dependencies =====
 
@@ -716,6 +717,18 @@ WorkspaceInvitationServiceDep = Annotated[
     WorkspaceInvitationService, Depends(_get_workspace_invitation_service)
 ]
 
+# ===== Invite Rate Limiter Dependency =====
+
+
+@inject
+def _get_invite_rate_limiter(
+    limiter: InviteRateLimiter = Depends(Provide[Container.invite_rate_limiter]),
+) -> InviteRateLimiter:
+    return limiter
+
+
+InviteRateLimiterDep = Annotated[InviteRateLimiter, Depends(_get_invite_rate_limiter)]
+
 # ===== Auth Service Dependencies =====
 
 
@@ -1032,11 +1045,14 @@ __all__ = [  # noqa: RUF022
     "WorkspaceServiceDep",
     "WorkspaceMemberServiceDep",
     "WorkspaceInvitationServiceDep",
+    "InviteRateLimiterDep",
     "TaskServiceDep",
     "RbacServiceDep",
     "MovePageServiceDep",
     "ReorderPageServiceDep",
     "TranscriptionServiceDep",
+    "ProjectMemberServiceDep",
+    "require_project_membership",
     "RateLimitServiceDep",
     "FeatureToggleServiceDep",
     "ScimServiceDep",
@@ -1044,6 +1060,7 @@ __all__ = [  # noqa: RUF022
     "McpServerServiceDep",
     "McpOAuthServiceDep",
     "ProjectDetailServiceDep",
+    "ProjectRbacServiceDep",
     "AttachmentManagementServiceDep",
     "WorkspaceAISettingsServiceDep",
     "SprintBoardServiceDep",
@@ -1070,6 +1087,89 @@ def _get_transcription_service(
 
 
 TranscriptionServiceDep = Annotated[TranscriptionService, Depends(_get_transcription_service)]
+
+
+# ===== Project Member Service Dependencies =====
+
+
+@inject
+def _get_project_member_service(
+    svc: ProjectMemberService = Depends(Provide[Container.project_member_service]),
+) -> ProjectMemberService:
+    return svc
+
+
+ProjectMemberServiceDep = Annotated[ProjectMemberService, Depends(_get_project_member_service)]
+
+
+# ===== require_project_membership dependency (US6 — T037) =====
+
+
+from uuid import UUID as _UUID  # noqa: E402
+
+from pilot_space.dependencies.auth import (  # noqa: E402
+    CurrentUserId as _CurrentUserId,
+    SessionDep as _SessionDep,
+)
+from pilot_space.domain.exceptions import (  # noqa: E402
+    ForbiddenError as _ForbiddenError,
+    NotFoundError as _NotFoundError,
+)
+from pilot_space.infrastructure.database.models.workspace_member import (  # noqa: E402
+    WorkspaceRole as _WorkspaceRole,
+)
+from pilot_space.infrastructure.database.repositories.workspace_member_repository import (  # noqa: E402
+    WorkspaceMemberRepository,
+)
+
+
+@inject
+async def require_project_membership(
+    workspace_id: _UUID,
+    project_id: _UUID,
+    current_user_id: _CurrentUserId,
+    session: _SessionDep,  # populates session ContextVar before DI resolves services
+    project_member_svc: ProjectMemberService = Depends(Provide[Container.project_member_service]),
+    workspace_member_repo: WorkspaceMemberRepository = Depends(
+        Provide[Container.workspace_member_rbac_repository]
+    ),
+) -> None:
+    """FastAPI dependency — ensure current user is a project member OR admin/owner.
+
+    Validates the project belongs to the workspace before performing membership checks
+    to prevent cross-workspace authorization bypass.
+
+    Raises ForbiddenError (403) when not authorized.
+    Raises NotFoundError (404) when the project does not belong to this workspace.
+    """
+    from sqlalchemy import select
+
+    from pilot_space.infrastructure.database.models.project import Project
+
+    # Validate that the project actually belongs to this workspace (prevents cross-workspace bypass)
+    result = await session.execute(
+        select(Project.id).where(
+            Project.id == project_id,
+            Project.workspace_id == workspace_id,
+            Project.is_deleted == False,  # noqa: E712
+        )
+    )
+    if result.scalar_one_or_none() is None:
+        raise _NotFoundError("Project not found in this workspace")
+
+    # Admins and Owners bypass project-level membership check
+    wm = await workspace_member_repo.get_by_user_workspace(current_user_id, workspace_id)
+    if wm and wm.role in (_WorkspaceRole.ADMIN, _WorkspaceRole.OWNER):
+        return
+
+    # Check explicit project membership
+    repo = project_member_svc._repo  # type: ignore[attr-defined]  # noqa: SLF001
+    membership = await repo.get_active_membership(project_id, current_user_id)
+    if not membership:
+        raise _ForbiddenError(
+            "You do not have access to this project.",
+            error_code="project_access_denied",
+        )
 
 
 # ===== MCP Server Service Dependencies =====
@@ -1110,6 +1210,19 @@ def _get_project_detail_service(
 
 
 ProjectDetailServiceDep = Annotated[ProjectDetailService, Depends(_get_project_detail_service)]
+
+
+# ===== Project RBAC Service Dependencies =====
+
+
+@inject
+def _get_project_rbac_service(
+    svc: ProjectRbacService = Depends(Provide[Container.project_rbac_service]),
+) -> ProjectRbacService:
+    return svc
+
+
+ProjectRbacServiceDep = Annotated[ProjectRbacService, Depends(_get_project_rbac_service)]
 
 
 @inject

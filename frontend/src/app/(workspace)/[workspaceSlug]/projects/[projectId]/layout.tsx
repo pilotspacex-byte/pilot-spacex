@@ -1,11 +1,13 @@
 'use client';
 
-import { useParams } from 'next/navigation';
-import { AlertCircle } from 'lucide-react';
+import { AccessDenied } from '@/components/access-denied';
+import { ProjectSidebar } from '@/components/projects/ProjectSidebar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useProject } from '@/features/projects/hooks';
-import { ProjectSidebar } from '@/components/projects/ProjectSidebar';
+import { ApiError } from '@/services/api/client';
+import { AlertCircle } from 'lucide-react';
+import { useParams } from 'next/navigation';
 
 export default function ProjectDetailLayout({ children }: { children: React.ReactNode }) {
   const params = useParams<{ workspaceSlug: string; projectId: string }>();
@@ -13,6 +15,7 @@ export default function ProjectDetailLayout({ children }: { children: React.Reac
     data: project,
     isLoading,
     isError,
+    error,
     refetch,
   } = useProject({
     projectId: params.projectId,
@@ -48,6 +51,11 @@ export default function ProjectDetailLayout({ children }: { children: React.Reac
   }
 
   if (isError || !project) {
+    // 403: user is not a member of this project
+    if (isError && ApiError.isForbidden(error)) {
+      return <AccessDenied backHref={`/${params.workspaceSlug}`} backLabel="Back to workspace" />;
+    }
+
     return (
       <div className="flex flex-col items-center justify-center h-full py-20 text-center">
         <AlertCircle className="h-10 w-10 text-destructive mb-3" />

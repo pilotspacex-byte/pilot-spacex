@@ -9,6 +9,15 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/lib/supabase';
 import { ApiError, apiClient } from '@/services/api';
 
+/**
+ * Accept-invite page — handles invitation acceptance flow.
+ *
+ * Flows:
+ * 1. Supabase magic link → tokens in URL hash → auto-accept → redirect to workspace
+ * 2. Already authenticated → show Join button → navigate to /invite (complete signup)
+ * 3. Not authenticated → show login/signup CTA with invitation context
+ */
+
 interface InvitationDetails {
   id: string;
   workspaceName: string;
@@ -29,14 +38,6 @@ type PageState =
   | { kind: 'expired' }
   | { kind: 'unauthenticated'; invitation: InvitationDetails };
 
-/**
- * Accept-invite page — handles invitation acceptance flow.
- *
- * Flows:
- * 1. Supabase magic link → tokens in URL hash → auto-accept → redirect to workspace
- * 2. Already authenticated → show accept button → accept → redirect
- * 3. Not authenticated → show login/signup CTA with invitation context
- */
 export default function AcceptInvitePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -110,19 +111,8 @@ export default function AcceptInvitePage() {
     setState({ kind: 'unauthenticated', invitation });
   }
 
-  async function handleAccept() {
-    if (!invitationId) return;
-    setState({ kind: 'accepting' });
-    try {
-      const result = await apiClient.post<{ workspaceSlug: string; workspaceName: string }>(
-        `/invitations/${invitationId}/accept`
-      );
-      setState({ kind: 'accepted', workspaceSlug: result.workspaceSlug, workspaceName: result.workspaceName });
-      setTimeout(() => router.push(`/${result.workspaceSlug}`), 1500);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to accept invitation.';
-      setState({ kind: 'error', message });
-    }
+  function handleJoin() {
+    router.push(`/invite?invitation_id=${invitationId}`);
   }
 
   function handleLoginRedirect() {
@@ -236,7 +226,7 @@ export default function AcceptInvitePage() {
         </div>
 
         {state.kind === 'details' ? (
-          <Button className="w-full" size="lg" onClick={handleAccept}>
+          <Button className="w-full" size="lg" onClick={handleJoin}>
             Join Workspace
           </Button>
         ) : (

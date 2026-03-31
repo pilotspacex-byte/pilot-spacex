@@ -58,7 +58,8 @@ export function CreateProjectModal({
   const [leadId, setLeadId] = useState<string>('');
   const [identifierManuallyEdited, setIdentifierManuallyEdited] = useState(false);
 
-  const { data: members = [] } = useWorkspaceMembers(workspaceId);
+  const { data: membersData } = useWorkspaceMembers(workspaceId);
+  const members = membersData?.items ?? [];
 
   const { mutate: createProject, isPending } = useCreateProject({
     workspaceId,

@@ -40,6 +40,8 @@ export interface UpdateWorkspaceData {
 export interface InviteMemberData {
   email: string;
   role: WorkspaceRole;
+  /** Project assignments to apply on joining [{project_id: string}]. FR-03. */
+  project_assignments?: Array<{ project_id: string }>;
 }
 
 // User Types
@@ -121,6 +123,8 @@ export interface Project {
   completedIssueCount?: number;
   settings?: Record<string, unknown>;
   states?: ProjectState[];
+  is_archived?: boolean;
+  archived_at?: string | null;
   createdAt: string;
   updatedAt: string;
 }

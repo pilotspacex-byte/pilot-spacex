@@ -24,6 +24,7 @@ from pilot_space.infrastructure.database.base import BaseModel
 
 if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.custom_role import CustomRole
+    from pilot_space.infrastructure.database.models.project import Project
     from pilot_space.infrastructure.database.models.user import User
     from pilot_space.infrastructure.database.models.workspace import Workspace
 
@@ -98,6 +99,13 @@ class WorkspaceMember(BaseModel):
         server_default="true",
     )
 
+    # AI context scoping — last project the member was active in (FR-07)
+    last_active_project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
     # Relationships — use lazy="select" to avoid implicit JOINs;
     # repositories should use joinedload() explicitly when needed.
     user: Mapped[User] = relationship(
@@ -113,6 +121,11 @@ class WorkspaceMember(BaseModel):
     custom_role: Mapped[CustomRole | None] = relationship(
         "CustomRole",
         back_populates="members",
+        lazy="select",
+    )
+    last_active_project: Mapped[Project | None] = relationship(
+        "Project",
+        foreign_keys=[last_active_project_id],
         lazy="select",
     )
 

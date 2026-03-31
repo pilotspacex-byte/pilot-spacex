@@ -29,7 +29,7 @@ interface WorkspaceResponse {
   updatedAt: string;
 }
 
-/** Flat response from GET /workspaces/{id}/members — camelCase because backend uses BaseSchema. */
+/** Single member entry inside PaginatedResponse from GET /workspaces/{id}/members — camelCase because backend uses BaseSchema. */
 interface WorkspaceMemberResponse {
   userId: string;
   email: string;
@@ -42,6 +42,16 @@ interface WorkspaceMemberResponse {
 
 interface PaginatedWorkspaceResponse {
   items: WorkspaceResponse[];
+  total: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+  nextCursor: string | null;
+  prevCursor: string | null;
+  pageSize: number;
+}
+
+interface PaginatedMemberResponse {
+  items: WorkspaceMemberResponse[];
   total: number;
   hasNext: boolean;
   hasPrev: boolean;
@@ -136,17 +146,17 @@ export const workspacesApi = {
    * Get workspace members.
    */
   async getMembers(workspaceId: string): Promise<WorkspaceMember[]> {
-    const response = await apiClient.get<WorkspaceMemberResponse[]>(
+    const response = await apiClient.get<PaginatedMemberResponse>(
       `/workspaces/${workspaceId}/members`
     );
-    return response.map(transformWorkspaceMember);
+    return response.items.map(transformWorkspaceMember);
   },
 
   /**
    * Invite a new member to the workspace.
    *
-   * Backend returns WorkspaceMemberResponse if user exists (immediate add),
-   * or InvitationResponse if user doesn't exist (pending invitation).
+   * Returns the created WorkspaceMember for immediate invites (existing Supabase user),
+   * or an invitation object for pending invitations (new user — magic link sent via Supabase).
    */
   async inviteMember(
     workspaceId: string,

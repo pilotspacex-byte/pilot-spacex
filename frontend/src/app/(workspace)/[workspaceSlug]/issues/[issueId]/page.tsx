@@ -145,7 +145,8 @@ const IssueDetailPage = observer(function IssueDetailPage() {
   const { data: issue, isLoading, isError, refetch } = useIssueDetail(workspaceId, issueId);
   const updateIssue = useUpdateIssue(workspaceId, issueId);
   const updateIssueState = useUpdateIssueState(workspaceId, issueId);
-  const { data: members = [] } = useWorkspaceMembers(workspaceId);
+  const { data: membersData } = useWorkspaceMembers(workspaceId);
+  const members = membersData?.items ?? [];
   const { data: labels = [] } = useWorkspaceLabels(workspaceId);
   const { data: cyclesData } = useProjectCycles(workspaceId, issue?.project?.id ?? '');
   const { data: actionButtons } = useActionButtons(workspaceId);

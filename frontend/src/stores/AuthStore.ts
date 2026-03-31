@@ -13,6 +13,11 @@ export interface AiSettings {
   base_url?: string;
 }
 
+export interface WorkspaceMembership {
+  workspaceId: string;
+  role: string;
+}
+
 export interface AuthUser {
   id: string;
   email: string;
@@ -20,6 +25,7 @@ export interface AuthUser {
   avatarUrl: string | null;
   bio?: string;
   aiSettings?: AiSettings | null;
+  workspaceMemberships?: WorkspaceMembership[];
 }
 
 const MAX_REFRESH_FAILURES = 3;
@@ -436,15 +442,22 @@ export class AuthStore {
   async fetchBackendProfile(): Promise<void> {
     try {
       const { apiClient } = await import('@/services/api/client');
-      const profile = await apiClient.get<{ aiSettings?: AiSettings | null }>('/auth/me');
+      const profile = await apiClient.get<{
+        aiSettings?: AiSettings | null;
+        workspace_memberships?: Array<{ workspace_id: string; role: string }>;
+      }>('/auth/me');
 
       runInAction(() => {
         if (this.user) {
           this.user.aiSettings = profile.aiSettings ?? null;
+          this.user.workspaceMemberships = (profile.workspace_memberships ?? []).map((m) => ({
+            workspaceId: m.workspace_id,
+            role: m.role,
+          }));
         }
       });
     } catch {
-      // Non-critical — AI settings will just show empty
+      // Non-critical — AI settings and memberships will just show empty
     }
   }
 

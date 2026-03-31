@@ -21,10 +21,7 @@ from pilot_space.dependencies.jwt_providers import (
     JWTValidationError,
     get_jwt_provider,
 )
-from pilot_space.infrastructure.auth import (
-    SupabaseAuth,
-    TokenPayload,
-)
+from pilot_space.infrastructure.auth import SupabaseAuth, TokenPayload
 from pilot_space.infrastructure.database.engine import get_db_session
 from pilot_space.infrastructure.logging import get_logger
 
@@ -383,24 +380,72 @@ async def ensure_user_synced(
             return current_user.user_id
         raise
 
+    # Commit user row immediately so it is visible to all subsequent operations,
+    # including workspace creation requests that may arrive in parallel.
+    # Invitation acceptance runs in a separate transaction below so any failure
+    # (e.g. RLS policy violation on project_members after migration 101) cannot
+    # roll back the user row.
+    await session.commit()
+
     # Auto-accept pending invitations for this email (FR-016, RD-004)
     invitation_repo = InvitationRepository(session=session)
     workspace_repo = WorkspaceRepository(session=session)
     pending_invitations = await invitation_repo.get_pending_by_email(email)
     for invitation in pending_invitations:
+        # Use a SAVEPOINT for each invitation so that a DB-level failure
+        # (e.g. RLS violation on workspace_members or project_members) rolls
+        # back only this invitation and leaves the outer transaction intact.
         try:
-            await workspace_repo.add_member(
-                workspace_id=invitation.workspace_id,
-                user_id=user.id,
-                role=invitation.role,
-            )
-            await invitation_repo.mark_accepted(invitation.id)
-            logger.info(
-                "Auto-accepted invitation %s for user %s to workspace %s",
-                invitation.id,
-                user.id,
-                invitation.workspace_id,
-            )
+            async with session.begin_nested():
+                # Set RLS context to the inviting admin/owner before any INSERT.
+                # Both workspace_members_admin and project_members_insert policies
+                # require app.current_user_id to be a workspace admin/owner.
+                from pilot_space.infrastructure.database.rls import set_rls_context
+
+                if invitation.invited_by:
+                    await set_rls_context(session, invitation.invited_by)
+                await workspace_repo.add_member(
+                    workspace_id=invitation.workspace_id,
+                    user_id=user.id,
+                    role=invitation.role,
+                )
+                await invitation_repo.mark_accepted(invitation.id)
+                logger.info(
+                    "Auto-accepted invitation %s for user %s to workspace %s",
+                    invitation.id,
+                    user.id,
+                    invitation.workspace_id,
+                )
+                # FR-03: Materialize project assignments stored on the invitation.
+                # materialize_invite_assignments uses per-entry SAVEPOINTs
+                # internally, so partial failures are isolated and do not abort
+                # the outer transaction.
+                if invitation.project_assignments:
+                    from pilot_space.application.services.project_member import (
+                        InviteAssignmentsPayload,
+                        ProjectMemberService,
+                    )
+                    from pilot_space.infrastructure.database.repositories.project_member import (
+                        ProjectMemberRepository,
+                    )
+
+                    pm_repo = ProjectMemberRepository(session=session)
+                    pm_svc = ProjectMemberService(project_member_repository=pm_repo)
+                    count = await pm_svc.materialize_invite_assignments(
+                        InviteAssignmentsPayload(
+                            workspace_id=invitation.workspace_id,
+                            user_id=user.id,
+                            assigned_by=invitation.invited_by,
+                            project_assignments=invitation.project_assignments,
+                        )
+                    )
+                    if count:
+                        logger.info(
+                            "Materialized %d project assignments for user %s from invitation %s",
+                            count,
+                            user.id,
+                            invitation.id,
+                        )
         except Exception:
             logger.exception(
                 "Failed to auto-accept invitation %s for user %s to workspace %s",

@@ -29,34 +29,35 @@ import { getIssueStateKey } from '@/lib/issue-helpers';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { useAuthStore, useWorkspaceStore } from '@/stores/RootStore';
-import { getAIStore } from '@/stores/ai/AIStore';
-import { useHomepageActivity } from '../hooks/useHomepageActivity';
-import { useWorkspaceDigest } from '../hooks/useWorkspaceDigest';
-import { useIssueDevObjects } from '../hooks/useIssueDevObjects';
-import { useActiveCycleMetrics } from '../hooks/useActiveCycleMetrics';
-import { useStaleIssueDetection } from '../hooks/useStaleIssueDetection';
-import { DigestInsights } from './DigestInsights';
-import {
-  SectionDivider,
-  NoteEntry,
-  IssueEntry,
-  ProjectEntry,
-  NoteSkeleton,
-  IssueSkeleton,
-  OnboardingBanner,
-} from './BriefEntries';
-import { NoteContextBadge } from './NoteContextBadge';
-import { DevObjectIndicators } from './DevObjectIndicators';
-import { IssueDetailSheet } from './IssueDetailSheet';
-import { SprintSparkline } from './SprintSparkline';
-import { StaleLogicAlert } from './StaleLogicAlert';
-import { SDLCSuggestionCards } from './SDLCSuggestionCards';
-import { useQuery } from '@tanstack/react-query';
 import { issuesApi } from '@/services/api/issues';
 import { projectsApi } from '@/services/api/projects';
-import type { ActivityCardNote, SuggestionCardData } from '../types';
+import { useAuthStore, useWorkspaceStore } from '@/stores/RootStore';
+import { getAIStore } from '@/stores/ai/AIStore';
 import type { Issue, Project } from '@/types';
+import { useQuery } from '@tanstack/react-query';
+import { useActiveCycleMetrics } from '../hooks/useActiveCycleMetrics';
+import { useHomepageActivity } from '../hooks/useHomepageActivity';
+import { useIssueDevObjects } from '../hooks/useIssueDevObjects';
+import { useStaleIssueDetection } from '../hooks/useStaleIssueDetection';
+import { useWorkspaceDigest } from '../hooks/useWorkspaceDigest';
+import type { ActivityCardNote, SuggestionCardData } from '../types';
+import {
+  IssueEntry,
+  IssueSkeleton,
+  NoteEntry,
+  NoteSkeleton,
+  OnboardingBanner,
+  ProjectEntry,
+  SectionDivider,
+} from './BriefEntries';
+import { DevObjectIndicators } from './DevObjectIndicators';
+import { DigestInsights } from './DigestInsights';
+import { IssueDetailSheet } from './IssueDetailSheet';
+import { NoteContextBadge } from './NoteContextBadge';
+import { SDLCSuggestionCards } from './SDLCSuggestionCards';
+import { SprintSparkline } from './SprintSparkline';
+import { StaleLogicAlert } from './StaleLogicAlert';
+import { MyProjectsSection } from './my-projects-section';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -534,6 +535,14 @@ export const DailyBrief = observer(function DailyBrief({ workspaceSlug }: DailyB
         workspaceSlug={workspaceSlug}
         onClose={() => setSelectedIssueId(null)}
       />
+
+      {/* My Projects (T036 - RBAC assigned projects) */}
+      {showProjectsSection && (
+        <>
+          <SectionDivider />
+          <MyProjectsSection workspaceId={workspaceId} workspaceSlug={workspaceSlug} />
+        </>
+      )}
     </article>
   );
 });

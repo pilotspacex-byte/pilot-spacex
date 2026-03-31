@@ -50,7 +50,8 @@ def test_auth_router_expected_route_count() -> None:
 
     Expected: /auth/login (GET), /auth/me (GET, PATCH), /auth/logout (POST),
               /auth/config (GET — JWT provider config for frontend),
-              /auth/validate-key (POST — CLI API key validation).
+              /auth/validate-key (POST — CLI API key validation),
+              /auth/complete-signup (POST — new user signup completion, S012).
     """
     paths = _get_route_paths()
     expected_paths = {
@@ -59,5 +60,6 @@ def test_auth_router_expected_route_count() -> None:
         "/auth/logout",
         "/auth/config",
         "/auth/validate-key",
+        "/auth/complete-signup",
     }
     assert paths == expected_paths

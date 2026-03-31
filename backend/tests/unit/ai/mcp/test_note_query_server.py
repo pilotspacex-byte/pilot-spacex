@@ -93,6 +93,7 @@ class TestSearchNotesWithContext:
 
         mock_context = MagicMock()
         mock_context.workspace_id = "ffffffff-ffff-ffff-ffff-ffffffffffff"
+        mock_context.extra = {}
         mock_context.db_session = AsyncMock()
 
         note1 = MagicMock()
@@ -126,6 +127,7 @@ class TestSearchNotesWithContext:
 
         mock_context = MagicMock()
         mock_context.workspace_id = "ffffffff-ffff-ffff-ffff-ffffffffffff"
+        mock_context.extra = {}
         mock_context.db_session = AsyncMock()
 
         mock_repo_instance = AsyncMock()
@@ -150,6 +152,7 @@ class TestSearchNotesWithContext:
 
         mock_context = MagicMock()
         mock_context.workspace_id = "ffffffff-ffff-ffff-ffff-ffffffffffff"
+        mock_context.extra = {}
         mock_context.db_session = AsyncMock()
 
         mock_repo_instance = AsyncMock()
@@ -173,6 +176,7 @@ class TestSearchNotesWithContext:
 
         mock_context = MagicMock()
         mock_context.workspace_id = "ffffffff-ffff-ffff-ffff-ffffffffffff"
+        mock_context.extra = {}
         mock_context.db_session = AsyncMock()
 
         note1 = MagicMock()

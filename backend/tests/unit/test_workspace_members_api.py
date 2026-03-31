@@ -70,7 +70,7 @@ class TestAddWorkspaceMember:
         mock_user_repo = AsyncMock()
         mock_user_repo.get_by_email.return_value = existing_user
         mock_workspace_repo.is_member.return_value = False
-        mock_workspace_repo.add_member.return_value = member
+        mock_workspace_repo.upsert_member.return_value = member
         mock_invitation_repo = AsyncMock()
 
         from pilot_space.application.services.workspace import WorkspaceService
@@ -87,7 +87,7 @@ class TestAddWorkspaceMember:
 
         assert result.is_immediate is True
         assert result.member is member
-        mock_workspace_repo.add_member.assert_awaited_once()
+        mock_workspace_repo.upsert_member.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_invite_new_user_returns_invitation(self) -> None:
@@ -101,10 +101,11 @@ class TestAddWorkspaceMember:
         mock_invitation_repo = AsyncMock()
         mock_invitation_repo.exists_pending.return_value = False
 
-        async def return_inv(inv: WorkspaceInvitation) -> WorkspaceInvitation:
-            return inv
-
-        mock_invitation_repo.create.side_effect = return_inv
+        fake_inv = MagicMock(spec=WorkspaceInvitation)
+        fake_inv.id = uuid4()
+        fake_inv.email = "newuser@example.com"
+        fake_inv.status = InvitationStatus.PENDING
+        mock_invitation_repo.upsert_invitation.return_value = fake_inv
 
         from pilot_space.application.services.workspace import WorkspaceService
 
@@ -369,8 +370,8 @@ class TestOwnerSelfDemotion:
         mock_workspace_repo.update_member_role = AsyncMock()
 
         from pilot_space.application.services.workspace_member import (
-            UnauthorizedError,
             UpdateMemberRolePayload,
+            WorkspaceMemberForbiddenError,
             WorkspaceMemberService,
         )
 
@@ -382,7 +383,7 @@ class TestOwnerSelfDemotion:
             actor_id=owner.id,
         )
 
-        with pytest.raises(UnauthorizedError, match="Cannot change own role"):
+        with pytest.raises(WorkspaceMemberForbiddenError, match="Cannot change own role"):
             await service.update_member_role(payload)
 
         mock_workspace_repo.update_member_role.assert_not_awaited()

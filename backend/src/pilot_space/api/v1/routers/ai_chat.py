@@ -160,6 +160,7 @@ async def chat(
     ctx_workspace_id = ctx.workspace_id if ctx else None
     ctx_note_id = ctx.note_id if ctx else None
     ctx_issue_id = ctx.issue_id if ctx else None
+    ctx_project_id = ctx.project_id if ctx else None
     ctx_selected_text = ctx.selected_text if ctx else None
     ctx_selected_block_ids = ctx.selected_block_ids if ctx else []
 
@@ -263,7 +264,11 @@ async def chat(
                 # Fallback: question expired from in-memory registry (server restart,
                 # cleanup, etc.) but question_data was persisted on the assistant message.
                 recovered = await _recover_question_from_session(
-                    chat_request, session_handler, question_id, question_id_str, answer_text
+                    chat_request,
+                    session_handler,
+                    question_id,
+                    question_id_str,
+                    answer_text,
                 )
                 if recovered is not None:
                     chat_request = recovered
@@ -287,6 +292,57 @@ async def chat(
     # Set RLS context BEFORE any DB queries (note/issue loading, session lookup)
     # This ensures extract_ai_context and session operations respect RLS policies
     await set_rls_context(session, user_id)
+
+    # T042: Resolve active project — explicit project_id → last_active_project_id fallback
+    # Scopes MCP tool results to the user's current project context.
+    active_project_id: UUID | None = ctx_project_id
+    if active_project_id is None and ctx_workspace_id is not None:
+        try:
+            from pilot_space.infrastructure.database.repositories.workspace_member_repository import (
+                WorkspaceMemberRepository,
+            )
+
+            wm_repo = WorkspaceMemberRepository(session)
+            wm = await wm_repo.get_by_user_workspace(user_id, ctx_workspace_id)
+            if wm is not None and wm.last_active_project_id is not None:
+                active_project_id = wm.last_active_project_id
+        except Exception:
+            logger.debug("Could not resolve last_active_project_id", exc_info=True)
+
+    # T044: Fire-and-forget update of last_active_project_id when a project context starts.
+    if (
+        active_project_id is not None
+        and ctx_workspace_id is not None
+        and ctx_project_id is not None
+    ):
+        import asyncio
+
+        from pilot_space.application.services.project_member import ProjectMemberService
+
+        async def _update_last_active() -> None:
+            try:
+                from pilot_space.infrastructure.database import get_db_session
+                from pilot_space.infrastructure.database.rls import (
+                    set_rls_context as _set_rls,
+                )
+
+                async with get_db_session() as fresh_db:
+                    await _set_rls(fresh_db, user_id, ctx_workspace_id)
+                    from pilot_space.infrastructure.database.repositories.project_member import (
+                        ProjectMemberRepository,
+                    )
+
+                    svc = ProjectMemberService(ProjectMemberRepository(fresh_db))
+                    await svc.update_last_active_project(
+                        user_id=user_id,
+                        workspace_id=ctx_workspace_id,
+                        project_id=active_project_id,
+                    )
+            except Exception:
+                logger.debug("update_last_active_project task failed (non-fatal)", exc_info=True)
+
+        _task = asyncio.create_task(_update_last_active())
+        del _task  # RUF006: store reference to avoid GC before completion
 
     # Fetch and inject attachment content blocks
     from pilot_space.api.v1.routers._chat_attachments import resolve_attachments
@@ -370,7 +426,8 @@ async def chat(
                 )
 
             logger.info(
-                "Creating new session with initial context_history: %s", initial_context_history
+                "Creating new session with initial context_history: %s",
+                initial_context_history,
             )
             conv_session = await session_handler.create_session(
                 workspace_id=ctx_workspace_id,
@@ -380,7 +437,8 @@ async def chat(
                 metadata={"context_history": initial_context_history},
             )
             logger.info(
-                "New session created: %s", conv_session.session_id if conv_session else None
+                "New session created: %s",
+                conv_session.session_id if conv_session else None,
             )
 
     logger.info(
@@ -406,6 +464,7 @@ async def chat(
         ),
         "user_id": str(user_id),
         "workspace_id": str(ctx_workspace_id) if ctx_workspace_id else None,
+        "active_project_id": str(active_project_id) if active_project_id else None,
         "resolved_model": resolved_model,
         "attachment_content_blocks": attachment_content_blocks,
         "attachment_metadata": [
@@ -569,9 +628,11 @@ async def list_skills(
             SkillListItem(
                 name=s.name,
                 description=s.description or "",
-                when_to_use=(s.when_to_use[:200] + "...")
-                if s.when_to_use and len(s.when_to_use) > 200
-                else (s.when_to_use or ""),
+                when_to_use=(
+                    (s.when_to_use[:200] + "...")
+                    if s.when_to_use and len(s.when_to_use) > 200
+                    else (s.when_to_use or "")
+                ),
             )
             for s in skills
         ],
@@ -616,11 +677,11 @@ async def _execute_agent_stream(
 
     chat_input = ChatInput(
         message=input_data["message"],
-        session_id=UUID(input_data["session_id"]) if input_data.get("session_id") else None,
+        session_id=(UUID(input_data["session_id"]) if input_data.get("session_id") else None),
         resume_session_id=input_data.get("resume_session_id"),
         context=input_data.get("context", {}),
         user_id=UUID(input_data["user_id"]) if input_data.get("user_id") else None,
-        workspace_id=UUID(input_data["workspace_id"]) if input_data.get("workspace_id") else None,
+        workspace_id=(UUID(input_data["workspace_id"]) if input_data.get("workspace_id") else None),
         resolved_model=input_data.get("resolved_model"),
         attachment_content_blocks=input_data.get("attachment_content_blocks") or None,
         attachment_metadata=input_data.get("attachment_metadata") or None,
@@ -628,8 +689,11 @@ async def _execute_agent_stream(
 
     ws_id = input_data.get("workspace_id")
     agent_context = AgentContext(
-        workspace_id=UUID(ws_id) if ws_id else UUID("00000000-0000-0000-0000-000000000000"),
+        workspace_id=(UUID(ws_id) if ws_id else UUID("00000000-0000-0000-0000-000000000000")),
         user_id=UUID(input_data["user_id"]),
+        metadata={
+            "active_project_id": input_data.get("active_project_id"),
+        },
     )
 
     async for sse_chunk in agent.stream(chat_input, agent_context):
