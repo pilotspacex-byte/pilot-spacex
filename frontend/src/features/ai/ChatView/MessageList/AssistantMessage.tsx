@@ -17,6 +17,13 @@ import { StructuredResultCard } from './StructuredResultCard';
 import { MarkdownContent } from './MarkdownContent';
 import { CitationList } from './CitationList';
 import { QuestionBlock, ResolvedSummary } from './QuestionBlock';
+import { SkillCreatorCard } from './SkillCreatorCard';
+import { SkillTestResultCard } from './SkillTestResultCard';
+import { SkillMermaidCard } from './SkillMermaidCard';
+import type { SkillPreviewEvent, TestResultEvent } from '@/stores/ai/types/events';
+
+/** Schema types handled by inline skill cards — excluded from StructuredResultCard */
+const SKILL_SCHEMA_TYPES = new Set(['skill_preview', 'test_result', 'mermaid_graph']);
 
 /** Check if a thinking block is the last thinking block in the content blocks sequence */
 function isLastThinkingBlock(block: ContentBlock, blocks: ContentBlock[]): boolean {
@@ -173,18 +180,39 @@ export const AssistantMessage = memo<AssistantMessageProps>(({ message, classNam
           <FallbackContentBlocks message={message} />
         )}
 
-        {message.structuredResult && (
-          <StructuredResultCard
-            schemaType={message.structuredResult.schemaType}
-            data={message.structuredResult.data}
-            onCreateIssues={
-              message.structuredResult.schemaType === 'extraction_result'
-                ? handleCreateIssues
-                : undefined
-            }
-            isCreatingIssues={isCreatingIssues}
-            createdIssues={createdIssues}
-            workspaceSlug={workspaceSlug}
+        {message.structuredResult &&
+          !SKILL_SCHEMA_TYPES.has(message.structuredResult.schemaType) && (
+            <StructuredResultCard
+              schemaType={message.structuredResult.schemaType}
+              data={message.structuredResult.data}
+              onCreateIssues={
+                message.structuredResult.schemaType === 'extraction_result'
+                  ? handleCreateIssues
+                  : undefined
+              }
+              isCreatingIssues={isCreatingIssues}
+              createdIssues={createdIssues}
+              workspaceSlug={workspaceSlug}
+            />
+          )}
+
+        {/* Phase 64: Skill cards — rendered from structuredResult.schemaType dispatch */}
+        {message.structuredResult?.schemaType === 'skill_preview' && (
+          <SkillCreatorCardInline
+            data={message.structuredResult.data as unknown as SkillPreviewEvent['data']}
+          />
+        )}
+
+        {message.structuredResult?.schemaType === 'test_result' && (
+          <SkillTestResultCardInline
+            data={message.structuredResult.data as unknown as TestResultEvent['data']}
+          />
+        )}
+
+        {message.structuredResult?.schemaType === 'mermaid_graph' && (
+          <SkillMermaidCard
+            code={(message.structuredResult.data.code as string) ?? ''}
+            skillName={(message.structuredResult.data.skillName as string) ?? undefined}
           />
         )}
 
@@ -440,3 +468,76 @@ const MergedQuestionSection = memo<{
 });
 
 MergedQuestionSection.displayName = 'MergedQuestionSection';
+
+/**
+ * SkillCreatorCardInline — wraps SkillCreatorCard with PilotSpaceStore callbacks.
+ * Sends follow-up chat messages when user clicks Save/Test, triggering MCP tool calls.
+ */
+const SkillCreatorCardInline = memo<{
+  data: SkillPreviewEvent['data'];
+}>(function SkillCreatorCardInline({ data }) {
+  const rootStore = useStore();
+  const pilotSpace = rootStore.aiStore.pilotSpace;
+
+  const handleSave = useCallback(
+    async (content: string) => {
+      await pilotSpace.sendMessage(
+        `Please save the skill "${data.skillName}" with this content:\n\n${content}`
+      );
+    },
+    [pilotSpace, data.skillName]
+  );
+
+  const handleTest = useCallback(
+    async (content: string) => {
+      await pilotSpace.sendMessage(
+        `Please test the skill "${data.skillName}" with this content:\n\n${content}`
+      );
+    },
+    [pilotSpace, data.skillName]
+  );
+
+  return (
+    <SkillCreatorCard
+      skillName={data.skillName}
+      frontmatter={data.frontmatter}
+      content={data.content}
+      isUpdate={data.isUpdate}
+      onSave={handleSave}
+      onTest={handleTest}
+    />
+  );
+});
+
+SkillCreatorCardInline.displayName = 'SkillCreatorCardInline';
+
+/**
+ * SkillTestResultCardInline — wraps SkillTestResultCard with PilotSpaceStore callbacks.
+ * Sends a follow-up message when user clicks Refine to trigger another iteration.
+ */
+const SkillTestResultCardInline = memo<{
+  data: TestResultEvent['data'];
+}>(function SkillTestResultCardInline({ data }) {
+  const rootStore = useStore();
+  const pilotSpace = rootStore.aiStore.pilotSpace;
+
+  const handleRefine = useCallback(async () => {
+    await pilotSpace.sendMessage(
+      `Please refine the skill "${data.skillName}" based on the test feedback. Score: ${data.score}/10. Failed: ${data.failed.join(', ')}.`
+    );
+  }, [pilotSpace, data.skillName, data.score, data.failed]);
+
+  return (
+    <SkillTestResultCard
+      skillName={data.skillName}
+      score={data.score}
+      passed={data.passed}
+      failed={data.failed}
+      suggestions={data.suggestions}
+      sampleOutput={data.sampleOutput}
+      onRefine={handleRefine}
+    />
+  );
+});
+
+SkillTestResultCardInline.displayName = 'SkillTestResultCardInline';
