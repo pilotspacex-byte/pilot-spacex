@@ -26,20 +26,22 @@ import {
 import { Button } from '@/components/ui/button';
 import { resolveRenderer } from '@/features/artifacts/utils/mime-type-router';
 
-/** Returns the appropriate Lucide icon component for a given MIME type. */
-function getFileIcon(mimeType: string) {
-  if (mimeType.startsWith('image/')) return Image;
-  if (mimeType === 'application/pdf' || mimeType.startsWith('text/')) return FileText;
+/** Returns a rendered Lucide icon element for the given MIME type. */
+function renderFileIcon(mimeType: string) {
+  const className = 'h-4 w-4 shrink-0 text-muted-foreground';
+  if (mimeType.startsWith('image/')) return <Image className={className} />;
+  if (mimeType === 'application/pdf' || mimeType.startsWith('text/'))
+    return <FileText className={className} />;
   if (mimeType === 'text/csv' || mimeType.includes('spreadsheet') || mimeType.includes('excel'))
-    return FileSpreadsheet;
+    return <FileSpreadsheet className={className} />;
   if (
     mimeType.includes('javascript') ||
     mimeType.includes('typescript') ||
     mimeType.includes('html') ||
     mimeType.includes('css')
   )
-    return FileCode;
-  return File;
+    return <FileCode className={className} />;
+  return <File className={className} />;
 }
 
 export interface InlinePreviewHeaderProps {
@@ -60,8 +62,6 @@ export function InlinePreviewHeader({
   onExpandToModal,
 }: InlinePreviewHeaderProps) {
   const [copied, setCopied] = React.useState(false);
-
-  const FileIcon = getFileIcon(mimeType);
 
   // Only show the IDE button for code files
   const showIdeButton = resolveRenderer(mimeType, filename) === 'code';
@@ -100,7 +100,7 @@ export function InlinePreviewHeader({
     <div className="flex items-center h-10 bg-muted border-b border-border px-4 rounded-t-lg">
       {/* Left: icon + filename */}
       <div className="flex items-center gap-2 flex-1 min-w-0">
-        <FileIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+        {renderFileIcon(mimeType)}
         <span className="text-sm font-medium text-foreground truncate">{filename}</span>
       </div>
 
