@@ -14,6 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { NoteCanvas } from '@/components/editor/NoteCanvas';
 import { VersionHistoryPanel, type NoteVersion } from '@/components/editor/VersionHistoryPanel';
 import { EditorFilePreview } from '@/features/artifacts/components/EditorFilePreview';
+import { FilePreviewConfigContext } from '@/features/notes/editor/extensions/file-card/inline-preview';
 import { useNote, useUpdateNote, useAutoSave } from '@/features/notes/hooks';
 import { useDeleteNote } from '@/features/notes/hooks/useDeleteNote';
 import { useTogglePin } from '@/hooks/useTogglePin';
@@ -396,40 +397,44 @@ function NoteDetailPage() {
     <div className="flex h-full flex-col">
       {/* Editor with merged header - Three-column layout per Prototype v4 */}
       <div className="relative flex-1 overflow-hidden">
-        <NoteCanvas
-          key={noteId}
-          noteId={noteId}
-          content={sanitizedContent}
-          readOnly={false}
-          onChange={handleContentChange}
-          onSave={handleSave}
-          workspaceId={workspaceId}
-          // Merged header props per Prototype v4
-          title={note.title}
-          author={note.owner}
-          createdAt={note.createdAt}
-          updatedAt={note.updatedAt}
-          wordCount={note.wordCount}
-          isPinned={note.isPinned}
-          isAIAssisted={note.isAIAssisted}
-          topics={note.topics}
-          workspaceSlug={workspaceSlug}
-          onTitleChange={handleTitleChange}
-          onShare={handleShare}
-          onExport={handleExport}
-          onDelete={handleDelete}
-          onTogglePin={handleTogglePin}
-          onVersionHistory={handleVersionHistory}
-          onMove={handleMove}
-          projectId={note.projectId}
-          linkedIssues={note.linkedIssues}
-          iconEmoji={note.iconEmoji}
-          isFocusMode={isFocusMode}
-          onToggleFocusMode={handleToggleFocusMode}
-        />
+        <FilePreviewConfigContext.Provider
+          value={{ workspaceId, projectId: note.projectId ?? '' }}
+        >
+          <NoteCanvas
+            key={noteId}
+            noteId={noteId}
+            content={sanitizedContent}
+            readOnly={false}
+            onChange={handleContentChange}
+            onSave={handleSave}
+            workspaceId={workspaceId}
+            // Merged header props per Prototype v4
+            title={note.title}
+            author={note.owner}
+            createdAt={note.createdAt}
+            updatedAt={note.updatedAt}
+            wordCount={note.wordCount}
+            isPinned={note.isPinned}
+            isAIAssisted={note.isAIAssisted}
+            topics={note.topics}
+            workspaceSlug={workspaceSlug}
+            onTitleChange={handleTitleChange}
+            onShare={handleShare}
+            onExport={handleExport}
+            onDelete={handleDelete}
+            onTogglePin={handleTogglePin}
+            onVersionHistory={handleVersionHistory}
+            onMove={handleMove}
+            projectId={note.projectId}
+            linkedIssues={note.linkedIssues}
+            iconEmoji={note.iconEmoji}
+            isFocusMode={isFocusMode}
+            onToggleFocusMode={handleToggleFocusMode}
+          />
 
-        {/* File preview modal — self-contained to isolate state from EditorContent */}
-        <EditorFilePreview workspaceId={workspaceId} projectId={note.projectId ?? ''} />
+          {/* File preview modal — self-contained to isolate state from EditorContent */}
+          <EditorFilePreview workspaceId={workspaceId} projectId={note.projectId ?? ''} />
+        </FilePreviewConfigContext.Provider>
 
         {/* Version History Panel - slides in from right */}
         {showVersionHistory && (

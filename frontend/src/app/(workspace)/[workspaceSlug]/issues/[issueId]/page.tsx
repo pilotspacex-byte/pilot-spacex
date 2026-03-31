@@ -45,6 +45,7 @@ import { implementationPlanKeys } from '@/features/issues/hooks/use-implementati
 import { useIssueApprovals } from '@/features/issues/hooks/use-issue-approvals';
 import { useIssueAiActions } from '@/features/issues/hooks/use-issue-ai-actions';
 import { IssueNoteContext } from '@/features/issues/contexts/issue-note-context';
+import { FilePreviewConfigContext } from '@/features/notes/editor/extensions/file-card/inline-preview';
 import { useStore } from '@/stores';
 import { copyToClipboard } from '@/lib/copy-context';
 import { issuesApi, tasksApi } from '@/services/api';
@@ -436,7 +437,10 @@ const IssueDetailPage = observer(function IssueDetailPage() {
 
   return (
     <IssueNoteContext.Provider value={contextValue}>
-      <div className="flex h-full bg-background overflow-hidden" data-testid="issue-detail">
+      <FilePreviewConfigContext.Provider
+        value={{ workspaceId, projectId: issue.projectId ?? '' }}
+      >
+        <div className="flex h-full bg-background overflow-hidden" data-testid="issue-detail">
         <IssueNoteLayout
           headerContent={header}
           editorContent={editorContent}
@@ -482,7 +486,8 @@ const IssueDetailPage = observer(function IssueDetailPage() {
           onReject={handleRejectAction}
           onClose={() => setDestructiveModalOpen(false)}
         />
-      </div>
+        </div>
+      </FilePreviewConfigContext.Provider>
     </IssueNoteContext.Provider>
   );
 });

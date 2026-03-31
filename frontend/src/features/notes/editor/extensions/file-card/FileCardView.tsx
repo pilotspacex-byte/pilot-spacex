@@ -10,11 +10,13 @@
  * Renders three states:
  * - uploading: compact card with progress bar (reads live progress from ArtifactStore)
  * - error: card with destructive styling and retry button
- * - ready: card with file type icon, filename, size, and mime type label
+ * - ready (non-previewable): compact card with file type icon, filename, size, mime label
+ * - ready (previewable): inline content preview card (code/markdown/csv/json)
  *
- * Note: The "open preview" action for ready cards is stubbed as a no-op role="button".
- * The FilePreviewModal is built in Phase 34 and will wire the click handler.
+ * Inline preview is gated on FilePreviewConfigContext being present (provided by the
+ * note/issue page). When no provider is present, files fall back to compact card behavior.
  */
+import { useState, useCallback } from 'react';
 import { observer } from 'mobx-react-lite';
 import {
   File,
@@ -27,8 +29,16 @@ import {
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { useFileCardContext } from './FileCardContext';
 import { useArtifactStore } from '@/stores';
+import {
+  useInlinePreviewContent,
+  InlinePreviewHeader,
+  SkeletonPreviewCard,
+  InlineContentRenderer,
+  getTruncationInfo,
+} from './inline-preview';
 
 /** Returns the appropriate Lucide icon component for a given MIME type. */
 function getFileIcon(mimeType: string) {
@@ -62,6 +72,30 @@ export const FileCardView = observer(function FileCardView() {
   const progress = artifactStore.getProgress(filename);
   const FileIcon = getFileIcon(mimeType);
 
+  // Inline preview state — hooks must be called unconditionally (React rules of hooks)
+  const { containerRef, content, isLoading, isError, rendererType, signedUrl } =
+    useInlinePreviewContent(artifactId, mimeType, filename);
+  const [expanded, setExpanded] = useState(false);
+
+  // rendererType is non-null only when: (a) file is previewable type AND
+  // (b) FilePreviewConfigContext.Provider is present in the tree
+  const previewable = rendererType !== null && status === 'ready';
+
+  // Stable dispatch helper for opening the full preview modal
+  const dispatchPreviewEvent = useCallback(() => {
+    if (!artifactId) return;
+    queueMicrotask(() => {
+      window.dispatchEvent(
+        new CustomEvent('pilot:preview-artifact', {
+          detail: { artifactId, filename, mimeType },
+        })
+      );
+    });
+  }, [artifactId, filename, mimeType]);
+
+  // -------------------------------------------------------------------------
+  // Uploading state
+  // -------------------------------------------------------------------------
   if (status === 'uploading') {
     return (
       <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3 my-1 select-none">
@@ -77,6 +111,9 @@ export const FileCardView = observer(function FileCardView() {
     );
   }
 
+  // -------------------------------------------------------------------------
+  // Error state
+  // -------------------------------------------------------------------------
   if (status === 'error') {
     return (
       <div className="flex items-center gap-3 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 my-1 select-none">
@@ -101,36 +138,117 @@ export const FileCardView = observer(function FileCardView() {
     );
   }
 
-  // status === 'ready'
+  // -------------------------------------------------------------------------
+  // Ready state — inline preview card (previewable file types with provider)
+  // -------------------------------------------------------------------------
+  if (previewable) {
+    const truncationInfo =
+      content && rendererType ? getTruncationInfo(content, rendererType, expanded) : null;
+    const showFooter = truncationInfo?.wasTruncated === true && rendererType !== 'markdown';
+
+    return (
+      <div
+        ref={containerRef}
+        className="rounded-lg border border-border bg-card my-1 overflow-hidden group"
+        role="article"
+        aria-label={`${filename} preview`}
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            dispatchPreviewEvent();
+          }
+        }}
+      >
+        {/* Header bar */}
+        <InlinePreviewHeader
+          filename={filename}
+          mimeType={mimeType}
+          artifactId={artifactId ?? ''}
+          signedUrl={signedUrl}
+          onCopy={async () => {
+            if (content && typeof content === 'string') {
+              try {
+                await navigator.clipboard.writeText(content);
+              } catch (err) {
+                console.error('Clipboard write failed:', err);
+              }
+            }
+          }}
+          onExpandToModal={dispatchPreviewEvent}
+        />
+
+        {/* Content area — click opens full modal */}
+        <div
+          className={cn(
+            'transition-[max-height] duration-200 ease-out cursor-pointer',
+            expanded ? '' : 'max-h-[300px] overflow-hidden',
+            rendererType === 'markdown' && !expanded ? 'max-h-[300px] overflow-y-auto' : ''
+          )}
+          role="button"
+          aria-label={`Open ${filename} full preview`}
+          onClick={() => {
+            if (!artifactId) return;
+            dispatchPreviewEvent();
+          }}
+        >
+          {isLoading && <SkeletonPreviewCard />}
+          {isError && (
+            <div className="p-4 text-center" role="alert">
+              <p className="text-sm font-medium text-destructive">Couldn&apos;t load preview</p>
+              <p className="text-xs text-muted-foreground mt-1">Click to open the full preview.</p>
+            </div>
+          )}
+          {content && rendererType && (
+            <InlineContentRenderer
+              content={content}
+              rendererType={rendererType}
+              filename={filename}
+              expanded={expanded}
+              signedUrl={signedUrl}
+            />
+          )}
+        </div>
+
+        {/* Footer — expand/collapse link */}
+        {showFooter && truncationInfo && (
+          <div className="border-t border-border px-4 py-2">
+            <button
+              className="text-xs text-primary hover:underline"
+              aria-expanded={expanded}
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpanded((prev) => {
+                  if (prev) {
+                    // Collapsing — scroll card into view
+                    containerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                  }
+                  return !prev;
+                });
+              }}
+            >
+              {expanded ? 'Show less' : truncationInfo.label}
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Ready state — compact card (non-previewable files or no context provider)
+  // -------------------------------------------------------------------------
   return (
     <div
       className="flex items-center gap-3 rounded-lg border border-border bg-card hover:bg-muted/50 transition-colors px-4 py-3 my-1 cursor-pointer select-none group"
       role="button"
       tabIndex={0}
       aria-label={`Open file: ${filename}`}
-      onClick={() => {
-        if (!artifactId) return;
-        // Defer dispatch so React state updates from the event listener run outside
-        // TipTap's ReactRenderer cycle (prevents residual flushSync warnings).
-        queueMicrotask(() => {
-          window.dispatchEvent(
-            new CustomEvent('pilot:preview-artifact', {
-              detail: { artifactId, filename, mimeType },
-            })
-          );
-        });
-      }}
+      onClick={dispatchPreviewEvent}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          if (!artifactId) return;
-          queueMicrotask(() => {
-            window.dispatchEvent(
-              new CustomEvent('pilot:preview-artifact', {
-                detail: { artifactId, filename, mimeType },
-              })
-            );
-          });
+          dispatchPreviewEvent();
         }
       }}
     >
