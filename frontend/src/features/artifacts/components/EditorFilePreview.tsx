@@ -71,6 +71,7 @@ export function EditorFilePreview({
       filename={selected?.filename ?? ''}
       mimeType={selected?.mimeType ?? ''}
       signedUrl={signedUrl}
+      projectId={projectId}
     />
   );
 }

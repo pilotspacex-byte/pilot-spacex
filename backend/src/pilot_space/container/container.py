@@ -30,6 +30,9 @@ from pilot_space.application.services.ai_context import (
 from pilot_space.application.services.ai_extraction import CreateExtractedIssuesService
 from pilot_space.application.services.ai_governance import GovernanceRollbackService
 from pilot_space.application.services.annotation import CreateAnnotationService
+from pilot_space.application.services.artifact.artifact_content_service import (
+    ArtifactContentService,
+)
 from pilot_space.application.services.artifact.artifact_upload_service import (
     ArtifactUploadService,
 )
@@ -857,6 +860,13 @@ class Container(SkillContainer, PluginContainer):
         session=providers.Callable(get_current_session),
         storage_client=InfraContainer.storage_client,
         artifact_repo=InfraContainer.artifact_repository,
+    )
+
+    # Artifact Content Service (Phase 62 — Monaco IDE; IDE-03)
+    artifact_content_service = providers.Factory(
+        ArtifactContentService,
+        session=providers.Callable(get_current_session),
+        storage_client=InfraContainer.storage_client,
     )
 
     # Task Services

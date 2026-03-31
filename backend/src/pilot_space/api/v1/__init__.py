@@ -13,6 +13,7 @@ from pilot_space.api.v1.routers.artifact_annotations import (
     router as artifact_annotations_router,
 )
 from pilot_space.api.v1.routers.auth import router as auth_router
+from pilot_space.api.v1.routers.git_proxy import router as git_proxy_router
 from pilot_space.api.v1.routers.memory import router as memory_router
 from pilot_space.api.v1.routers.my_projects import router as my_projects_router
 from pilot_space.api.v1.routers.project_artifacts import (
@@ -49,6 +50,11 @@ api_router.include_router(
 )
 
 api_router.include_router(memory_router, prefix="", tags=["memory"])
+api_router.include_router(
+    git_proxy_router,
+    prefix="/workspaces/{workspace_id}/git",
+    tags=["git"],
+)
 api_router.include_router(
     artifact_annotations_router,
     prefix="/workspaces/{workspace_id}/projects/{project_id}/artifacts/{artifact_id}/annotations",

@@ -31,6 +31,9 @@ from pilot_space.application.services.ai_governance import GovernanceRollbackSer
 from pilot_space.application.services.annotation import (
     CreateAnnotationService,
 )
+from pilot_space.application.services.artifact.artifact_content_service import (
+    ArtifactContentService,
+)
 from pilot_space.application.services.attachment_management import AttachmentManagementService
 from pilot_space.application.services.auth import AuthService
 from pilot_space.application.services.block_ownership import BlockOwnershipService
@@ -1069,6 +1072,7 @@ __all__ = [  # noqa: RUF022
     "GovernanceRollbackServiceDep",
     "OcrConfigurationServiceDep",
     "PluginLifecycleServiceDep",
+    "ArtifactContentServiceDep",
 ]
 
 
@@ -1243,4 +1247,19 @@ def _get_attachment_management_service(
 
 AttachmentManagementServiceDep = Annotated[
     AttachmentManagementService, Depends(_get_attachment_management_service)
+]
+
+
+# ===== Artifact Content Service Dependencies (Phase 62 — Monaco IDE) =====
+
+
+@inject
+def _get_artifact_content_service(
+    svc: ArtifactContentService = Depends(Provide[Container.artifact_content_service]),
+) -> ArtifactContentService:
+    return svc
+
+
+ArtifactContentServiceDep = Annotated[
+    ArtifactContentService, Depends(_get_artifact_content_service)
 ]

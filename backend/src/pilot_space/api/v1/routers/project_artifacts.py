@@ -1,10 +1,12 @@
-"""Project artifacts router — file upload, list, signed URL, delete.
+"""Project artifacts router — file upload, list, signed URL, delete, content read/write.
 
 Endpoints:
   POST   /workspaces/{workspace_id}/projects/{project_id}/artifacts
   GET    /workspaces/{workspace_id}/projects/{project_id}/artifacts
   GET    /workspaces/{workspace_id}/projects/{project_id}/artifacts/{artifact_id}/url
   DELETE /workspaces/{workspace_id}/projects/{project_id}/artifacts/{artifact_id}
+  GET    /workspaces/{workspace_id}/projects/{project_id}/artifacts/{artifact_id}/content
+  PUT    /workspaces/{workspace_id}/projects/{project_id}/artifacts/{artifact_id}/content
 
 Enforces at the router layer:
   - 10 MB size limit (pre-read via file.size; post-read via len(file_data))
@@ -21,10 +23,17 @@ from uuid import UUID
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 
+from pilot_space.api.v1.schemas.artifact_content import (
+    ArtifactContentResponse,
+    ArtifactContentUpdateRequest,
+)
 from pilot_space.api.v1.schemas.artifacts import (
     ArtifactListResponse,
     ArtifactResponse,
     ArtifactUrlResponse,
+)
+from pilot_space.application.services.artifact.artifact_content_service import (
+    ArtifactContentService,
 )
 from pilot_space.application.services.artifact.artifact_upload_service import (
     ArtifactUploadService,
@@ -221,6 +230,87 @@ async def delete_artifact(
         workspace_id=workspace_id,
         project_id=project_id,
     )
+
+
+@router.get("/{artifact_id}/content", response_model=ArtifactContentResponse)
+@inject
+async def get_artifact_content(
+    workspace_id: UUID,
+    project_id: UUID,
+    artifact_id: UUID,
+    session: SessionDep,
+    current_user: CurrentUser,
+    _member: Annotated[UUID, Depends(require_workspace_member)],
+    content_service: ArtifactContentService = Depends(Provide[Container.artifact_content_service]),
+) -> ArtifactContentResponse:
+    """Get the UTF-8 text content of a code artifact for Monaco IDE.
+
+    Downloads the artifact bytes from Supabase Storage and returns them
+    as a UTF-8 decoded string along with artifact metadata.
+
+    Args:
+        workspace_id: Workspace owning the project.
+        project_id: Project the artifact belongs to.
+        artifact_id: Artifact to read content from.
+        session: Async DB session.
+        current_user: Authenticated user from JWT.
+        content_service: Injected content service.
+
+    Returns:
+        ArtifactContentResponse with content, size_bytes, filename, content_type.
+
+    Raises:
+        404: Artifact not found or belongs to different workspace/project.
+        422: File content is not valid UTF-8 text.
+    """
+    await set_rls_context(session, current_user.user_id, workspace_id)
+
+    result = await content_service.get_content(artifact_id, workspace_id, project_id)
+    return ArtifactContentResponse(
+        content=result.content,
+        size_bytes=result.size_bytes,
+        filename=result.filename,
+        content_type=result.content_type,
+    )
+
+
+# TODO: Add ETag/If-Match revision precondition to prevent clobber on concurrent edits
+@router.put("/{artifact_id}/content", status_code=status.HTTP_204_NO_CONTENT)
+@inject
+async def update_artifact_content(
+    workspace_id: UUID,
+    project_id: UUID,
+    artifact_id: UUID,
+    body: ArtifactContentUpdateRequest,
+    session: SessionDep,
+    current_user: CurrentUser,
+    _member: Annotated[UUID, Depends(require_workspace_member)],
+    content_service: ArtifactContentService = Depends(Provide[Container.artifact_content_service]),
+) -> None:
+    """Overwrite the content of a code artifact for Monaco IDE.
+
+    Accepts a JSON body with ``content`` field (UTF-8 text), encodes it,
+    and uploads to Supabase Storage. Updates ``size_bytes`` in the DB.
+
+    Args:
+        workspace_id: Workspace owning the project.
+        project_id: Project the artifact belongs to.
+        artifact_id: Artifact to overwrite content for.
+        body: JSON body containing new ``content`` string.
+        session: Async DB session.
+        current_user: Authenticated user from JWT.
+        content_service: Injected content service.
+
+    Returns:
+        None (204 No Content).
+
+    Raises:
+        404: Artifact not found or belongs to different workspace/project.
+        422: Content exceeds 1 MB limit.
+    """
+    await set_rls_context(session, current_user.user_id, workspace_id)
+
+    await content_service.update_content(artifact_id, workspace_id, project_id, body.content)
 
 
 __all__ = ["router"]

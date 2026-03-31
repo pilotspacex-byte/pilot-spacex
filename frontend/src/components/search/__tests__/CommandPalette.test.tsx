@@ -163,4 +163,97 @@ describe('CommandPalette', () => {
       expect(mockPush).toHaveBeenCalledWith('/my-workspace/issues/issue-1');
     });
   });
+
+  // ─── Mode prefix tests ───────────────────────────────────────────────────
+
+  it('shows hint bar with > Commands # Symbols : Go to Line', () => {
+    render(<CommandPalette />);
+    // The hint bar should always be visible
+    expect(screen.getByText('Commands')).toBeDefined();
+    expect(screen.getByText('Symbols')).toBeDefined();
+    expect(screen.getByText('Go to Line')).toBeDefined();
+  });
+
+  it('switches to commands mode when typing > prefix', async () => {
+    render(<CommandPalette />);
+    const input = screen.getByPlaceholderText('Search notes and issues...');
+
+    // Type > to enter commands mode
+    await userEvent.type(input, '>');
+
+    // Should show commands mode items
+    await waitFor(() => {
+      expect(screen.getByText('Toggle Source Control Panel')).toBeDefined();
+    });
+  });
+
+  it('filters commands by effectiveQuery after > prefix', async () => {
+    render(<CommandPalette />);
+    const input = screen.getByPlaceholderText(/search/i);
+
+    await userEvent.type(input, '>source');
+
+    await waitFor(() => {
+      expect(screen.getByText('Toggle Source Control Panel')).toBeDefined();
+    });
+
+    // "Toggle File Tree" should not appear since query is "source"
+    expect(screen.queryByText('Toggle File Tree')).toBeNull();
+  });
+
+  it('switches to symbols mode when typing # prefix', async () => {
+    render(<CommandPalette />);
+    const input = screen.getByPlaceholderText('Search notes and issues...');
+
+    await userEvent.type(input, '#');
+
+    // Should show symbol search placeholder
+    await waitFor(() => {
+      expect(screen.getByText('Symbol search available in a future update')).toBeDefined();
+    });
+  });
+
+  it('switches to goto-line mode when typing : prefix', async () => {
+    render(<CommandPalette />);
+    const input = screen.getByPlaceholderText('Search notes and issues...');
+
+    await userEvent.type(input, ':');
+
+    // Should show go-to-line prompt
+    await waitFor(() => {
+      expect(screen.getByText('Type a line number to navigate')).toBeDefined();
+    });
+  });
+
+  it('shows go-to-line prompt text after : prefix mode is active', async () => {
+    render(<CommandPalette />);
+    // Verify the goto-line mode renders the "Type a line number to navigate" prompt
+    // by checking that the : prefix mode switch shows its content
+    const input = screen.getByRole('combobox');
+
+    // Type ':' to enter goto-line mode (the existing test confirms mode switch)
+    await userEvent.type(input, ':');
+
+    await waitFor(() => {
+      expect(screen.getByText('Type a line number to navigate')).toBeDefined();
+    });
+  });
+
+  it('keeps search mode when no prefix is typed', async () => {
+    render(<CommandPalette />);
+    const input = screen.getByPlaceholderText('Search notes and issues...');
+
+    // Type plain text — no prefix
+    await userEvent.type(input, 'sprint');
+
+    // Should show notes/issues results (search mode)
+    await waitFor(() => {
+      expect(screen.getByText('Sprint planning notes')).toBeDefined();
+    });
+
+    // Commands mode items should NOT appear
+    expect(screen.queryByText('Toggle Source Control Panel')).toBeNull();
+    // Symbols placeholder should NOT appear
+    expect(screen.queryByText('Symbol search available in a future update')).toBeNull();
+  });
 });

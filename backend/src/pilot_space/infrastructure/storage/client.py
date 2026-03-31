@@ -39,6 +39,10 @@ class StorageDeleteError(SupabaseStorageError):
     """Failed to delete an object."""
 
 
+class StorageDownloadError(SupabaseStorageError):
+    """Failed to download an object."""
+
+
 class SupabaseStorageClient:
     """Async client for Supabase Storage using the supabase-py SDK.
 
@@ -214,9 +218,38 @@ class SupabaseStorageClient:
 
         logger.info("storage_delete_success", bucket=bucket, key=key)
 
+    async def download_object(self, bucket: str, key: str) -> bytes:
+        """Download object bytes from Supabase Storage.
+
+        Args:
+            bucket: Bucket name (e.g. "note-artifacts").
+            key: Object path within the bucket (e.g. "workspace-id/proj/artifact-id/file.py").
+
+        Returns:
+            Raw bytes of the stored object.
+
+        Raises:
+            StorageDownloadError: If the download fails for any reason.
+        """
+        logger.debug("storage_download_start", bucket=bucket, key=key)
+
+        try:
+            client = await self._get_client()
+            data: bytes = await client.storage.from_(bucket).download(key)
+        except (StorageApiError, StorageException) as exc:
+            logger.exception("storage_download_failed", bucket=bucket, key=key)
+            raise StorageDownloadError(f"Failed to download {bucket}/{key}: {exc}") from exc
+        except Exception as exc:
+            logger.exception("storage_download_error", bucket=bucket, key=key)
+            raise StorageDownloadError(f"Failed to download {bucket}/{key}: {exc}") from exc
+
+        logger.info("storage_download_success", bucket=bucket, key=key, size_bytes=len(data))
+        return data
+
 
 __all__ = [
     "StorageDeleteError",
+    "StorageDownloadError",
     "StorageSignedUrlError",
     "StorageUploadError",
     "SupabaseStorageClient",
