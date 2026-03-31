@@ -19,9 +19,11 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 
+const mockRouterPush = vi.fn();
+
 vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceSlug: 'test-workspace' }),
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: mockRouterPush }),
   usePathname: () => '/',
 }));
 
@@ -155,6 +157,7 @@ const mockUserSkillsList = [
 describe('SkillsSettingsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRouterPush.mockReset();
     mockWorkspaceStore.currentUserRole = 'member';
     mockWorkspaceStore.isAdmin = false;
     mockWorkspaceStore.getWorkspaceBySlug.mockReturnValue({
@@ -285,6 +288,57 @@ describe('SkillsSettingsPage', () => {
 
       renderPage();
       expect(screen.queryByRole('button', { name: /Create Template/ })).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Create in Chat button', () => {
+    it('should render "Create in Chat" button on skills tab', () => {
+      mockUserSkills.mockReturnValue({
+        data: [],
+        isLoading: false,
+        isError: false,
+        error: null,
+      });
+
+      renderPage();
+      expect(screen.getByRole('button', { name: /Create in Chat/ })).toBeInTheDocument();
+    });
+
+    it('should navigate to chat with skill-creator prefill when clicked', async () => {
+      const user = userEvent.setup();
+      mockUserSkills.mockReturnValue({
+        data: [],
+        isLoading: false,
+        isError: false,
+        error: null,
+      });
+
+      renderPage();
+      const createInChatBtn = screen.getByRole('button', { name: /Create in Chat/ });
+      await user.click(createInChatBtn);
+
+      expect(mockRouterPush).toHaveBeenCalledOnce();
+      expect(mockRouterPush).toHaveBeenCalledWith(
+        expect.stringContaining('skill-creator')
+      );
+    });
+
+    it('should include workspaceSlug in the navigation URL', async () => {
+      const user = userEvent.setup();
+      mockUserSkills.mockReturnValue({
+        data: [],
+        isLoading: false,
+        isError: false,
+        error: null,
+      });
+
+      renderPage();
+      const createInChatBtn = screen.getByRole('button', { name: /Create in Chat/ });
+      await user.click(createInChatBtn);
+
+      expect(mockRouterPush).toHaveBeenCalledWith(
+        expect.stringContaining('test-workspace')
+      );
     });
   });
 

@@ -10,8 +10,17 @@
 
 import * as React from 'react';
 import { observer } from 'mobx-react-lite';
-import { useParams } from 'next/navigation';
-import { AlertCircle, Layers, Lock, MousePointerClick, Package, Plus, Wand2 } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
+import {
+  AlertCircle,
+  Layers,
+  Lock,
+  MessageSquarePlus,
+  MousePointerClick,
+  Package,
+  Plus,
+  Wand2,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -78,6 +87,7 @@ function GuestView() {
 export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
   const { workspaceStore } = useStore();
   const params = useParams();
+  const router = useRouter();
   const workspaceSlug = params?.workspaceSlug as string;
   const currentWorkspace = workspaceStore.getWorkspaceBySlug(workspaceSlug);
   const workspaceId = currentWorkspace?.id || workspaceSlug;
@@ -285,6 +295,14 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
                   Create Template
                 </Button>
               )}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => router.push(`/${workspaceSlug}/chat?prefill=/skill-creator`)}
+              >
+                <MessageSquarePlus className="mr-1.5 h-4 w-4" />
+                Create in Chat
+              </Button>
               <Button size="sm" onClick={() => setGeneratorOpen(true)}>
                 <Plus className="mr-1.5 h-4 w-4" />
                 Add Skill

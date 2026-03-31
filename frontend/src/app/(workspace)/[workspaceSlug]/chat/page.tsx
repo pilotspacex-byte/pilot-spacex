@@ -5,7 +5,7 @@
  * @route /[workspaceSlug]/chat
  */
 import { useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { observer } from 'mobx-react-lite';
 import { ChatView } from '@/features/ai/ChatView';
 import { getAIStore } from '@/stores/ai/AIStore';
@@ -20,6 +20,8 @@ export default observer(function ChatPage() {
   const workspaceStore = useWorkspaceStore();
   const params = useParams<{ workspaceSlug: string }>();
   const slug = params.workspaceSlug;
+  const searchParams = useSearchParams();
+  const prefill = searchParams.get('prefill') ?? undefined;
 
   // Ensure workspaces are loaded so slug→UUID resolution works
   useEffect(() => {
@@ -68,7 +70,13 @@ export default observer(function ChatPage() {
 
   return (
     <div className="h-full">
-      <ChatView store={store} approvalStore={aiStore.approval} userName="User" className="h-full" />
+      <ChatView
+        store={store}
+        approvalStore={aiStore.approval}
+        userName="User"
+        className="h-full"
+        prefillValue={prefill}
+      />
     </div>
   );
 });

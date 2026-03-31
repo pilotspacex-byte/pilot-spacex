@@ -68,6 +68,8 @@ interface ChatViewProps {
   emptyStateSlot?: React.ReactNode;
   /** Prompt to auto-send when ChatView mounts with an empty conversation */
   initialPrompt?: string;
+  /** Pre-fill the input field without auto-sending (e.g., from ?prefill= query param) */
+  prefillValue?: string;
   /** Headings from the current note for # section mentions in ChatInput */
   noteHeadings?: HeadingItem[];
   /** Callback when user selects a section via # menu — sets note context to section blocks */
@@ -86,6 +88,7 @@ const ChatViewInternal = observer<ChatViewProps>(
     suggestedPrompts,
     emptyStateSlot,
     initialPrompt,
+    prefillValue,
     noteHeadings,
     onSelectSection,
     className,
@@ -125,6 +128,16 @@ const ChatViewInternal = observer<ChatViewProps>(
         void (store as { sendMessage: (c: string) => Promise<void> }).sendMessage(initialPrompt);
       }
     }, [initialPrompt, store]);
+
+    // Pre-fill the input field from prefillValue prop (e.g., ?prefill=/skill-creator).
+    // Only fires once on mount; ignores subsequent prop changes to avoid fighting user edits.
+    const prefillAppliedRef = useRef(false);
+    useEffect(() => {
+      if (prefillValue && !prefillAppliedRef.current) {
+        prefillAppliedRef.current = true;
+        setInputValue(prefillValue);
+      }
+    }, [prefillValue]);
 
     // Track which note context has been loaded to avoid redundant fetches
     const loadedContextRef = useRef<string | null>(null);

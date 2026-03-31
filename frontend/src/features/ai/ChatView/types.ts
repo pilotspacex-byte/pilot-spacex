@@ -96,7 +96,8 @@ export interface SkillDefinition {
     | 'code'
     | 'documentation'
     | 'planning'
-    | 'my-skills';
+    | 'my-skills'
+    | 'skills';
   icon: string;
   examples?: string[];
 }

@@ -129,10 +129,25 @@ export const FALLBACK_SKILLS: SkillDefinition[] = [
 ];
 
 /**
+ * Built-in skill creator skill — always available for conversational skill creation.
+ * Triggers the skill-creator agent workflow in ChatView.
+ */
+export const SKILL_CREATOR_SKILL: SkillDefinition = {
+  name: 'skill-creator',
+  description: 'Build, test, and refine skills in chat',
+  category: 'skills',
+  icon: 'Wand2',
+  examples: [
+    'Create a skill for code review',
+    'Build a skill that summarizes standup notes',
+  ],
+};
+
+/**
  * Combined skills list for backward compatibility.
  * Prefer using useSkills() hook for dynamic loading.
  */
-export const SKILLS: SkillDefinition[] = [...SESSION_SKILLS, ...FALLBACK_SKILLS];
+export const SKILLS: SkillDefinition[] = [...SESSION_SKILLS, ...FALLBACK_SKILLS, SKILL_CREATOR_SKILL];
 
 /**
  * Available subagents for invocation
@@ -187,6 +202,7 @@ export const SKILL_CATEGORIES = [
   { id: 'code', label: 'Code', icon: 'Code' },
   { id: 'documentation', label: 'Documentation', icon: 'BookOpen' },
   { id: 'planning', label: 'Planning', icon: 'Calendar' },
+  { id: 'skills', label: 'Skills', icon: 'Wand2' },
 ] as const;
 
 /**
