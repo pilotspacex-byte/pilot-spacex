@@ -144,6 +144,8 @@ export class FileStore {
     const file = this.openFiles.get(id);
     if (file) {
       file.isDirty = false;
+      // After save, current content becomes the new baseline for diff
+      file.originalContent = file.content;
     }
   }
 
@@ -156,6 +158,10 @@ export class FileStore {
   updateContent(id: string, content: string): void {
     const file = this.openFiles.get(id);
     if (file) {
+      // First content load (lazy) — set as the baseline for diff comparison
+      if (file.originalContent == null) {
+        file.originalContent = content;
+      }
       file.content = content;
     }
   }
