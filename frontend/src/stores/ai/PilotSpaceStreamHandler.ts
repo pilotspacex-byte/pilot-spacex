@@ -22,6 +22,9 @@ import type {
   MemoryUpdateEvent,
   ToolInputDeltaEvent,
   FocusBlockEvent,
+  SkillPreviewEvent,
+  TestResultEvent,
+  SkillSavedEvent,
 } from './types/events';
 import {
   isMessageStartEvent,
@@ -43,6 +46,9 @@ import {
   isToolInputDeltaEvent,
   isContentUpdateEvent,
   isFocusBlockEvent,
+  isSkillPreviewEvent,
+  isTestResultEvent,
+  isSkillSavedEvent,
 } from './types/events';
 import type { PilotSpaceStore } from './PilotSpaceStore';
 import { PilotSpaceToolCallHandler } from './PilotSpaceToolCallHandler';
@@ -138,7 +144,10 @@ export class PilotSpaceStreamHandler {
         | CitationEvent
         | MemoryUpdateEvent
         | ToolInputDeltaEvent
-        | FocusBlockEvent;
+        | FocusBlockEvent
+        | SkillPreviewEvent
+        | TestResultEvent
+        | SkillSavedEvent;
 
       // Route to type-specific handler
       if (isMessageStartEvent(event)) {
@@ -179,6 +188,12 @@ export class PilotSpaceStreamHandler {
         this.toolCallHandler.handleToolAudit(event);
       } else if (isErrorEvent(event)) {
         this.handleError(event);
+      } else if (isSkillPreviewEvent(event)) {
+        this.store.handleSkillPreview(event);
+      } else if (isTestResultEvent(event)) {
+        this.store.handleTestResult(event);
+      } else if (isSkillSavedEvent(event)) {
+        this.store.handleSkillSaved(event);
       }
     });
   }
