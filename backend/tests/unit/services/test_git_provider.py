@@ -202,7 +202,9 @@ async def test_create_commit_calls_git_data_api_sequence() -> None:
         _mock_response(201, {"sha": "blob-sha"}),  # create blob
         _mock_response(201, {"sha": "new-tree-sha"}),  # create tree
         _mock_response(201, {"sha": "new-commit-sha"}),  # create commit
-        _mock_response(200, {"ref": "refs/heads/main", "object": {"sha": "new-commit-sha"}}),  # update ref
+        _mock_response(
+            200, {"ref": "refs/heads/main", "object": {"sha": "new-commit-sha"}}
+        ),  # update ref
     ]
 
     with patch.object(provider._client, "request", new_callable=AsyncMock) as mock_req:

@@ -93,9 +93,7 @@ class TestGetProvider:
         """Raises NotFoundError when no GitHub integration exists for workspace."""
         session = _make_session()
 
-        with patch(
-            "pilot_space.api.v1.routers.git_proxy.IntegrationRepository"
-        ) as MockRepo:
+        with patch("pilot_space.api.v1.routers.git_proxy.IntegrationRepository") as MockRepo:
             repo_instance = AsyncMock()
             repo_instance.get_by_provider = AsyncMock(return_value=None)
             MockRepo.return_value = repo_instance
@@ -109,9 +107,7 @@ class TestGetProvider:
         session = _make_session()
         integration = _make_integration(is_active=False)
 
-        with patch(
-            "pilot_space.api.v1.routers.git_proxy.IntegrationRepository"
-        ) as MockRepo:
+        with patch("pilot_space.api.v1.routers.git_proxy.IntegrationRepository") as MockRepo:
             repo_instance = AsyncMock()
             repo_instance.get_by_provider = AsyncMock(return_value=integration)
             MockRepo.return_value = repo_instance
@@ -126,9 +122,7 @@ class TestGetProvider:
         other_workspace_id = uuid4()
         integration = _make_integration(workspace_id=other_workspace_id)
 
-        with patch(
-            "pilot_space.api.v1.routers.git_proxy.IntegrationRepository"
-        ) as MockRepo:
+        with patch("pilot_space.api.v1.routers.git_proxy.IntegrationRepository") as MockRepo:
             repo_instance = AsyncMock()
             repo_instance.get_by_provider = AsyncMock(return_value=integration)
             MockRepo.return_value = repo_instance
@@ -286,9 +280,7 @@ class TestDeleteBranch:
             ),
             pytest.raises(GitProviderNotFoundError),
         ):
-            await delete_branch(
-                session, current_user, WORKSPACE_ID, OWNER, REPO, "nonexistent"
-            )
+            await delete_branch(session, current_user, WORKSPACE_ID, OWNER, REPO, "nonexistent")
 
 
 # ---------------------------------------------------------------------------
