@@ -167,7 +167,7 @@ export const FileCardView = observer(function FileCardView() {
           artifactId={artifactId ?? ''}
           signedUrl={signedUrl}
           onCopy={async () => {
-            if (content) await navigator.clipboard.writeText(content);
+            if (content && typeof content === 'string') await navigator.clipboard.writeText(content);
           }}
           onExpandToModal={dispatchPreviewEvent}
         />
@@ -199,6 +199,7 @@ export const FileCardView = observer(function FileCardView() {
               rendererType={rendererType}
               filename={filename}
               expanded={expanded}
+              signedUrl={signedUrl}
             />
           )}
         </div>

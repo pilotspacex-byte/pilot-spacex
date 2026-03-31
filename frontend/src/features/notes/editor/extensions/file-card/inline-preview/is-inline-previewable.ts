@@ -2,23 +2,42 @@
  * is-inline-previewable.ts
  *
  * Utility for determining whether a file can be previewed inline within a TipTap note.
- * Inline preview supports: code, markdown, csv, and json renderer types.
+ * Inline preview supports: code, markdown, csv, json, xlsx, docx, pptx, and html-preview.
  *
- * All other types (image, download, html-preview, xlsx, docx, pptx, text) fall back
+ * Only image (handled by FigureExtension) and download (no renderer) fall back
  * to the compact FileCard click-to-modal behavior.
  */
 
 import { resolveRenderer } from '@/features/artifacts/utils/mime-type-router';
 
 /** Renderer types supported for inline preview within a note card. */
-export type InlineRendererType = 'code' | 'markdown' | 'csv' | 'json';
+export type InlineRendererType =
+  | 'code'
+  | 'markdown'
+  | 'csv'
+  | 'json'
+  | 'xlsx'
+  | 'docx'
+  | 'pptx'
+  | 'html-preview'
+  | 'text';
 
 /** The set of renderer types that support inline preview. */
-const INLINE_RENDERER_TYPES = new Set<string>(['code', 'markdown', 'csv', 'json']);
+const INLINE_RENDERER_TYPES = new Set<string>([
+  'code',
+  'markdown',
+  'csv',
+  'json',
+  'xlsx',
+  'docx',
+  'pptx',
+  'html-preview',
+  'text',
+]);
 
 /**
  * Returns true if the given file's MIME type and filename map to a renderer type
- * that supports inline content preview (code, markdown, csv, json).
+ * that supports inline content preview.
  *
  * @param mimeType - The file's MIME type (e.g. "text/plain", "application/json")
  * @param filename - The file's name (used for extension-based routing)

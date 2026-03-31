@@ -27,8 +27,8 @@ import type { InlineRendererType } from './is-inline-previewable';
 export interface UseInlinePreviewContentResult {
   /** Attach to the card container element to trigger IntersectionObserver. */
   containerRef: RefObject<HTMLDivElement | null>;
-  /** The fetched text content, undefined while loading or on error. */
-  content: string | undefined;
+  /** The fetched content: string for text types, ArrayBuffer for binary Office types. */
+  content: string | ArrayBuffer | undefined;
   /** The signed URL for the artifact (used by the download button). */
   signedUrl: string;
   /** True while signed URL or content fetch is in-flight. */
