@@ -75,9 +75,11 @@ def _make_integration(workspace_id=None, is_active=True):
     return integration
 
 
-def _make_provider_mock() -> MagicMock:
+def _make_provider_mock() -> AsyncMock:
     """Build a mock GitProvider."""
-    return MagicMock(spec=GitHubGitProvider)
+    mock = AsyncMock(spec=GitHubGitProvider)
+    mock.aclose = AsyncMock()
+    return mock
 
 
 # ---------------------------------------------------------------------------
@@ -343,9 +345,9 @@ class TestGetFileContent:
         mock_provider.get_file_content.assert_called_once_with("src/main.py", "main")
 
     @pytest.mark.asyncio
-    async def test_get_file_content_too_large_raises_413(self) -> None:
-        """Files exceeding 1 MB raise HTTPException 413."""
-        from fastapi import HTTPException
+    async def test_get_file_content_too_large_raises_validation_error(self) -> None:
+        """Files exceeding 1 MB raise ValidationError."""
+        from pilot_space.domain.exceptions import ValidationError
 
         session = _make_session()
         current_user = _make_current_user()
@@ -356,6 +358,7 @@ class TestGetFileContent:
         mock_provider.get_file_content = AsyncMock(
             return_value=FileContent(content=big_content, sha="sha", size=len(big_content))
         )
+        mock_provider.aclose = AsyncMock()
 
         with (
             patch(
@@ -363,13 +366,11 @@ class TestGetFileContent:
                 new_callable=AsyncMock,
                 return_value=mock_provider,
             ),
-            pytest.raises(HTTPException) as exc_info,
+            pytest.raises(ValidationError, match="1 MB"),
         ):
             await get_file_content(
                 session, current_user, WORKSPACE_ID, OWNER, REPO, "big.py", ref="main"
             )
-
-        assert exc_info.value.status_code == 413
 
 
 # ---------------------------------------------------------------------------

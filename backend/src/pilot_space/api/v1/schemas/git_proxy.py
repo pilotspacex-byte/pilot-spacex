@@ -103,7 +103,7 @@ class FileChangeSchema(BaseModel):
     """A file to be included in a commit."""
 
     path: str
-    content: str
+    content: str | None = None
     encoding: Literal["utf-8", "base64"] = "utf-8"
     action: Literal["update", "create", "delete"] = "update"
 

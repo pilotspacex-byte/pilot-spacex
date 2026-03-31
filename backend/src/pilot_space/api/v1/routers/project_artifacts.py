@@ -241,9 +241,7 @@ async def get_artifact_content(
     session: SessionDep,
     current_user: CurrentUser,
     _member: Annotated[UUID, Depends(require_workspace_member)],
-    content_service: ArtifactContentService = Depends(
-        Provide[Container.artifact_content_service]
-    ),
+    content_service: ArtifactContentService = Depends(Provide[Container.artifact_content_service]),
 ) -> ArtifactContentResponse:
     """Get the UTF-8 text content of a code artifact for Monaco IDE.
 
@@ -276,6 +274,7 @@ async def get_artifact_content(
     )
 
 
+# TODO: Add ETag/If-Match revision precondition to prevent clobber on concurrent edits
 @router.put("/{artifact_id}/content", status_code=status.HTTP_204_NO_CONTENT)
 @inject
 async def update_artifact_content(
@@ -286,9 +285,7 @@ async def update_artifact_content(
     session: SessionDep,
     current_user: CurrentUser,
     _member: Annotated[UUID, Depends(require_workspace_member)],
-    content_service: ArtifactContentService = Depends(
-        Provide[Container.artifact_content_service]
-    ),
+    content_service: ArtifactContentService = Depends(Provide[Container.artifact_content_service]),
 ) -> None:
     """Overwrite the content of a code artifact for Monaco IDE.
 

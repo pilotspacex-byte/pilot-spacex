@@ -62,6 +62,8 @@ export const BranchSelector = observer(function BranchSelector({
   const [isCreating, setIsCreating] = useState(false);
   const [newBranchName, setNewBranchName] = useState('');
   const [deletingBranch, setDeletingBranch] = useState<BranchInfo | null>(null);
+  const [isCreatingBranch, setIsCreatingBranch] = useState(false);
+  const [isDeletingBranch, setIsDeletingBranch] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const { branches, isLoading } = useBranches(
@@ -88,7 +90,8 @@ export const BranchSelector = observer(function BranchSelector({
   );
 
   const handleCreate = useCallback(async () => {
-    if (!newBranchName.trim() || !gitStore.currentBranch) return;
+    if (!newBranchName.trim() || !gitStore.currentBranch || isCreatingBranch) return;
+    setIsCreatingBranch(true);
     try {
       await createBranch(workspaceId, owner, repo, newBranchName.trim(), gitStore.currentBranch);
       gitStore.setBranch(newBranchName.trim());
@@ -100,11 +103,14 @@ export const BranchSelector = observer(function BranchSelector({
       toast.error(
         `Failed to create branch: ${err instanceof Error ? err.message : 'Unknown error'}`
       );
+    } finally {
+      setIsCreatingBranch(false);
     }
-  }, [gitStore, newBranchName, workspaceId, owner, repo]);
+  }, [gitStore, newBranchName, workspaceId, owner, repo, isCreatingBranch]);
 
   const handleDelete = useCallback(async () => {
-    if (!deletingBranch) return;
+    if (!deletingBranch || isDeletingBranch) return;
+    setIsDeletingBranch(true);
     try {
       await deleteBranch(workspaceId, owner, repo, deletingBranch.name);
       toast.success(`Branch "${deletingBranch.name}" deleted`);
@@ -113,8 +119,10 @@ export const BranchSelector = observer(function BranchSelector({
       toast.error(
         `Failed to delete branch: ${err instanceof Error ? err.message : 'Unknown error'}`
       );
+    } finally {
+      setIsDeletingBranch(false);
     }
-  }, [deletingBranch, workspaceId, owner, repo]);
+  }, [deletingBranch, workspaceId, owner, repo, isDeletingBranch]);
 
   return (
     <>
@@ -154,14 +162,21 @@ export const BranchSelector = observer(function BranchSelector({
                     >
                       {branch.name}
                     </span>
-                    {branch.isDefault && <Star className="h-3 w-3 shrink-0 text-yellow-500" />}
+                    {branch.isDefault && (
+                      <span aria-label="Default branch">
+                        <Star className="h-3 w-3 shrink-0 text-yellow-500" />
+                      </span>
+                    )}
                     {branch.isProtected && (
-                      <Lock className="h-3 w-3 shrink-0 text-muted-foreground" />
+                      <span aria-label="Protected branch">
+                        <Lock className="h-3 w-3 shrink-0 text-muted-foreground" />
+                      </span>
                     )}
                     {!branch.isDefault && !branch.isProtected && (
                       <Button
                         variant="ghost"
                         size="icon"
+                        aria-label={`Delete branch ${branch.name}`}
                         className="h-5 w-5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
                         onClick={(e) => {
                           e.stopPropagation();
@@ -194,7 +209,7 @@ export const BranchSelector = observer(function BranchSelector({
                       variant="ghost"
                       className="h-6 w-6 shrink-0"
                       onClick={() => void handleCreate()}
-                      disabled={!newBranchName.trim()}
+                      disabled={!newBranchName.trim() || isCreatingBranch}
                     >
                       <Plus className="h-3 w-3" />
                     </Button>
@@ -228,6 +243,7 @@ export const BranchSelector = observer(function BranchSelector({
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => void handleDelete()}
+              disabled={isDeletingBranch}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Delete

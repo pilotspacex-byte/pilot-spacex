@@ -139,17 +139,11 @@ function ModeHintBar({ mode }: { mode: PaletteMode }) {
 
 // ─── Commands mode ────────────────────────────────────────────────────────────
 
-interface CommandsModeProps {
-  query: string;
-  onClose: () => void;
-}
-
 /**
- * CommandsModeInline — rendered outside cmdk's CommandList to bypass the
- * built-in filter which uses the raw input value (including ">" prefix).
+ * useCommands — returns the built-in command list for the commands mode.
  */
-function CommandsModeInline({ query, onClose }: CommandsModeProps) {
-  const commands: Command[] = [
+function useCommands(onClose: () => void): Command[] {
+  return [
     {
       id: 'toggle-source-control',
       label: 'Toggle Source Control Panel',
@@ -192,49 +186,6 @@ function CommandsModeInline({ query, onClose }: CommandsModeProps) {
       },
     },
   ];
-
-  const filtered = query
-    ? commands.filter((c) => c.label.toLowerCase().includes(query.toLowerCase()))
-    : commands;
-
-  if (filtered.length === 0) {
-    return (
-      <div className="px-3 py-4 text-sm text-muted-foreground text-center">
-        No commands match &ldquo;{query}&rdquo;
-      </div>
-    );
-  }
-
-  return (
-    <div role="group" aria-label="Commands" className="px-1 py-1">
-      <p className="px-2 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-        Commands
-      </p>
-      {filtered.map((cmd) => (
-        <button
-          key={cmd.id}
-          type="button"
-          role="option"
-          className="flex items-center gap-2 w-full px-2 py-2 rounded-sm text-sm hover:bg-accent cursor-pointer text-left"
-          onClick={cmd.action}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              cmd.action();
-            }
-          }}
-        >
-          <Terminal className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <span className="flex-1">{cmd.label}</span>
-          {cmd.description && (
-            <span className="text-xs text-muted-foreground font-mono shrink-0">
-              {cmd.description}
-            </span>
-          )}
-        </button>
-      ))}
-    </div>
-  );
 }
 
 // ─── Symbols mode ─────────────────────────────────────────────────────────────
@@ -253,63 +204,7 @@ function SymbolsMode() {
   );
 }
 
-// ─── Go to line mode ──────────────────────────────────────────────────────────
-
-interface GotoLineModeProps {
-  query: string;
-  onClose: () => void;
-}
-
-/**
- * GotoLineModeInline — rendered outside cmdk's CommandList to bypass the
- * built-in filter which uses the raw input value (including ":" prefix).
- */
-function GotoLineModeInline({ query, onClose }: GotoLineModeProps) {
-  const lineNumber = parseInt(query, 10);
-  const isValid = !isNaN(lineNumber) && lineNumber > 0;
-
-  const handleGoto = useCallback(() => {
-    if (!isValid) return;
-    window.dispatchEvent(
-      new CustomEvent('code-editor:goto-line', { detail: { lineNumber } })
-    );
-    onClose();
-  }, [isValid, lineNumber, onClose]);
-
-  return (
-    <div className="px-3 py-4">
-      <p className="text-sm text-muted-foreground mb-2">
-        {query === '' ? (
-          'Type a line number to navigate'
-        ) : isValid ? (
-          <>
-            Go to line <span className="font-mono font-medium text-foreground">{lineNumber}</span>
-          </>
-        ) : (
-          <span className="text-destructive">Enter a valid line number</span>
-        )}
-      </p>
-      {isValid && (
-        <button
-          type="button"
-          className="flex items-center gap-2 w-full px-2 py-2 rounded-sm text-sm hover:bg-accent cursor-pointer text-left"
-          onClick={handleGoto}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              handleGoto();
-            }
-          }}
-        >
-          <CornerDownLeft className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <span className="text-sm">
-            Go to line <span className="font-mono font-medium">{lineNumber}</span>
-          </span>
-        </button>
-      )}
-    </div>
-  );
-}
+// GotoLineMode is now rendered inside CommandList (see main component below)
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -435,6 +330,16 @@ export const CommandPalette = observer(function CommandPalette() {
     [router, workspaceSlug, handleOpenChange]
   );
 
+  // Commands mode state
+  const commands = useCommands(() => handleOpenChange(false));
+  const filteredCommands = eQuery
+    ? commands.filter((c) => c.label.toLowerCase().includes(eQuery.toLowerCase()))
+    : commands;
+
+  // Go-to-line mode state
+  const parsedLine = parseInt(eQuery, 10);
+  const gotoLineNumber = !isNaN(parsedLine) && parsedLine > 0 ? parsedLine : null;
+
   const hasResults = results.notes.length > 0 || results.issues.length > 0;
   const hasQuery = query.trim().length > 0;
 
@@ -464,25 +369,64 @@ export const CommandPalette = observer(function CommandPalette() {
 
       {/* ── Modes ── */}
 
-      {/* Commands mode (> prefix)
-          Rendered outside CommandList to bypass cmdk's internal filter
-          (cmdk filters by raw input value which includes ">") */}
-      {mode === 'commands' && (
-        <div className="max-h-[400px] overflow-y-auto" role="listbox" aria-label="Commands">
-          <CommandsModeInline query={eQuery} onClose={() => handleOpenChange(false)} />
-        </div>
-      )}
-
-      {/* Symbols mode (# prefix) */}
+      {/* Symbols mode (# prefix) — static placeholder, no CommandList needed */}
       {mode === 'symbols' && (
         <SymbolsMode />
       )}
 
-      {/* Go-to-line mode (: prefix) */}
+      {/* Commands mode (> prefix) — inside CommandList for keyboard nav */}
+      {mode === 'commands' && (
+        <CommandList className="max-h-[400px]">
+          {filteredCommands.length === 0 ? (
+            <CommandEmpty>No commands match &ldquo;{eQuery}&rdquo;</CommandEmpty>
+          ) : (
+            <CommandGroup heading="Commands">
+              {filteredCommands.map((cmd) => (
+                <CommandItem
+                  key={cmd.id}
+                  value={cmd.label}
+                  onSelect={cmd.action}
+                >
+                  <Terminal className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="flex-1">{cmd.label}</span>
+                  {cmd.description && (
+                    <span className="text-xs text-muted-foreground font-mono shrink-0">
+                      {cmd.description}
+                    </span>
+                  )}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
+        </CommandList>
+      )}
+
+      {/* Go-to-line mode (: prefix) — inside CommandList for keyboard nav */}
       {mode === 'goto-line' && (
-        <div className="max-h-[200px] overflow-y-auto">
-          <GotoLineModeInline query={eQuery} onClose={() => handleOpenChange(false)} />
-        </div>
+        <CommandList className="max-h-[200px]">
+          {gotoLineNumber === null ? (
+            <CommandEmpty>
+              {eQuery === '' ? 'Type a line number to navigate' : 'Enter a valid line number'}
+            </CommandEmpty>
+          ) : (
+            <CommandGroup heading="Go to Line">
+              <CommandItem
+                value={`goto-line-${gotoLineNumber}`}
+                onSelect={() => {
+                  window.dispatchEvent(
+                    new CustomEvent('code-editor:goto-line', { detail: { lineNumber: gotoLineNumber } })
+                  );
+                  handleOpenChange(false);
+                }}
+              >
+                <CornerDownLeft className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="text-sm">
+                  Go to line <span className="font-mono font-medium">{gotoLineNumber}</span>
+                </span>
+              </CommandItem>
+            </CommandGroup>
+          )}
+        </CommandList>
       )}
 
       {/* Default search mode (no prefix) */}

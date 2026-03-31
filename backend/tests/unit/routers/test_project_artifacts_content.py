@@ -53,6 +53,7 @@ def _make_mock_content_service() -> AsyncMock:
 
 
 class TestGetArtifactContent:
+    # TODO: Convert to integration tests that exercise HTTP endpoints
     """GET /{artifact_id}/content endpoint."""
 
     @pytest.mark.asyncio
@@ -122,6 +123,7 @@ class TestGetArtifactContent:
 
 
 class TestUpdateArtifactContent:
+    # TODO: Convert to integration tests that exercise HTTP endpoints
     """PUT /{artifact_id}/content endpoint."""
 
     @pytest.mark.asyncio
@@ -130,9 +132,7 @@ class TestUpdateArtifactContent:
         mock_svc = _make_mock_content_service()
 
         # Should not raise
-        await mock_svc.update_content(
-            _ARTIFACT_ID, _WORKSPACE_ID, _PROJECT_ID, "new content here"
-        )
+        await mock_svc.update_content(_ARTIFACT_ID, _WORKSPACE_ID, _PROJECT_ID, "new content here")
         mock_svc.update_content.assert_awaited_once()
 
     @pytest.mark.asyncio
@@ -142,9 +142,7 @@ class TestUpdateArtifactContent:
         mock_svc.update_content.side_effect = NotFoundError("Artifact not found")
 
         with pytest.raises(NotFoundError):
-            await mock_svc.update_content(
-                _ARTIFACT_ID, _WORKSPACE_ID, _PROJECT_ID, "content"
-            )
+            await mock_svc.update_content(_ARTIFACT_ID, _WORKSPACE_ID, _PROJECT_ID, "content")
 
     @pytest.mark.asyncio
     async def test_update_content_service_raises_validation_for_oversized(self) -> None:
@@ -154,9 +152,7 @@ class TestUpdateArtifactContent:
         oversized = "x" * (1_048_576 + 1)
 
         with pytest.raises(ValidationError, match="1 MB"):
-            await mock_svc.update_content(
-                _ARTIFACT_ID, _WORKSPACE_ID, _PROJECT_ID, oversized
-            )
+            await mock_svc.update_content(_ARTIFACT_ID, _WORKSPACE_ID, _PROJECT_ID, oversized)
 
     @pytest.mark.asyncio
     async def test_update_content_passes_correct_arguments(self) -> None:

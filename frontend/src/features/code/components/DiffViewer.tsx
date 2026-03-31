@@ -116,10 +116,13 @@ export function DiffViewer({
   useEffect(() => {
     if (!diffEditor) return;
 
+    let cancelled = false;
     let originalModel: monacoNs.editor.ITextModel | null = null;
     let modifiedModel: monacoNs.editor.ITextModel | null = null;
 
     void import('monaco-editor').then((monaco) => {
+      if (cancelled) return;
+
       originalModel = monaco.editor.createModel(originalContent, language);
       modifiedModel = monaco.editor.createModel(modifiedContent, language);
 
@@ -130,6 +133,7 @@ export function DiffViewer({
     });
 
     return () => {
+      cancelled = true;
       originalModel?.dispose();
       modifiedModel?.dispose();
     };

@@ -241,6 +241,12 @@ class GitProvider(ABC):
             List of changed files with diff info.
         """
 
+    async def aclose(self) -> None:  # noqa: B027
+        """Close any underlying resources (e.g. HTTP clients).
+
+        Default no-op; subclasses with HTTP clients should override.
+        """
+
 
 # ============================================================================
 # GitHub Implementation
@@ -327,6 +333,9 @@ class GitHubGitProvider(GitProvider):
                 f"GitHub API error {response.status_code}: {body.get('message', response.text)}"
             )
 
+        if response.status_code == 204:
+            return {}
+
         return response.json()
 
     async def _get_head_sha(self, branch: str) -> str:
@@ -358,9 +367,7 @@ class GitHubGitProvider(GitProvider):
             raise GitProviderError("Unexpected response from GitHub blobs endpoint")
         return data["sha"]
 
-    async def _create_tree(
-        self, base_tree_sha: str, tree_entries: list[dict[str, Any]]
-    ) -> str:
+    async def _create_tree(self, base_tree_sha: str, tree_entries: list[dict[str, Any]]) -> str:
         """Create a tree and return its SHA."""
         data = await self._request(
             "POST",
@@ -371,9 +378,7 @@ class GitHubGitProvider(GitProvider):
             raise GitProviderError("Unexpected response from GitHub trees endpoint")
         return data["sha"]
 
-    async def _create_git_commit(
-        self, message: str, tree_sha: str, parent_shas: list[str]
-    ) -> str:
+    async def _create_git_commit(self, message: str, tree_sha: str, parent_shas: list[str]) -> str:
         """Create a git commit object and return its SHA."""
         data = await self._request(
             "POST",
@@ -419,9 +424,7 @@ class GitHubGitProvider(GitProvider):
         ]
 
     async def get_default_branch(self) -> str:
-        data = await self._request(
-            "GET", f"/repos/{self._owner}/{self._repo}"
-        )
+        data = await self._request("GET", f"/repos/{self._owner}/{self._repo}")
         if not isinstance(data, dict):
             raise GitProviderError("Unexpected response from GitHub repo endpoint")
         return data["default_branch"]

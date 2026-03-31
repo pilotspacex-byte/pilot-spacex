@@ -78,6 +78,16 @@ export const FileTreeNode = memo(function FileTreeNode({
     }
   }, [item, onSelect, onToggle, onOpen]);
 
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        handleClick();
+      }
+    },
+    [handleClick]
+  );
+
   const handleCopyPath = useCallback(() => {
     void navigator.clipboard.writeText(item.path);
   }, [item.path]);
@@ -98,6 +108,7 @@ export const FileTreeNode = memo(function FileTreeNode({
         )}
         style={{ paddingLeft: item.depth * 16 + 8 }}
         onClick={handleClick}
+        onKeyDown={handleKeyDown}
       >
         {/* Chevron for directories */}
         {item.type === 'directory' ? (

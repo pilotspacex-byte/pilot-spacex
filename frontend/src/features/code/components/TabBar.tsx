@@ -20,23 +20,33 @@ interface TabItemProps {
 }
 
 function TabItem({ file, isActive, onActivate, onClose }: TabItemProps) {
+  const confirmAndClose = useCallback(() => {
+    if (file.isDirty) {
+      const confirmed = window.confirm(
+        `"${file.name}" has unsaved changes. Close without saving?`
+      );
+      if (!confirmed) return;
+    }
+    onClose();
+  }, [file.isDirty, file.name, onClose]);
+
   const handleAuxClick = useCallback(
     (e: React.MouseEvent) => {
       // Middle-click (button === 1) closes the tab
       if (e.button === 1) {
         e.preventDefault();
-        onClose();
+        confirmAndClose();
       }
     },
-    [onClose]
+    [confirmAndClose]
   );
 
   const handleCloseClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      onClose();
+      confirmAndClose();
     },
-    [onClose]
+    [confirmAndClose]
   );
 
   return (

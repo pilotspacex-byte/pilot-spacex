@@ -227,9 +227,7 @@ class TestGetContent:
 
         assert isinstance(service, ArtifactContentService)
         # Artifact is in _OTHER_WORKSPACE_ID but request is for _WORKSPACE_ID
-        mock_artifact_repo.get_by_id.return_value = _make_artifact(
-            workspace_id=_OTHER_WORKSPACE_ID
-        )
+        mock_artifact_repo.get_by_id.return_value = _make_artifact(workspace_id=_OTHER_WORKSPACE_ID)
 
         with pytest.raises(NotFoundError):
             await service.get_content(_ARTIFACT_ID, _WORKSPACE_ID, _PROJECT_ID)
@@ -246,9 +244,7 @@ class TestGetContent:
         )
 
         assert isinstance(service, ArtifactContentService)
-        mock_artifact_repo.get_by_id.return_value = _make_artifact(
-            project_id=_OTHER_PROJECT_ID
-        )
+        mock_artifact_repo.get_by_id.return_value = _make_artifact(project_id=_OTHER_PROJECT_ID)
 
         with pytest.raises(NotFoundError):
             await service.get_content(_ARTIFACT_ID, _WORKSPACE_ID, _PROJECT_ID)
@@ -361,9 +357,7 @@ class TestUpdateContent:
         )
 
         assert isinstance(service, ArtifactContentService)
-        mock_artifact_repo.get_by_id.return_value = _make_artifact(
-            workspace_id=_OTHER_WORKSPACE_ID
-        )
+        mock_artifact_repo.get_by_id.return_value = _make_artifact(workspace_id=_OTHER_WORKSPACE_ID)
 
         with pytest.raises(NotFoundError):
             await service.update_content(_ARTIFACT_ID, _WORKSPACE_ID, _PROJECT_ID, "content")

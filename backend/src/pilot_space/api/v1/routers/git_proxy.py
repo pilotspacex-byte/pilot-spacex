@@ -16,7 +16,7 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException, Path, Query, Response, status
+from fastapi import APIRouter, Path, Query, Response, status
 
 from pilot_space.api.v1.schemas.git_proxy import (
     BranchInfo,
@@ -36,7 +36,7 @@ from pilot_space.application.services.git_provider import (
     GitProvider,
 )
 from pilot_space.dependencies import CurrentUser, DbSession
-from pilot_space.domain.exceptions import AppError, NotFoundError
+from pilot_space.domain.exceptions import AppError, NotFoundError, ValidationError
 from pilot_space.infrastructure.database.models import IntegrationProvider
 from pilot_space.infrastructure.database.repositories import IntegrationRepository
 from pilot_space.infrastructure.encryption import decrypt_api_key
@@ -83,9 +83,7 @@ async def _get_provider(
         AppError: If the integration is inactive.
     """
     repo_instance = IntegrationRepository(session)
-    integration = await repo_instance.get_by_provider(
-        workspace_id, IntegrationProvider.GITHUB
-    )
+    integration = await repo_instance.get_by_provider(workspace_id, IntegrationProvider.GITHUB)
 
     if not integration:
         raise NotFoundError("GitHub integration not found for this workspace")
@@ -120,19 +118,22 @@ async def list_branches(
 ) -> BranchListResponse:
     """List branches in a GitHub repository."""
     provider = await _get_provider(session, workspace_id, owner, repo)
-    branches = await provider.get_branches()
-    return BranchListResponse(
-        branches=[
-            BranchInfo(
-                name=b.name,
-                sha=b.sha,
-                is_default=b.is_default,
-                is_protected=b.is_protected,
-            )
-            for b in branches
-        ],
-        total=len(branches),
-    )
+    try:
+        branches = await provider.get_branches()
+        return BranchListResponse(
+            branches=[
+                BranchInfo(
+                    name=b.name,
+                    sha=b.sha,
+                    is_default=b.is_default,
+                    is_protected=b.is_protected,
+                )
+                for b in branches
+            ],
+            total=len(branches),
+        )
+    finally:
+        await provider.aclose()
 
 
 @router.post(
@@ -151,17 +152,20 @@ async def create_branch(
 ) -> BranchInfo:
     """Create a new branch from a source branch."""
     provider = await _get_provider(session, workspace_id, owner, repo)
-    branch_info = await provider.create_branch(body.name, body.source_branch)
-    return BranchInfo(
-        name=branch_info.name,
-        sha=branch_info.sha,
-        is_default=branch_info.is_default,
-        is_protected=branch_info.is_protected,
-    )
+    try:
+        branch_info = await provider.create_branch(body.name, body.source_branch)
+        return BranchInfo(
+            name=branch_info.name,
+            sha=branch_info.sha,
+            is_default=branch_info.is_default,
+            is_protected=branch_info.is_protected,
+        )
+    finally:
+        await provider.aclose()
 
 
 @router.delete(
-    "/repos/{owner}/{repo}/branches/{branch_name}",
+    "/repos/{owner}/{repo}/branches/{branch_name:path}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete a branch",
 )
@@ -175,8 +179,11 @@ async def delete_branch(
 ) -> Response:
     """Delete a branch from a GitHub repository."""
     provider = await _get_provider(session, workspace_id, owner, repo)
-    await provider.delete_branch(branch_name)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    try:
+        await provider.delete_branch(branch_name)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+    finally:
+        await provider.aclose()
 
 
 @router.get(
@@ -192,8 +199,11 @@ async def get_default_branch(
 ) -> dict[str, str]:
     """Get the default branch name for a repository."""
     provider = await _get_provider(session, workspace_id, owner, repo)
-    default_branch = await provider.get_default_branch()
-    return {"default_branch": default_branch}
+    try:
+        default_branch = await provider.get_default_branch()
+        return {"default_branch": default_branch}
+    finally:
+        await provider.aclose()
 
 
 @router.get(
@@ -212,22 +222,22 @@ async def get_file_content(
 ) -> FileContentResponse:
     """Get file content at a specific ref (branch or SHA)."""
     provider = await _get_provider(session, workspace_id, owner, repo)
-    file_content = await provider.get_file_content(path, ref)
+    try:
+        file_content = await provider.get_file_content(path, ref)
 
-    # HTTP-level size guard (1 MB)
-    content_bytes = len(file_content.content.encode("utf-8"))
-    if content_bytes > _MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="File too large to retrieve via API (> 1 MB)",
+        # HTTP-level size guard (1 MB)
+        content_bytes = len(file_content.content.encode("utf-8"))
+        if content_bytes > _MAX_FILE_SIZE:
+            raise ValidationError("File exceeds 1 MB size limit for web editor")
+
+        return FileContentResponse(
+            content=file_content.content,
+            encoding="utf-8",
+            sha=file_content.sha,
+            size=file_content.size,
         )
-
-    return FileContentResponse(
-        content=file_content.content,
-        encoding="utf-8",
-        sha=file_content.sha,
-        size=file_content.size,
-    )
+    finally:
+        await provider.aclose()
 
 
 @router.get(
@@ -246,24 +256,27 @@ async def get_repo_status(
 ) -> RepoStatusResponse:
     """Get files changed between two branches."""
     provider = await _get_provider(session, workspace_id, owner, repo)
-    files = await provider.get_repo_status(base_branch, head_branch)
-    truncated = len(files) >= _MAX_COMPARE_FILES
-    return RepoStatusResponse(
-        files=[
-            ChangedFileSchema(
-                path=f.path,
-                status=f.status,
-                additions=f.additions,
-                deletions=f.deletions,
-                patch=f.patch,
-            )
-            for f in files
-        ],
-        base_branch=base_branch,
-        head_branch=head_branch,
-        total_files=len(files),
-        truncated=truncated,
-    )
+    try:
+        files = await provider.get_repo_status(base_branch, head_branch)
+        truncated = len(files) >= _MAX_COMPARE_FILES
+        return RepoStatusResponse(
+            files=[
+                ChangedFileSchema(
+                    path=f.path,
+                    status=f.status,
+                    additions=f.additions,
+                    deletions=f.deletions,
+                    patch=f.patch,
+                )
+                for f in files
+            ],
+            base_branch=base_branch,
+            head_branch=head_branch,
+            total_files=len(files),
+            truncated=truncated,
+        )
+    finally:
+        await provider.aclose()
 
 
 @router.post(
@@ -282,21 +295,24 @@ async def create_commit(
 ) -> CommitResponse:
     """Create a commit with one or more file changes via GitHub Git Data API."""
     provider = await _get_provider(session, workspace_id, owner, repo)
-    file_changes = [
-        FileChange(
-            path=f.path,
-            content=f.content,
-            encoding=f.encoding,
-            action=f.action,
+    try:
+        file_changes = [
+            FileChange(
+                path=f.path,
+                content=f.content,
+                encoding=f.encoding,
+                action=f.action,
+            )
+            for f in body.files
+        ]
+        result = await provider.create_commit(body.branch, body.message, file_changes)
+        return CommitResponse(
+            sha=result.sha,
+            html_url=result.html_url,
+            message=result.message,
         )
-        for f in body.files
-    ]
-    result = await provider.create_commit(body.branch, body.message, file_changes)
-    return CommitResponse(
-        sha=result.sha,
-        html_url=result.html_url,
-        message=result.message,
-    )
+    finally:
+        await provider.aclose()
 
 
 @router.post(
@@ -315,15 +331,18 @@ async def create_pull_request(
 ) -> PRResponse:
     """Create a pull request on GitHub."""
     provider = await _get_provider(session, workspace_id, owner, repo)
-    result = await provider.create_pull_request(
-        body.title, body.body, body.head, body.base, draft=body.draft
-    )
-    return PRResponse(
-        number=result.number,
-        html_url=result.html_url,
-        title=result.title,
-        draft=result.draft,
-    )
+    try:
+        result = await provider.create_pull_request(
+            body.title, body.body, body.head, body.base, draft=body.draft
+        )
+        return PRResponse(
+            number=result.number,
+            html_url=result.html_url,
+            title=result.title,
+            draft=result.draft,
+        )
+    finally:
+        await provider.aclose()
 
 
 __all__ = ["router"]
