@@ -55,7 +55,6 @@ from pilot_space.ai.mcp.project_server import (
 )
 from pilot_space.ai.mcp.skill_server import (
     SERVER_NAME as SKILL_SERVER_NAME,
-    TOOL_NAMES as SKILL_TOOL_NAMES,
     create_skill_tools_server,
 )
 from pilot_space.infrastructure.logging import get_logger

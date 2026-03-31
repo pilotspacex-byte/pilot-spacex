@@ -17,6 +17,7 @@ Source: Phase 64, CSR-01, CSR-06, CSR-09, CSR-10
 
 from __future__ import annotations
 
+import contextlib
 import json
 import uuid
 from pathlib import Path
@@ -28,6 +29,15 @@ from pilot_space.ai.mcp.event_publisher import EventPublisher
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+def _format_skill_sse(event_type: str, data: dict[str, Any]) -> str:
+    """Format a skill-specific SSE event string.
+
+    Mirrors EventPublisher._format_sse() but as a module-level function
+    to avoid accessing the private method from outside the class.
+    """
+    return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
 
 # MCP server name — used in allowed_tools as mcp__pilot-skills__{tool_name}
 SERVER_NAME = "pilot-skills"
@@ -127,7 +137,7 @@ def create_skill_tools_server(
                 failed.append(check_name)
                 suggestions.append(suggestion)
 
-        # Each passed check contributes 2 points (5 checks × 2 = 10 max)
+        # Each passed check contributes 2 points (5 checks x 2 = 10 max)
         score = len(passed) * 2
         return {
             "score": score,
@@ -186,7 +196,7 @@ def create_skill_tools_server(
 
         # Emit skill_preview SSE event
         await publisher.publish(
-            publisher._format_sse(
+            _format_skill_sse(
                 "skill_preview",
                 {
                     "skillName": name,
@@ -246,7 +256,7 @@ def create_skill_tools_server(
 
         # Emit skill_preview SSE event with isUpdate=True
         await publisher.publish(
-            publisher._format_sse(
+            _format_skill_sse(
                 "skill_preview",
                 {
                     "skillName": name,
@@ -324,10 +334,8 @@ def create_skill_tools_server(
         if not content and skills_dir is not None:
             skill_file = _find_skill_file(name)
             if skill_file is not None:
-                try:
+                with contextlib.suppress(OSError):
                     content = skill_file.read_text(encoding="utf-8")
-                except OSError:
-                    pass
 
         # Phase 1: Rubric evaluation
         evaluation = _evaluate_skill(content)
@@ -370,7 +378,7 @@ def create_skill_tools_server(
 
         # Emit test_result SSE event
         await publisher.publish(
-            publisher._format_sse(
+            _format_skill_sse(
                 "test_result",
                 {
                     "skillName": name,
@@ -392,31 +400,38 @@ def create_skill_tools_server(
             "properties": {},
         },
     )
-    async def list_skills(args: dict[str, Any]) -> dict[str, Any]:  # noqa: ARG001
+    async def list_skills(_args: dict[str, Any]) -> dict[str, Any]:
         if skills_dir is None:
             return _text_result("No skills directory configured.")
 
-        if not skills_dir.is_dir():
-            return _text_result("Skills directory does not exist.")
+        def _scan_skills() -> list[tuple[str, str]]:
+            """Scan skills dir synchronously (runs in thread pool)."""
+            if not skills_dir.is_dir():
+                return []
+            results: list[tuple[str, str]] = []
+            for entry in sorted(skills_dir.iterdir()):
+                if not entry.is_dir():
+                    continue
+                skill_file = entry / "SKILL.md"
+                if not skill_file.exists():
+                    continue
+                with contextlib.suppress(OSError):
+                    first_line = skill_file.read_text(encoding="utf-8").split("\n")[0]
+                    results.append((entry.name, first_line.strip("# -")))
+            return results
 
-        skill_dirs = sorted(
-            entry for entry in skills_dir.iterdir()
-            if entry.is_dir() and (entry / "SKILL.md").exists()
-        )
+        import asyncio as _asyncio
 
-        if not skill_dirs:
+        skill_entries = await _asyncio.to_thread(_scan_skills)
+
+        if not skill_entries:
             return _text_result("No skills found in skills directory.")
 
         lines = ["Available skills:"]
-        for skill_dir_entry in skill_dirs:
-            skill_file = skill_dir_entry / "SKILL.md"
-            try:
-                first_line = skill_file.read_text(encoding="utf-8").split("\n")[0]
-            except OSError:
-                first_line = ""
-            lines.append(f"  - {skill_dir_entry.name} ({first_line.strip('# -')})")
+        for dir_name, first_line in skill_entries:
+            lines.append(f"  - {dir_name} ({first_line})")
 
-        logger.info("skill_tool_list", count=len(skill_dirs))
+        logger.info("skill_tool_list", count=len(skill_entries))
         return _text_result("\n".join(lines))
 
     @tool(
@@ -438,12 +453,19 @@ def create_skill_tools_server(
         skill_names: list[str] = args.get("skill_names") or []
 
         # If no names provided but skills_dir exists, discover from filesystem
-        if not skill_names and skills_dir is not None and skills_dir.is_dir():
-            skill_names = [
-                entry.name
-                for entry in sorted(skills_dir.iterdir())
-                if entry.is_dir() and (entry / "SKILL.md").exists()
-            ]
+        if not skill_names and skills_dir is not None:
+            def _scan_for_graph() -> list[str]:
+                if not skills_dir.is_dir():
+                    return []
+                return [
+                    entry.name
+                    for entry in sorted(skills_dir.iterdir())
+                    if entry.is_dir() and (entry / "SKILL.md").exists()
+                ]
+
+            import asyncio as _asyncio
+
+            skill_names = await _asyncio.to_thread(_scan_for_graph)
 
         if not skill_names:
             # Return a minimal valid graph
