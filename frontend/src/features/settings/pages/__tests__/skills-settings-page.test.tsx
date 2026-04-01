@@ -19,11 +19,9 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 
-const mockRouterPush = vi.fn();
-
 vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceSlug: 'test-workspace' }),
-  useRouter: () => ({ push: mockRouterPush }),
+  useRouter: () => ({ push: vi.fn() }),
   usePathname: () => '/',
 }));
 
@@ -112,6 +110,52 @@ vi.mock('@/components/role-skill/role-icons', () => ({
   },
 }));
 
+// Mock ChatView (lazy-loaded in skills page)
+vi.mock('@/features/ai/ChatView/ChatView', () => ({
+  ChatView: function MockChatView() {
+    return React.createElement('div', { 'data-testid': 'chat-view' }, 'Mock ChatView');
+  },
+}));
+
+// Mock AI store
+vi.mock('@/stores/ai/AIStore', () => ({
+  getAIStore: () => ({
+    pilotSpace: {
+      workspaceId: null,
+      setWorkspaceId: vi.fn(),
+    },
+    approval: {},
+  }),
+}));
+
+// Mock useMediaQuery — default to desktop (not small screen)
+vi.mock('@/hooks/useMediaQuery', () => ({
+  useMediaQuery: () => false,
+}));
+
+// Mock ResizablePanel components
+vi.mock('@/components/ui/resizable', () => ({
+  ResizablePanelGroup: ({ children, ...props }: { children: React.ReactNode }) =>
+    React.createElement('div', { 'data-testid': 'resizable-panel-group', ...props }, children),
+  ResizablePanel: ({ children, ...props }: { children: React.ReactNode }) =>
+    React.createElement('div', { 'data-testid': 'resizable-panel', ...props }, children),
+  ResizableHandle: () => React.createElement('div', { 'data-testid': 'resizable-handle' }),
+}));
+
+// Mock CollapsedChatStrip
+vi.mock('@/components/editor/CollapsedChatStrip', () => ({
+  CollapsedChatStrip: ({ onClick }: { onClick: () => void }) =>
+    React.createElement('button', { 'data-testid': 'collapsed-chat-strip', onClick }, 'PilotSpace Agent'),
+}));
+
+// Mock motion
+vi.mock('motion/react', () => ({
+  motion: {
+    aside: ({ children, ...props }: { children: React.ReactNode }) =>
+      React.createElement('aside', props, children),
+  },
+}));
+
 import { SkillsSettingsPage } from '../skills-settings-page';
 
 function createWrapper() {
@@ -157,7 +201,6 @@ const mockUserSkillsList = [
 describe('SkillsSettingsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRouterPush.mockReset();
     mockWorkspaceStore.currentUserRole = 'member';
     mockWorkspaceStore.isAdmin = false;
     mockWorkspaceStore.getWorkspaceBySlug.mockReturnValue({
@@ -291,8 +334,8 @@ describe('SkillsSettingsPage', () => {
     });
   });
 
-  describe('Create in Chat button', () => {
-    it('should render "Create in Chat" button on skills tab', () => {
+  describe('Create Skill button', () => {
+    it('should render "Create Skill" button on skills tab', () => {
       mockUserSkills.mockReturnValue({
         data: [],
         isLoading: false,
@@ -301,10 +344,10 @@ describe('SkillsSettingsPage', () => {
       });
 
       renderPage();
-      expect(screen.getByRole('button', { name: /Create in Chat/ })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Create Skill/ })).toBeInTheDocument();
     });
 
-    it('should navigate to chat with skill-creator prefill when clicked', async () => {
+    it('should open ChatView panel when Create Skill is clicked', async () => {
       const user = userEvent.setup();
       mockUserSkills.mockReturnValue({
         data: [],
@@ -314,17 +357,20 @@ describe('SkillsSettingsPage', () => {
       });
 
       renderPage();
-      const createInChatBtn = screen.getByRole('button', { name: /Create in Chat/ });
-      await user.click(createInChatBtn);
+      // Initially shows collapsed chat strip (desktop, chat closed)
+      expect(screen.getByTestId('collapsed-chat-strip')).toBeInTheDocument();
 
-      expect(mockRouterPush).toHaveBeenCalledOnce();
-      expect(mockRouterPush).toHaveBeenCalledWith(
-        expect.stringContaining('skill-creator')
-      );
+      const createSkillBtn = screen.getByRole('button', { name: /Create Skill/ });
+      await user.click(createSkillBtn);
+
+      // After clicking, ChatView should be rendered (lazy loaded via Suspense)
+      const chatView = await screen.findByTestId('chat-view');
+      expect(chatView).toBeInTheDocument();
     });
+  });
 
-    it('should include workspaceSlug in the navigation URL', async () => {
-      const user = userEvent.setup();
+  describe('ChatView layout', () => {
+    it('should show collapsed chat strip on desktop when chat is closed', () => {
       mockUserSkills.mockReturnValue({
         data: [],
         isLoading: false,
@@ -333,12 +379,7 @@ describe('SkillsSettingsPage', () => {
       });
 
       renderPage();
-      const createInChatBtn = screen.getByRole('button', { name: /Create in Chat/ });
-      await user.click(createInChatBtn);
-
-      expect(mockRouterPush).toHaveBeenCalledWith(
-        expect.stringContaining('test-workspace')
-      );
+      expect(screen.getByTestId('collapsed-chat-strip')).toBeInTheDocument();
     });
   });
 

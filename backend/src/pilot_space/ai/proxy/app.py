@@ -140,11 +140,11 @@ async def validate_tenant(
     user_id: UUID,
     model: str,
     max_tokens: int,
-) -> tuple[Any, Any, Any, str | None, int]:
+) -> tuple[Any, Any, Any, str | None, int, str]:
     """Validate workspace tenant before proxying an LLM call.
 
     Returns:
-        (executor, cost_tracker, key_storage, base_url, capped_max_tokens)
+        (executor, cost_tracker, key_storage, base_url, capped_max_tokens, provider)
 
     Raises:
         ForbiddenError: Workspace not found, AI disabled, budget exceeded,
@@ -202,8 +202,8 @@ async def validate_tenant(
     ai_rpm = workspace.rate_limit_ai_rpm or settings.rate_limit_ai_per_minute
     rate_limit_exceeded = False
     try:
-        redis = container.redis()  # type: ignore[attr-defined]
-        limiter = RateLimiter(redis, requests_per_minute=ai_rpm)
+        redis = container.redis_client()
+        limiter = RateLimiter(redis, requests_per_minute=ai_rpm)  # type: ignore[arg-type]
         rate_limit_exceeded = not await limiter.acquire(f"ai_proxy:{workspace_id}")
     except Exception:
         # Redis unavailable -- fail open (allow request, log warning)
@@ -221,14 +221,31 @@ async def validate_tenant(
     ceiling = workspace_max_tokens or _MAX_TOKENS_CEILING
     capped_max_tokens = min(max_tokens, ceiling)
 
-    # --- 7. Resolve workspace base_url ---
+    # --- 7. Resolve workspace provider and base_url ---
+    provider: str = ws_settings.get("default_llm_provider", "anthropic")
     base_url: str | None = None
     try:
-        key_info = await key_storage.get_key_info(workspace_id, "anthropic", "llm")
+        # Try the configured provider first, then fall back to "anthropic"
+        key_info = await key_storage.get_key_info(workspace_id, provider, "llm")
+        if not key_info and provider != "anthropic":
+            key_info = await key_storage.get_key_info(workspace_id, "anthropic", "llm")
         if key_info:
             base_url = key_info.base_url
     except Exception:
         logger.debug("ai_proxy_key_info_lookup_failed", exc_info=True)
+
+    # Guard against self-referencing base_url — if the workspace's stored
+    # base_url points back to this proxy, ignore it to prevent infinite loops.
+    if base_url:
+        proxy_prefix = settings.ai_proxy_base_url
+        if base_url.rstrip("/").startswith(proxy_prefix.rstrip("/")):
+            logger.warning(
+                "ai_proxy_self_referencing_base_url",
+                workspace_id=str(workspace_id),
+                base_url=base_url,
+                proxy_prefix=proxy_prefix,
+            )
+            base_url = None
 
     logger.info(
         "ai_proxy_tenant_validated",
@@ -237,12 +254,13 @@ async def validate_tenant(
         model=model,
         max_tokens=capped_max_tokens,
         has_base_url=bool(base_url),
+        provider=provider,
         budget_remaining=f"${Decimal(str(cost_limit_usd or 0)) - (monthly_cost if cost_limit_usd else Decimal(0)):.2f}"
         if cost_limit_usd
         else "unlimited",
     )
 
-    return executor, cost_tracker, key_storage, base_url, capped_max_tokens
+    return executor, cost_tracker, key_storage, base_url, capped_max_tokens, provider
 
 
 # ---------------------------------------------------------------------------
@@ -304,6 +322,259 @@ def get_cached_openai_client(request: Request, api_key: str, base_url: str | Non
 
 
 # ---------------------------------------------------------------------------
+# Anthropic → OpenAI translation (for Ollama / OpenAI-compatible providers)
+# ---------------------------------------------------------------------------
+
+
+def _anthropic_messages_to_openai(
+    messages: list[dict[str, Any]],
+    system_msg: str | list[Any] | None,
+) -> list[dict[str, Any]]:
+    """Translate Anthropic Messages format to OpenAI Chat Completions format."""
+    oai_messages: list[dict[str, Any]] = []
+
+    # System message
+    if system_msg:
+        if isinstance(system_msg, str):
+            oai_messages.append({"role": "system", "content": system_msg})
+        else:
+            # Anthropic system can be a list of content blocks
+            text_parts = [b.get("text", "") for b in system_msg if b.get("type") == "text"]
+            if text_parts:
+                oai_messages.append({"role": "system", "content": "\n".join(text_parts)})
+
+    for msg in messages:
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+
+        if isinstance(content, str):
+            oai_messages.append({"role": role, "content": content})
+        elif isinstance(content, list):
+            # Anthropic content blocks → extract text
+            text_parts = []
+            for block in content:
+                if isinstance(block, str):
+                    text_parts.append(block)
+                elif isinstance(block, dict):
+                    if block.get("type") == "text":
+                        text_parts.append(block.get("text", ""))
+                    elif block.get("type") == "tool_result":
+                        text_parts.append(str(block.get("content", "")))
+            oai_messages.append({"role": role, "content": "\n".join(text_parts) or ""})
+        else:
+            oai_messages.append({"role": role, "content": str(content)})
+
+    return oai_messages
+
+
+def _openai_response_to_anthropic(oai_response: Any, model: str) -> dict[str, Any]:
+    """Translate OpenAI Chat Completion response to Anthropic Messages format."""
+    choice = oai_response.choices[0] if oai_response.choices else None
+    text = choice.message.content if choice and choice.message else ""
+    usage = oai_response.usage
+
+    return {
+        "id": f"msg_{oai_response.id}" if oai_response.id else "msg_proxy",
+        "type": "message",
+        "role": "assistant",
+        "model": model,
+        "content": [{"type": "text", "text": text or ""}],
+        "stop_reason": "end_turn",
+        "stop_sequence": None,
+        "usage": {
+            "input_tokens": usage.prompt_tokens if usage else 0,
+            "output_tokens": usage.completion_tokens if usage else 0,
+        },
+    }
+
+
+async def _handle_openai_compatible(
+    *,
+    request: Request,
+    api_key: str,
+    base_url: str,
+    body: dict[str, Any],
+    model: str,
+    messages: list[dict[str, Any]],
+    system_msg: str | list[Any] | None,
+    max_tokens: int,
+    temperature: float,
+    stream: bool,
+    executor: Any,
+    cost_tracker: Any,
+    workspace_id: UUID,
+    user_id: UUID,
+) -> StreamingResponse | JSONResponse:
+    """Handle requests for OpenAI-compatible providers (Ollama, custom).
+
+    Translates Anthropic Messages format → OpenAI Chat Completions,
+    forwards to the provider, then translates the response back.
+    """
+    # Normalize base_url for OpenAI SDK — must end with /v1 or /v1/
+    # Ollama stores base_url as "http://localhost:11434/" but OpenAI SDK needs /v1
+    _oai_base_url = base_url.rstrip("/")
+    if not _oai_base_url.endswith("/v1"):
+        _oai_base_url += "/v1"
+
+    oai_client = get_cached_openai_client(request, api_key, _oai_base_url)
+    oai_messages = _anthropic_messages_to_openai(messages, system_msg)
+
+    logger.info(
+        "ai_proxy_openai_request",
+        model=model,
+        stream=stream,
+        base_url=base_url,
+        workspace_id=str(workspace_id),
+        message_count=len(oai_messages),
+        max_tokens=max_tokens,
+    )
+
+    create_kwargs: dict[str, Any] = {
+        "model": model,
+        "messages": oai_messages,
+        "max_tokens": max_tokens,
+    }
+    if temperature != 1.0:
+        create_kwargs["temperature"] = temperature
+
+    # Pass through common params
+    for param in ("top_p", "stop"):
+        if param in body:
+            create_kwargs[param] = body[param]
+
+    if stream:
+        return await _handle_openai_streaming(
+            client=oai_client,
+            create_kwargs=create_kwargs,
+            executor=executor,
+            cost_tracker=cost_tracker,
+            workspace_id=workspace_id,
+            user_id=user_id,
+            model=model,
+        )
+
+    response = await executor.execute(
+        provider="openai",
+        operation=lambda: oai_client.chat.completions.create(**create_kwargs),
+    )
+
+    anthropic_response = _openai_response_to_anthropic(response, model)
+
+    usage = response.usage
+    if workspace_id and cost_tracker and usage:
+        await track_llm_cost(
+            cost_tracker,
+            workspace_id=workspace_id,
+            user_id=user_id,
+            model=f"openai/{model}",
+            agent_name="ai_proxy",
+            input_tokens=usage.prompt_tokens or 0,
+            output_tokens=usage.completion_tokens or 0,
+        )
+
+    return JSONResponse(content=anthropic_response, media_type="application/json")
+
+
+async def _handle_openai_streaming(
+    *,
+    client: Any,
+    create_kwargs: dict[str, Any],
+    executor: Any,
+    cost_tracker: Any,
+    workspace_id: UUID,
+    user_id: UUID,
+    model: str,
+) -> StreamingResponse:
+    """Stream OpenAI Chat Completions and translate to Anthropic SSE format."""
+
+    async def generate() -> AsyncIterator[bytes]:
+        create_kwargs["stream"] = True
+        collected_text = ""
+        input_tokens = 0
+        output_tokens = 0
+
+        # Emit Anthropic-style message_start event
+        msg_start = {
+            "type": "message_start",
+            "message": {
+                "id": "msg_proxy_stream",
+                "type": "message",
+                "role": "assistant",
+                "model": model,
+                "content": [],
+                "stop_reason": None,
+                "stop_sequence": None,
+                "usage": {"input_tokens": 0, "output_tokens": 0},
+            },
+        }
+        yield f"event: message_start\ndata: {json.dumps(msg_start)}\n\n".encode()
+
+        # Emit content_block_start
+        yield f"event: content_block_start\ndata: {json.dumps({'type': 'content_block_start', 'index': 0, 'content_block': {'type': 'text', 'text': ''}})}\n\n".encode()
+
+        try:
+            stream_response = await executor.execute(
+                provider="openai",
+                operation=lambda: client.chat.completions.create(**create_kwargs),
+            )
+            async for chunk in stream_response:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    delta_text = chunk.choices[0].delta.content
+                    collected_text += delta_text
+                    output_tokens += 1  # Approximate
+
+                    delta_event = {
+                        "type": "content_block_delta",
+                        "index": 0,
+                        "delta": {"type": "text_delta", "text": delta_text},
+                    }
+                    yield f"event: content_block_delta\ndata: {json.dumps(delta_event)}\n\n".encode()
+
+                # Check for usage in the final chunk
+                if hasattr(chunk, "usage") and chunk.usage:
+                    input_tokens = chunk.usage.prompt_tokens or 0
+                    output_tokens = chunk.usage.completion_tokens or output_tokens
+        except Exception:
+            logger.exception("ai_proxy_openai_stream_error")
+
+        # Emit content_block_stop
+        yield f"event: content_block_stop\ndata: {json.dumps({'type': 'content_block_stop', 'index': 0})}\n\n".encode()
+
+        # Emit message_delta (stop reason)
+        msg_delta = {
+            "type": "message_delta",
+            "delta": {"stop_reason": "end_turn", "stop_sequence": None},
+            "usage": {"output_tokens": output_tokens},
+        }
+        yield f"event: message_delta\ndata: {json.dumps(msg_delta)}\n\n".encode()
+
+        # Emit message_stop
+        yield f"event: message_stop\ndata: {json.dumps({'type': 'message_stop'})}\n\n".encode()
+
+        # Track cost
+        if workspace_id and cost_tracker:
+            await track_llm_cost(
+                cost_tracker,
+                workspace_id=workspace_id,
+                user_id=user_id,
+                model=f"openai/{model}",
+                agent_name="ai_proxy",
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+            )
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
 # Main proxy endpoint
 # ---------------------------------------------------------------------------
 
@@ -347,9 +618,31 @@ async def proxy_messages(
 
     user_id = UUID(x_user_id) if x_user_id else SYSTEM_USER_ID
 
-    executor, cost_tracker, _key_storage, base_url, max_tokens = await validate_tenant(
+    executor, cost_tracker, _key_storage, base_url, max_tokens, provider = await validate_tenant(
         request, workspace_id, user_id, model, max_tokens
     )
+
+    # Route to OpenAI-compatible path for providers that don't speak Anthropic API.
+    # Ollama natively supports Anthropic Messages API, so it uses the Anthropic path.
+    _use_openai = provider in ("openai", "custom") and base_url is not None
+    if _use_openai:
+        assert base_url is not None  # narrowing for pyright
+        return await _handle_openai_compatible(
+            request=request,
+            api_key=api_key,
+            base_url=base_url,
+            body=body,
+            model=model,
+            messages=messages,
+            system_msg=system_msg,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            stream=stream,
+            executor=executor,
+            cost_tracker=cost_tracker,
+            workspace_id=workspace_id,
+            user_id=user_id,
+        )
 
     client = get_cached_client(request, api_key, base_url)
 
@@ -466,7 +759,7 @@ async def proxy_embeddings(
     input_texts: str | list[str] = body.get("input", [])
     dimensions: int | None = body.get("dimensions")
 
-    executor, cost_tracker, key_storage, base_url, _capped = await validate_tenant(
+    executor, cost_tracker, key_storage, base_url, _capped, _provider = await validate_tenant(
         request, workspace_id, user_id, model, 0
     )
 

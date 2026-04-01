@@ -627,6 +627,16 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
     ) -> str | None:
         # Capture usage from ResultMessage for cost tracking
         if isinstance(message, ResultMessage):
+            if message.is_error or not message.result:
+                logger.warning(
+                    "stream_result_issue",
+                    is_error=message.is_error,
+                    stop_reason=message.stop_reason,
+                    duration_ms=message.duration_ms,
+                    has_result=bool(message.result),
+                    errors=getattr(message, "errors", None),
+                    result_preview=str(message.result)[:200] if message.result else None,
+                )
             from pilot_space.ai.infrastructure.cost_tracker import (
                 extract_response_usage,
             )

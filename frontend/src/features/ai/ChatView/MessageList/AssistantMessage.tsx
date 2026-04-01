@@ -4,12 +4,14 @@
  */
 
 import { memo, useState, useCallback, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { ChatMessage, ContentBlock } from '@/stores/ai/types/conversation';
 import type { ExtractedIssue } from '@/stores/ai/types/events';
 import { useStore } from '@/stores';
 import { aiApi } from '@/services/api/ai';
+import { userSkillsApi } from '@/services/api/user-skills';
 import { ToolCallList } from './ToolCallList';
 import { ThinkingBlock } from './ThinkingBlock';
 import { ReasoningGroup } from './ReasoningGroup';
@@ -471,21 +473,43 @@ MergedQuestionSection.displayName = 'MergedQuestionSection';
 
 /**
  * SkillCreatorCardInline — wraps SkillCreatorCard with PilotSpaceStore callbacks.
- * Sends follow-up chat messages when user clicks Save/Test, triggering MCP tool calls.
+ * Save calls the user-skills API directly for instant persistence.
+ * Test sends a contextual chat message to trigger the test_skill MCP tool.
  */
 const SkillCreatorCardInline = memo<{
   data: SkillPreviewEvent['data'];
 }>(function SkillCreatorCardInline({ data }) {
   const rootStore = useStore();
   const pilotSpace = rootStore.aiStore.pilotSpace;
+  const workspaceStore = rootStore.workspaceStore;
+  const queryClient = useQueryClient();
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
 
   const handleSave = useCallback(
     async (content: string) => {
-      await pilotSpace.sendMessage(
-        `Please save the skill "${data.skillName}" with this content:\n\n${content}`
-      );
+      const slug = workspaceStore.currentWorkspace?.slug;
+      if (!slug) {
+        toast.error('No workspace selected');
+        return;
+      }
+      setIsSaving(true);
+      try {
+        await userSkillsApi.createUserSkill(slug, {
+          skill_name: data.skillName,
+          skill_content: content,
+        });
+        toast.success(`Skill "${data.skillName}" saved to your workspace`);
+        setIsSaved(true);
+        void queryClient.invalidateQueries({ queryKey: ['user-skills', slug] });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Failed to save skill';
+        toast.error(msg);
+      } finally {
+        setIsSaving(false);
+      }
     },
-    [pilotSpace, data.skillName]
+    [data.skillName, workspaceStore, queryClient]
   );
 
   const handleTest = useCallback(
@@ -505,6 +529,8 @@ const SkillCreatorCardInline = memo<{
       isUpdate={data.isUpdate}
       onSave={handleSave}
       onTest={handleTest}
+      isSaving={isSaving}
+      isSaved={isSaved}
     />
   );
 });

@@ -13,7 +13,7 @@
 'use client';
 
 import { memo, useState, useEffect, useRef } from 'react';
-import { Wand2, Pencil, Eye, PlayCircle, Save } from 'lucide-react';
+import { Wand2, Pencil, Eye, PlayCircle, Save, CheckCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
@@ -80,6 +80,10 @@ export interface SkillCreatorCardProps {
   isUpdate: boolean;
   onSave?: (content: string) => void;
   onTest?: (content: string) => void;
+  /** When true, Save button shows loading state */
+  isSaving?: boolean;
+  /** When true, card shows saved confirmation state */
+  isSaved?: boolean;
 }
 
 /**
@@ -95,6 +99,8 @@ export const SkillCreatorCard = memo<SkillCreatorCardProps>(function SkillCreato
   isUpdate,
   onSave,
   onTest,
+  isSaving = false,
+  isSaved = false,
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [localContent, setLocalContent] = useState(content);
@@ -114,7 +120,12 @@ export const SkillCreatorCard = memo<SkillCreatorCardProps>(function SkillCreato
       <div className="flex items-center gap-2 mb-3">
         <Wand2 className="h-4 w-4 text-primary" aria-hidden="true" />
         <span className="font-medium text-sm font-mono">{skillName}</span>
-        {isUpdate ? (
+        {isSaved ? (
+          <Badge variant="outline" className="text-green-600 border-green-600/30 bg-green-50">
+            <CheckCircle className="h-3 w-3 mr-1" aria-hidden="true" />
+            Saved
+          </Badge>
+        ) : isUpdate ? (
           <Badge variant="outline">Updated</Badge>
         ) : (
           <Badge variant="outline" className="text-green-600 border-green-600/30">
@@ -139,39 +150,42 @@ export const SkillCreatorCard = memo<SkillCreatorCardProps>(function SkillCreato
         )}
       </div>
 
-      {/* Footer actions */}
-      <div className="flex items-center gap-2">
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => setIsEditing((prev) => !prev)}
-          aria-label={isEditing ? 'Switch to preview mode' : 'Switch to edit mode'}
-        >
-          {isEditing ? (
-            <Eye className="h-3 w-3 mr-1" aria-hidden="true" />
-          ) : (
-            <Pencil className="h-3 w-3 mr-1" aria-hidden="true" />
-          )}
-          {isEditing ? 'Preview' : 'Edit'}
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => onTest?.(localContent)}
-          aria-label="Test this skill"
-        >
-          <PlayCircle className="h-3 w-3 mr-1" aria-hidden="true" />
-          Test
-        </Button>
-        <Button
-          size="sm"
-          onClick={() => onSave?.(localContent)}
-          aria-label="Save this skill"
-        >
-          <Save className="h-3 w-3 mr-1" aria-hidden="true" />
-          Save
-        </Button>
-      </div>
+      {/* Footer actions — hidden after save */}
+      {!isSaved && (
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setIsEditing((prev) => !prev)}
+            aria-label={isEditing ? 'Switch to preview mode' : 'Switch to edit mode'}
+          >
+            {isEditing ? (
+              <Eye className="h-3 w-3 mr-1" aria-hidden="true" />
+            ) : (
+              <Pencil className="h-3 w-3 mr-1" aria-hidden="true" />
+            )}
+            {isEditing ? 'Preview' : 'Edit'}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onTest?.(localContent)}
+            aria-label="Test this skill"
+          >
+            <PlayCircle className="h-3 w-3 mr-1" aria-hidden="true" />
+            Test
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => onSave?.(localContent)}
+            aria-label="Save this skill"
+            disabled={isSaving}
+          >
+            <Save className="h-3 w-3 mr-1" aria-hidden="true" />
+            {isSaving ? 'Saving...' : 'Save'}
+          </Button>
+        </div>
+      )}
     </div>
   );
 });

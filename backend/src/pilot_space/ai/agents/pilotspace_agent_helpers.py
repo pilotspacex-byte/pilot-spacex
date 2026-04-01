@@ -188,10 +188,19 @@ def build_contextual_message(
     if selected_text:
         parts.append(f"<selected_text>\n{selected_text}\n</selected_text>")
 
+    # Strip \skill-name or /skill-name prefix — these are frontend UI concepts
+    # (skill picker), not agent commands. The SDK subprocess interprets them
+    # as slash commands and fails with "Unknown skill".
+    user_msg = input_data.message
+    if user_msg.startswith(("\\", "/")):
+        _parts = user_msg.split(None, 1)
+        if len(_parts) > 1:
+            user_msg = _parts[1]
+
     if parts:
         context_block = "\n\n".join(parts)
-        return f"{context_block}\n\n{input_data.message}"
-    return input_data.message
+        return f"{context_block}\n\n{user_msg}"
+    return user_msg
 
 
 def transform_sdk_message(  # noqa: PLR0911

@@ -207,9 +207,13 @@ def classify_effort(message: str) -> str | None:
 
 
 def detect_skill_from_message(message: str) -> str | None:
-    """Detect slash-command skill invocation, returning skill name or None."""
+    """Detect slash-command skill invocation, returning skill name or None.
+
+    Handles both ``/skill-name`` and ``\\skill-name`` prefixes (frontend
+    uses backslash for the skill picker menu).
+    """
     msg_stripped = message.strip()
-    if msg_stripped.startswith("/"):
+    if msg_stripped.startswith(("/", "\\")):
         parts = msg_stripped[1:].split(None, 1)
         return parts[0] if parts else None
     return None

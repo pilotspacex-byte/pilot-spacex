@@ -2,6 +2,7 @@
  * SkillsSettingsPage - Workspace AI Skills configuration.
  *
  * Phase 20: Restructured with My Skills + Template Catalog sections.
+ * Phase 64: Added inline ChatView panel for conversational skill creation.
  * Unified skill management: browse templates, create personal skills from templates.
  * Source: FR-009, FR-010, FR-015, FR-018, US6, P20-09, P20-10
  */
@@ -9,24 +10,30 @@
 'use client';
 
 import * as React from 'react';
+import { lazy, Suspense } from 'react';
 import { observer } from 'mobx-react-lite';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import {
   AlertCircle,
   Layers,
   Lock,
-  MessageSquarePlus,
   MousePointerClick,
   Package,
   Plus,
+  Sparkles,
   Wand2,
 } from 'lucide-react';
+import { motion } from 'motion/react';
 import { toast } from 'sonner';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
+import { CollapsedChatStrip } from '@/components/editor/CollapsedChatStrip';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useStore } from '@/stores';
+import { getAIStore } from '@/stores/ai/AIStore';
 import { useUserSkills, useUpdateUserSkill, useDeleteUserSkill } from '@/services/api/user-skills';
 import type { UserSkill } from '@/services/api/user-skills';
 import { useUpdateSkillTemplate, useDeleteSkillTemplate } from '@/services/api/skill-templates';
@@ -40,6 +47,10 @@ import { PluginsTabContent } from '../components/plugins-tab-content';
 import { ActionButtonsTabContent } from '../components/action-buttons-tab-content';
 import { SkillAddModal } from '../components/skill-add-modal';
 import { ConfirmActionDialog } from '../components/confirm-action-dialog';
+
+const ChatView = lazy(() =>
+  import('@/features/ai/ChatView/ChatView').then((m) => ({ default: m.ChatView }))
+);
 
 // ---------------------------------------------------------------------------
 // Sub-components
@@ -84,10 +95,46 @@ function GuestView() {
 // Main Component
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Skill Creator Empty State — shown in ChatView when no conversation exists
+// ---------------------------------------------------------------------------
+
+function SkillCreatorEmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center h-full min-h-[400px] text-center px-6">
+      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary/80 to-ai/80 flex items-center justify-center mb-4">
+        <Wand2 className="h-8 w-8 text-white" />
+      </div>
+      <h3 className="text-lg font-semibold mb-2">Skill Creator</h3>
+      <p className="text-sm text-muted-foreground max-w-sm mb-5 leading-relaxed">
+        Describe the skill you want to create in natural language. The AI will generate a SKILL.md
+        file, let you preview and edit it, test it with a rubric, and refine until it&apos;s ready.
+      </p>
+      <div className="space-y-2 text-left w-full max-w-xs">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
+          Try saying:
+        </p>
+        {[
+          'Create a code review skill focused on security',
+          'Build a skill for writing user stories',
+          'Make a skill that helps with API design',
+        ].map((prompt) => (
+          <div
+            key={prompt}
+            className="flex items-start gap-2 text-xs text-muted-foreground"
+          >
+            <Sparkles className="h-3 w-3 mt-0.5 shrink-0 text-primary/60" />
+            <span>{prompt}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
   const { workspaceStore } = useStore();
   const params = useParams();
-  const router = useRouter();
   const workspaceSlug = params?.workspaceSlug as string;
   const currentWorkspace = workspaceStore.getWorkspaceBySlug(workspaceSlug);
   const workspaceId = currentWorkspace?.id || workspaceSlug;
@@ -107,6 +154,23 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
   // Tab state
   const [activeTab, setActiveTab] = React.useState('skills');
   const [addPluginDialogOpen, setAddPluginDialogOpen] = React.useState(false);
+
+  // ChatView panel state
+  const [isChatOpen, setIsChatOpen] = React.useState(false);
+  const [chatPrefill, setChatPrefill] = React.useState<string | undefined>(undefined);
+  const isSmallScreen = useMediaQuery('(max-width: 1023px)');
+
+  // AI store for ChatView
+  const aiStore = getAIStore();
+  const pilotSpaceStore = aiStore.pilotSpace;
+
+  // Set workspace ID on AI store
+  React.useEffect(() => {
+    const resolvedId = currentWorkspace?.id ?? workspaceSlug;
+    if (pilotSpaceStore && resolvedId && pilotSpaceStore.workspaceId !== resolvedId) {
+      pilotSpaceStore.setWorkspaceId(resolvedId);
+    }
+  }, [currentWorkspace?.id, workspaceSlug, pilotSpaceStore]);
 
   // Skill generator modal state
   const [generatorOpen, setGeneratorOpen] = React.useState(false);
@@ -263,8 +327,29 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
 
   const skillCount = userSkills?.length ?? 0;
 
-  return (
-    <div className="px-4 py-4 sm:px-6 lg:px-8">
+  // ChatView content — lazy-loaded with empty state guideline
+  const chatViewContent = (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+          Loading AI chat...
+        </div>
+      }
+    >
+      <ChatView
+        store={pilotSpaceStore}
+        approvalStore={aiStore.approval}
+        autoFocus
+        onClose={() => setIsChatOpen(false)}
+        prefillValue={chatPrefill}
+        emptyStateSlot={<SkillCreatorEmptyState />}
+      />
+    </Suspense>
+  );
+
+  // Skills content panel — all the existing skills UI
+  const skillsContent = (
+    <div className="px-4 py-4 sm:px-6 lg:px-8 h-full overflow-auto">
       <h1 className="text-2xl font-semibold tracking-tight mb-6 font-display">Skills</h1>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -298,10 +383,13 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => router.push(`/${workspaceSlug}/chat?prefill=/skill-creator`)}
+                onClick={() => {
+                  setChatPrefill('/skill-creator');
+                  setIsChatOpen(true);
+                }}
               >
-                <MessageSquarePlus className="mr-1.5 h-4 w-4" />
-                Create in Chat
+                <Wand2 className="mr-1.5 h-4 w-4" />
+                Create Skill
               </Button>
               <Button size="sm" onClick={() => setGeneratorOpen(true)}>
                 <Plus className="mr-1.5 h-4 w-4" />
@@ -475,4 +563,53 @@ export const SkillsSettingsPage = observer(function SkillsSettingsPage() {
       </Tabs>
     </div>
   );
+
+  // Desktop: Resizable split layout with ChatView panel
+  if (!isSmallScreen && isChatOpen) {
+    return (
+      <ResizablePanelGroup
+        orientation="horizontal"
+        className="h-full w-full"
+        id="skills-page-layout"
+      >
+        <ResizablePanel id="skills-panel" defaultSize="62%" minSize="50%" className="min-w-0">
+          {skillsContent}
+        </ResizablePanel>
+
+        <ResizableHandle withHandle />
+
+        <ResizablePanel
+          id="chat-panel"
+          defaultSize="38%"
+          minSize="30%"
+          maxSize="50%"
+          className="min-w-0"
+        >
+          <motion.aside
+            aria-label="Skill Creator Chat"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: 'easeInOut' }}
+            className="h-full w-full overflow-hidden border-l border-border"
+          >
+            {chatViewContent}
+          </motion.aside>
+        </ResizablePanel>
+      </ResizablePanelGroup>
+    );
+  }
+
+  // Desktop: Chat closed — skills full width + collapsed strip
+  if (!isSmallScreen) {
+    return (
+      <div className="flex h-full w-full overflow-hidden">
+        <div className="flex-1 min-w-0 overflow-hidden">{skillsContent}</div>
+        <CollapsedChatStrip onClick={() => setIsChatOpen(true)} />
+      </div>
+    );
+  }
+
+  // Mobile/Tablet: Skills only (no split layout)
+  return skillsContent;
 });
