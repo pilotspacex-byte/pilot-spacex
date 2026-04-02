@@ -52,7 +52,7 @@ def _make_mock_app() -> FastAPI:
     container.secure_key_storage.return_value = key_storage
 
     redis = AsyncMock()
-    container.redis.return_value = redis
+    container.redis_client.return_value = redis
 
     proxy_app.state.container = container
     return app
@@ -121,6 +121,7 @@ async def test_embeddings_returns_200_with_valid_request(
         container.secure_key_storage(),
         None,  # base_url
         0,  # capped_max_tokens (not used for embeddings)
+        "anthropic",  # provider
     )
 
     # Mock OpenAI client
@@ -219,6 +220,7 @@ async def test_embeddings_tracks_cost(
         container.secure_key_storage(),
         None,
         0,
+        "anthropic",
     )
 
     mock_client = MagicMock()
@@ -277,6 +279,7 @@ async def test_embeddings_validates_tenant(
         container.secure_key_storage(),
         None,
         0,
+        "anthropic",
     )
 
     mock_client = MagicMock()
