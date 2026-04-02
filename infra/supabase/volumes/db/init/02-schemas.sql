@@ -156,6 +156,49 @@ SELECT pgmq.create('ai_normal');
 SELECT pgmq.create('notifications');
 SELECT pgmq.create('dead_letter');
 
+-- =============================================================================
+-- PGMQ PUBLIC RPC WRAPPERS (Migration 061 + 100)
+-- =============================================================================
+-- PostgREST can only call functions in the public schema. These wrappers
+-- delegate to the pgmq schema functions so SupabaseQueueClient can use
+-- supabase.rpc('pgmq_send', ...) etc.
+
+CREATE OR REPLACE FUNCTION public.pgmq_create(queue_name TEXT)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$ BEGIN PERFORM pgmq.create(queue_name); END; $$;
+
+CREATE OR REPLACE FUNCTION public.pgmq_send(queue_name TEXT, msg JSONB, delay INT DEFAULT 0)
+RETURNS BIGINT LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$ BEGIN RETURN pgmq.send(queue_name, msg, delay); END; $$;
+
+CREATE OR REPLACE FUNCTION public.pgmq_read(queue_name TEXT, vt INT, qty INT)
+RETURNS SETOF pgmq.message_record LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$ BEGIN RETURN QUERY SELECT * FROM pgmq.read(queue_name, vt, qty); END; $$;
+
+CREATE OR REPLACE FUNCTION public.pgmq_delete(queue_name TEXT, msg_id BIGINT)
+RETURNS BOOLEAN LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$ BEGIN RETURN pgmq.delete(queue_name, msg_id); END; $$;
+
+CREATE OR REPLACE FUNCTION public.pgmq_archive(queue_name TEXT, msg_id BIGINT)
+RETURNS BOOLEAN LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$ BEGIN RETURN pgmq.archive(queue_name, msg_id); END; $$;
+
+CREATE OR REPLACE FUNCTION public.pgmq_drop(queue_name TEXT)
+RETURNS BOOLEAN LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$ BEGIN RETURN pgmq.drop_queue(queue_name); END; $$;
+
+CREATE OR REPLACE FUNCTION public.pgmq_purge(queue_name TEXT)
+RETURNS BIGINT LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$ BEGIN RETURN pgmq.purge_queue(queue_name); END; $$;
+
+CREATE OR REPLACE FUNCTION public.pgmq_metrics(queue_name TEXT)
+RETURNS SETOF pgmq.metrics_result LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$ BEGIN RETURN QUERY SELECT * FROM pgmq.metrics(queue_name); END; $$;
+
+CREATE OR REPLACE FUNCTION public.pgmq_set_vt(queue_name TEXT, msg_id BIGINT, vt INT)
+RETURNS SETOF pgmq.message_record LANGUAGE SQL SECURITY DEFINER
+AS $$ SELECT * FROM pgmq.set_vt(queue_name, msg_id, vt); $$;
+
 -- Generic trigger function to queue embedding jobs
 CREATE OR REPLACE FUNCTION util.queue_embeddings()
 RETURNS trigger
