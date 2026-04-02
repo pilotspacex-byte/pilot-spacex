@@ -595,8 +595,10 @@ const ChatViewInternal = observer<ChatViewProps>(
         {/* T-059: ConfirmAll button — above ChatInput when >= 2 pending intents */}
         <ConfirmAllButton store={store} />
 
-        {/* Skill creator card — pinned above input for easy Save/Test access */}
-        {store.skillPreview && (
+        {/* Skill creator card — pinned above input for easy Save/Test access.
+            Hidden while streaming so it disappears during updates and reappears
+            with fresh content when the new skill_preview event arrives. */}
+        {store.skillPreview && !store.isStreaming && (
           <div className="border-t border-border bg-background">
             <SkillCreatorCard
               skillName={store.skillPreview.skillName}
