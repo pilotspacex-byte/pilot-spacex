@@ -84,11 +84,13 @@ describe('SkillCreatorCard', () => {
     expect(screen.getByText('New')).toBeInTheDocument();
   });
 
-  it('clicking Edit button switches to edit mode showing CodeMirror container', async () => {
+  it('clicking Edit button opens modal with CodeMirror editor', async () => {
     const user = userEvent.setup();
     render(<SkillCreatorCard {...defaultProps} onSave={onSave} onTest={onTest} />);
     const editButton = screen.getByRole('button', { name: /edit/i });
     await user.click(editButton);
+    // Modal opens with the skill name in the dialog title
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
     expect(screen.getByTestId('codemirror-editor')).toBeInTheDocument();
   });
 
