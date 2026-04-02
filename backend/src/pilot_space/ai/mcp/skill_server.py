@@ -436,6 +436,7 @@ def create_skill_tools_server(
 
         def _scan_skills() -> list[tuple[str, str]]:
             """Scan skills dir synchronously (runs in thread pool)."""
+            assert skills_dir is not None  # guarded by caller
             if not skills_dir.is_dir():
                 return []
             results: list[tuple[str, str]] = []
@@ -486,6 +487,7 @@ def create_skill_tools_server(
         if not skill_names and skills_dir is not None:
 
             def _scan_for_graph() -> list[str]:
+                assert skills_dir is not None  # guarded by caller
                 if not skills_dir.is_dir():
                     return []
                 return [
