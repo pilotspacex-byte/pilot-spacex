@@ -126,11 +126,13 @@ class TestCreateSkillTool:
 
         tools = _capture_tools(publisher, skills_dir=skills_dir)
         tool = tools["create_skill"]
-        result = await tool.handler({
-            "name": "test-skill",
-            "description": "A test skill",
-            "content": "# Test\n\nDo testing.",
-        })
+        result = await tool.handler(
+            {
+                "name": "test-skill",
+                "description": "A test skill",
+                "content": "# Test\n\nDo testing.",
+            }
+        )
 
         text = result["content"][0]["text"]
         assert "test-skill" in text
@@ -145,11 +147,13 @@ class TestCreateSkillTool:
 
         tools = _capture_tools(publisher, skills_dir=skills_dir)
         tool = tools["create_skill"]
-        await tool.handler({
-            "name": "test-skill",
-            "description": "A test skill",
-            "content": "# Test\n\nDo testing.",
-        })
+        await tool.handler(
+            {
+                "name": "test-skill",
+                "description": "A test skill",
+                "content": "# Test\n\nDo testing.",
+            }
+        )
 
         events = _drain_queue(queue)
         event_types = [e["event"] for e in events]
@@ -165,11 +169,13 @@ class TestCreateSkillTool:
 
         tools = _capture_tools(publisher, skills_dir=skills_dir)
         tool = tools["create_skill"]
-        await tool.handler({
-            "name": "test-skill",
-            "description": "A test skill",
-            "content": "# Test\n\nDo testing.",
-        })
+        await tool.handler(
+            {
+                "name": "test-skill",
+                "description": "A test skill",
+                "content": "# Test\n\nDo testing.",
+            }
+        )
 
         events = _drain_queue(queue)
         preview = next(e for e in events if e["event"] == "skill_preview")
@@ -188,11 +194,13 @@ class TestCreateSkillTool:
         tools = _capture_tools(publisher, skills_dir=None)
         tool = tools["create_skill"]
         # Should not raise
-        result = await tool.handler({
-            "name": "test-skill",
-            "description": "A test skill",
-            "content": "# Test",
-        })
+        result = await tool.handler(
+            {
+                "name": "test-skill",
+                "description": "A test skill",
+                "content": "# Test",
+            }
+        )
         assert result["content"][0]["type"] == "text"
 
     @pytest.mark.asyncio
@@ -205,11 +213,13 @@ class TestCreateSkillTool:
 
         tools = _capture_tools(publisher, skills_dir=skills_dir)
         tool = tools["create_skill"]
-        await tool.handler({
-            "name": "my-skill",
-            "description": "My skill",
-            "content": "# My Skill content",
-        })
+        await tool.handler(
+            {
+                "name": "my-skill",
+                "description": "My skill",
+                "content": "# My Skill content",
+            }
+        )
 
         # Some subdirectory starting with "skill-my-skill" should contain SKILL.md
         skill_dirs = list(skills_dir.glob("skill-my-skill*"))
@@ -233,10 +243,12 @@ class TestUpdateSkillTool:
 
         tools = _capture_tools(publisher)
         tool = tools["update_skill"]
-        result = await tool.handler({
-            "name": "test-skill",
-            "content": "# Updated content",
-        })
+        result = await tool.handler(
+            {
+                "name": "test-skill",
+                "content": "# Updated content",
+            }
+        )
 
         text = result["content"][0]["text"]
         assert "test-skill" in text.lower() or "updated" in text.lower()
@@ -249,10 +261,12 @@ class TestUpdateSkillTool:
 
         tools = _capture_tools(publisher)
         tool = tools["update_skill"]
-        await tool.handler({
-            "name": "test-skill",
-            "content": "# Updated content",
-        })
+        await tool.handler(
+            {
+                "name": "test-skill",
+                "content": "# Updated content",
+            }
+        )
 
         events = _drain_queue(queue)
         event_types = [e["event"] for e in events]
@@ -269,10 +283,12 @@ class TestUpdateSkillTool:
 
         tools = _capture_tools(publisher)
         tool = tools["update_skill"]
-        await tool.handler({
-            "name": "my-updated-skill",
-            "content": "# Updated",
-        })
+        await tool.handler(
+            {
+                "name": "my-updated-skill",
+                "content": "# Updated",
+            }
+        )
 
         events = _drain_queue(queue)
         preview = next(e for e in events if e["event"] == "skill_preview")
@@ -352,10 +368,12 @@ class TestTestSkillTool:
 
         tools = _capture_tools(publisher)
         tool = tools["test_skill"]
-        result = await tool.handler({
-            "name": "test-skill",
-            "content": "# Test Skill\n\n## Instructions\n\nDo this.\n\n## Examples\n\n- Example 1\n\n## Output Format\n\nReturn JSON.",
-        })
+        result = await tool.handler(
+            {
+                "name": "test-skill",
+                "content": "# Test Skill\n\n## Instructions\n\nDo this.\n\n## Examples\n\n- Example 1\n\n## Output Format\n\nReturn JSON.",
+            }
+        )
 
         text = result["content"][0]["text"]
         parsed = json.loads(text)
@@ -382,10 +400,12 @@ class TestTestSkillTool:
         tool = tools["test_skill"]
 
         # Minimal skill
-        minimal_result = await tool.handler({
-            "name": "minimal",
-            "content": "Do something.",
-        })
+        minimal_result = await tool.handler(
+            {
+                "name": "minimal",
+                "content": "Do something.",
+            }
+        )
         minimal_parsed = json.loads(minimal_result["content"][0]["text"])
 
         # Rich skill with all sections
@@ -397,10 +417,12 @@ class TestTestSkillTool:
             "## Output Format\n\nReturn JSON with field x.\n\n"
             "## Context\n\nRequires tool access."
         )
-        rich_result = await tool.handler({
-            "name": "rich",
-            "content": rich_content,
-        })
+        rich_result = await tool.handler(
+            {
+                "name": "rich",
+                "content": rich_content,
+            }
+        )
         rich_parsed = json.loads(rich_result["content"][0]["text"])
 
         assert rich_parsed["score"] >= minimal_parsed["score"]
@@ -413,10 +435,12 @@ class TestTestSkillTool:
 
         tools = _capture_tools(publisher, tool_context=None)
         tool = tools["test_skill"]
-        result = await tool.handler({
-            "name": "test-skill",
-            "content": "# Test\n\nDo things.",
-        })
+        result = await tool.handler(
+            {
+                "name": "test-skill",
+                "content": "# Test\n\nDo things.",
+            }
+        )
 
         parsed = json.loads(result["content"][0]["text"])
         # Without context, sampleOutput should be a placeholder string
@@ -430,10 +454,12 @@ class TestTestSkillTool:
 
         tools = _capture_tools(publisher)
         tool = tools["test_skill"]
-        await tool.handler({
-            "name": "test-skill",
-            "content": "# Test",
-        })
+        await tool.handler(
+            {
+                "name": "test-skill",
+                "content": "# Test",
+            }
+        )
 
         events = _drain_queue(queue)
         event_types = [e["event"] for e in events]
@@ -447,10 +473,12 @@ class TestTestSkillTool:
 
         tools = _capture_tools(publisher)
         tool = tools["test_skill"]
-        result = await tool.handler({
-            "name": "test-skill",
-            "content": "# Test",
-        })
+        result = await tool.handler(
+            {
+                "name": "test-skill",
+                "content": "# Test",
+            }
+        )
 
         parsed = json.loads(result["content"][0]["text"])
         assert isinstance(parsed["passed"], list)

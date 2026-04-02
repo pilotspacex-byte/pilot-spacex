@@ -39,6 +39,7 @@ def _format_skill_sse(event_type: str, data: dict[str, Any]) -> str:
     """
     return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
 
+
 # MCP server name — used in allowed_tools as mcp__pilot-skills__{tool_name}
 SERVER_NAME = "pilot-skills"
 
@@ -190,9 +191,16 @@ def create_skill_tools_server(
                 from pilot_space.ai.agents.role_skill_materializer import hot_reload_skill
 
                 await hot_reload_skill(skills_dir, name, content, skill_id)
-                logger.info("skill_tool_create", skill_name=name, skill_id=skill_id[:8], status="ok")
+                logger.info(
+                    "skill_tool_create", skill_name=name, skill_id=skill_id[:8], status="ok"
+                )
             except OSError as exc:
-                logger.warning("skill_tool_create_write_failed", skill_name=name, error=str(exc), status="failed")
+                logger.warning(
+                    "skill_tool_create_write_failed",
+                    skill_name=name,
+                    error=str(exc),
+                    status="failed",
+                )
 
         # Emit skill_preview SSE event
         await publisher.publish(
@@ -250,9 +258,16 @@ def create_skill_tools_server(
                 from pilot_space.ai.agents.role_skill_materializer import hot_reload_skill
 
                 await hot_reload_skill(skills_dir, name, content, skill_id)
-                logger.info("skill_tool_update", skill_name=name, skill_id=skill_id[:8], status="ok")
+                logger.info(
+                    "skill_tool_update", skill_name=name, skill_id=skill_id[:8], status="ok"
+                )
             except OSError as exc:
-                logger.warning("skill_tool_update_write_failed", skill_name=name, error=str(exc), status="failed")
+                logger.warning(
+                    "skill_tool_update_write_failed",
+                    skill_name=name,
+                    error=str(exc),
+                    status="failed",
+                )
 
         # Emit skill_preview SSE event with isUpdate=True
         await publisher.publish(
@@ -338,13 +353,17 @@ def create_skill_tools_server(
                     content = skill_file.read_text(encoding="utf-8")
 
         if not content.strip():
-            return _text_result(json.dumps({
-                "score": 0,
-                "passed": [],
-                "failed": ["Skill content is empty or not found"],
-                "suggestions": ["Provide skill content or create the skill first"],
-                "sampleOutput": "",
-            }))
+            return _text_result(
+                json.dumps(
+                    {
+                        "score": 0,
+                        "passed": [],
+                        "failed": ["Skill content is empty or not found"],
+                        "suggestions": ["Provide skill content or create the skill first"],
+                        "sampleOutput": "",
+                    }
+                )
+            )
 
         # Phase 1: Rubric evaluation
         evaluation = _evaluate_skill(content)
@@ -465,6 +484,7 @@ def create_skill_tools_server(
 
         # If no names provided but skills_dir exists, discover from filesystem
         if not skill_names and skills_dir is not None:
+
             def _scan_for_graph() -> list[str]:
                 if not skills_dir.is_dir():
                     return []
