@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 
 export interface RecentEntity {
   id: string;
@@ -9,26 +9,30 @@ export interface RecentEntity {
 const STORAGE_KEY = (workspaceId: string) => `pilot-recent-entities-${workspaceId}`;
 const MAX_RECENT = 5;
 
-export function useRecentEntities(workspaceId: string) {
-  const [recentEntities, setRecentEntities] = useState<RecentEntity[]>(() => {
-    try {
-      const stored = sessionStorage.getItem(STORAGE_KEY(workspaceId));
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
+function readFromStorage(workspaceId: string): RecentEntity[] {
+  try {
+    const stored = sessionStorage.getItem(STORAGE_KEY(workspaceId));
+    return stored ? (JSON.parse(stored) as RecentEntity[]) : [];
+  } catch {
+    return [];
+  }
+}
 
-  // Re-read from sessionStorage whenever workspaceId changes (e.g., workspace switch
-  // or when the component mounts with an empty placeholder ID that later resolves).
-  useEffect(() => {
-    try {
-      const stored = sessionStorage.getItem(STORAGE_KEY(workspaceId));
-      setRecentEntities(stored ? JSON.parse(stored) : []);
-    } catch {
-      setRecentEntities([]);
-    }
-  }, [workspaceId]);
+export function useRecentEntities(workspaceId: string) {
+  // Track which workspaceId the current state belongs to.
+  // When workspaceId changes, re-derive state from sessionStorage without useEffect.
+  const [trackedWorkspaceId, setTrackedWorkspaceId] = useState(workspaceId);
+  const [recentEntities, setRecentEntities] = useState<RecentEntity[]>(() =>
+    readFromStorage(workspaceId)
+  );
+
+  // Synchronise state inline when the workspace changes (avoids the
+  // react-hooks/no-direct-set-state-in-use-effect lint error while still
+  // keeping state accurate after a workspace switch).
+  if (trackedWorkspaceId !== workspaceId) {
+    setTrackedWorkspaceId(workspaceId);
+    setRecentEntities(readFromStorage(workspaceId));
+  }
 
   const addEntity = useCallback(
     (entity: RecentEntity) => {
