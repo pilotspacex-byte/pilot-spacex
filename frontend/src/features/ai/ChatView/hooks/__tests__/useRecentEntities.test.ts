@@ -80,6 +80,36 @@ describe('useRecentEntities', () => {
     expect(resultB.current.recentEntities[0]?.id).toBe('b');
   });
 
+  it('reloads recents from sessionStorage when workspaceId changes', () => {
+    sessionStorage.setItem(`pilot-recent-entities-ws-A`, JSON.stringify([entity('a')]));
+    sessionStorage.setItem(`pilot-recent-entities-ws-B`, JSON.stringify([entity('b')]));
+
+    const { result, rerender } = renderHook(
+      ({ wsId }: { wsId: string }) => useRecentEntities(wsId),
+      { initialProps: { wsId: 'ws-A' } }
+    );
+
+    expect(result.current.recentEntities[0]?.id).toBe('a');
+
+    // Switch workspace — should reload from sessionStorage for ws-B
+    rerender({ wsId: 'ws-B' });
+    expect(result.current.recentEntities[0]?.id).toBe('b');
+  });
+
+  it('falls back to empty array when new workspaceId has no stored recents', () => {
+    sessionStorage.setItem(`pilot-recent-entities-ws-A`, JSON.stringify([entity('a')]));
+
+    const { result, rerender } = renderHook(
+      ({ wsId }: { wsId: string }) => useRecentEntities(wsId),
+      { initialProps: { wsId: 'ws-A' } }
+    );
+
+    expect(result.current.recentEntities).toHaveLength(1);
+
+    rerender({ wsId: 'ws-empty' });
+    expect(result.current.recentEntities).toEqual([]);
+  });
+
   it('falls back to empty array on corrupt sessionStorage JSON', () => {
     sessionStorage.setItem(KEY, '{not valid json!!!');
     const { result } = renderHook(() => useRecentEntities(WORKSPACE));

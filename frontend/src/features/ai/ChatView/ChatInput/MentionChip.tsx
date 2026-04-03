@@ -34,7 +34,7 @@ export const MentionChip = memo<MentionChipProps>(
         contentEditable={false}
         data-entity-type={entityType}
         data-entity-id={entityId}
-        aria-label={`${entityType}: ${title}. Press Backspace to remove.`}
+        aria-label={onRemove ? `${entityType}: ${title}. Press Backspace to remove.` : `${entityType}: ${title}`}
         className="inline-flex items-center gap-1 mx-0.5 px-1.5 py-0.5 rounded-md bg-primary/10 text-primary text-xs font-medium select-none cursor-default"
       >
         <Icon className="h-3 w-3 shrink-0" aria-hidden="true" />

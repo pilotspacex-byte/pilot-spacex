@@ -16,7 +16,7 @@ describe('MentionChip', () => {
     render(
       <MentionChip entityType="Note" entityId="uuid-note-1" title="My Note" />
     );
-    const chip = screen.getByLabelText('Note: My Note. Press Backspace to remove.');
+    const chip = screen.getByLabelText('Note: My Note');
     expect(chip).toBeDefined();
     expect(chip.getAttribute('data-entity-type')).toBe('Note');
     expect(chip.getAttribute('data-entity-id')).toBe('uuid-note-1');
@@ -27,7 +27,7 @@ describe('MentionChip', () => {
     render(
       <MentionChip entityType="Issue" entityId="uuid-issue-1" title="Bug Fix" />
     );
-    const chip = screen.getByLabelText('Issue: Bug Fix. Press Backspace to remove.');
+    const chip = screen.getByLabelText('Issue: Bug Fix');
     expect(chip).toBeDefined();
     expect(chip.getAttribute('data-entity-type')).toBe('Issue');
     expect(chip.getAttribute('data-entity-id')).toBe('uuid-issue-1');
@@ -42,7 +42,7 @@ describe('MentionChip', () => {
         title="Alpha"
       />
     );
-    const chip = screen.getByLabelText('Project: Alpha. Press Backspace to remove.');
+    const chip = screen.getByLabelText('Project: Alpha');
     expect(chip).toBeDefined();
     expect(chip.getAttribute('data-entity-type')).toBe('Project');
     expect(chip.getAttribute('data-entity-id')).toBe('uuid-proj-1');
@@ -53,7 +53,7 @@ describe('MentionChip', () => {
     render(
       <MentionChip entityType="Note" entityId="uuid-1" title="Test" />
     );
-    const chip = screen.getByLabelText('Note: Test. Press Backspace to remove.');
+    const chip = screen.getByLabelText('Note: Test');
     expect(chip.getAttribute('contenteditable')).toBe('false');
   });
 
@@ -97,10 +97,27 @@ describe('MentionChip', () => {
     render(
       <MentionChip entityType="Note" entityId="uuid-1" title="Styled" />
     );
-    const chip = screen.getByLabelText('Note: Styled. Press Backspace to remove.');
+    const chip = screen.getByLabelText('Note: Styled');
     expect(chip.className).toContain('bg-primary/10');
     expect(chip.className).toContain('text-primary');
     expect(chip.className).toContain('inline-flex');
     expect(chip.className).toContain('select-none');
+  });
+
+  it('includes removal instruction in aria-label when onRemove is provided', () => {
+    const onRemove = vi.fn();
+    render(
+      <MentionChip entityType="Note" entityId="uuid-1" title="Removable" onRemove={onRemove} />
+    );
+    const chip = screen.getByLabelText('Note: Removable. Press Backspace to remove.');
+    expect(chip).toBeDefined();
+  });
+
+  it('omits removal instruction from aria-label when read-only (no onRemove)', () => {
+    render(
+      <MentionChip entityType="Note" entityId="uuid-1" title="ReadOnly" />
+    );
+    const chip = screen.getByLabelText('Note: ReadOnly');
+    expect(chip.getAttribute('aria-label')).toBe('Note: ReadOnly');
   });
 });

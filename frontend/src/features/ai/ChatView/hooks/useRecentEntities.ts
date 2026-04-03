@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 export interface RecentEntity {
   id: string;
@@ -18,6 +18,17 @@ export function useRecentEntities(workspaceId: string) {
       return [];
     }
   });
+
+  // Re-read from sessionStorage whenever workspaceId changes (e.g., workspace switch
+  // or when the component mounts with an empty placeholder ID that later resolves).
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem(STORAGE_KEY(workspaceId));
+      setRecentEntities(stored ? JSON.parse(stored) : []);
+    } catch {
+      setRecentEntities([]);
+    }
+  }, [workspaceId]);
 
   const addEntity = useCallback(
     (entity: RecentEntity) => {

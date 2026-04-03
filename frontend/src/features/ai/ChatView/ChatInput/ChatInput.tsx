@@ -38,19 +38,38 @@ import { useRecentEntities } from '../hooks/useRecentEntities';
 import type { RecentEntity } from '../hooks/useRecentEntities';
 
 /**
- * Walks contenteditable childNodes to produce a serialized string.
- * Text nodes emit raw text; chip spans (with data-entity-type) emit @[Type:uuid].
+ * Recursively walks a contenteditable node tree to produce a serialized string.
+ * Text nodes emit raw text; chip spans (with data-entity-type) emit @[Type:uuid];
+ * <br> elements and block element boundaries (DIV, P) emit a newline character.
+ * This ensures Shift+Enter-produced line breaks are preserved in the serialized value.
  */
-function getSerializedValue(div: HTMLDivElement): string {
-  let result = '';
-  for (const node of Array.from(div.childNodes)) {
-    if (node.nodeType === Node.TEXT_NODE) {
-      result += node.textContent ?? '';
-    } else if (node instanceof HTMLElement && node.dataset.entityType) {
-      result += `@[${node.dataset.entityType}:${node.dataset.entityId}]`;
-    }
+function serializeNode(node: Node, isRoot = false): string {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return node.textContent ?? '';
   }
-  return result;
+  if (node instanceof HTMLElement) {
+    // Chip span — emit token directly (do not recurse into its children)
+    if (node.dataset.entityType) {
+      return `@[${node.dataset.entityType}:${node.dataset.entityId}]`;
+    }
+    // <br> — emit a newline
+    if (node.tagName === 'BR') {
+      return '\n';
+    }
+    // Block elements (DIV, P) produced by contenteditable wrap lines
+    const isBlock = node.tagName === 'DIV' || node.tagName === 'P';
+    let inner = '';
+    for (const child of Array.from(node.childNodes)) {
+      inner += serializeNode(child);
+    }
+    // Prefix a newline for non-root block elements so each nested div/p becomes a new line
+    return isBlock && !isRoot ? '\n' + inner : inner;
+  }
+  return '';
+}
+
+function getSerializedValue(div: HTMLDivElement): string {
+  return serializeNode(div, true);
 }
 
 // Helper: get text content before cursor in contenteditable (module-scope like getSerializedValue)
@@ -430,24 +449,56 @@ export const ChatInput = observer<ChatInputProps>(
           'inline-flex items-center gap-1 mx-0.5 px-1.5 py-0.5 rounded-md ' +
           'bg-primary/10 text-primary text-xs font-medium select-none cursor-default';
 
-        // 2. Find and remove '@{query}' text before cursor
+        // 2. Find and remove '@{query}' text before cursor.
+        // We must locate the @-trigger inside a Text node — Range.startOffset
+        // means a child index when startContainer is an Element, not a character
+        // offset. We walk back from the selection anchor to find a Text node that
+        // contains the '@' trigger text and compute offsets within that node only.
         const sel = window.getSelection();
         let spaceNode: Text | null = null;
         if (sel && sel.rangeCount > 0) {
-          const range = sel.getRangeAt(0);
-          const atLen = 1 + (atQuery?.length ?? 0);
-          range.setStart(
-            range.startContainer,
-            Math.max(0, range.startOffset - atLen)
-          );
-          range.deleteContents();
-          range.insertNode(chip);
+          try {
+            const range = sel.getRangeAt(0);
+            const atLen = 1 + (atQuery?.length ?? 0);
 
-          // 3. Insert trailing space after chip
-          spaceNode = document.createTextNode(' ');
-          range.setStartAfter(chip);
-          range.collapse(true);
-          range.insertNode(spaceNode);
+            // Resolve the Text node that holds the '@{query}' text
+            let textNode: Text | null = null;
+            let charOffset = 0;
+            if (range.startContainer.nodeType === Node.TEXT_NODE) {
+              textNode = range.startContainer as Text;
+              charOffset = range.startOffset;
+            } else if (range.startContainer instanceof Element) {
+              // Caret is at a child-node boundary — inspect the child at startOffset - 1
+              const child = range.startContainer.childNodes[range.startOffset - 1];
+              if (child?.nodeType === Node.TEXT_NODE) {
+                textNode = child as Text;
+                charOffset = textNode.length;
+              }
+            }
+
+            if (textNode !== null) {
+              const deleteStart = Math.max(0, charOffset - atLen);
+              range.setStart(textNode, deleteStart);
+              range.setEnd(textNode, charOffset);
+            }
+
+            range.deleteContents();
+            range.insertNode(chip);
+
+            // 3. Insert trailing space after chip
+            spaceNode = document.createTextNode(' ');
+            range.setStartAfter(chip);
+            range.collapse(true);
+            range.insertNode(spaceNode);
+          } catch {
+            // DOMException guard — fall back: insert chip at cursor without deleting
+            const range = sel.getRangeAt(0);
+            range.insertNode(chip);
+            spaceNode = document.createTextNode(' ');
+            range.setStartAfter(chip);
+            range.collapse(true);
+            range.insertNode(spaceNode);
+          }
         }
 
         // 4. Notify parent and update state (chip is in DOM at this point)
@@ -517,23 +568,35 @@ export const ChatInput = observer<ChatInputProps>(
           return;
         }
 
-        // Backspace: remove chip when cursor is immediately after one
+        // Backspace: remove chip when cursor is immediately after one.
+        // Two cases for "caret immediately after chip":
+        //   A) startContainer is a Text node at offset 0 → check previousSibling
+        //   B) startContainer is the contenteditable Element → check childNodes[startOffset - 1]
         if (e.key === 'Backspace') {
           const sel = window.getSelection();
           if (sel && sel.rangeCount > 0) {
             const range = sel.getRangeAt(0);
-            if (range.startOffset === 0 && range.collapsed) {
+            if (range.collapsed) {
+              let chipCandidate: ChildNode | null = null;
               const container = range.startContainer;
-              const prevSibling =
-                container === editableRef.current
-                  ? editableRef.current.lastChild
-                  : container.previousSibling;
+
+              if (container === editableRef.current) {
+                // Case B: startOffset is a child index
+                chipCandidate = editableRef.current.childNodes[range.startOffset - 1] ?? null;
+              } else if (range.startOffset === 0) {
+                // Case A: caret at start of a text/element node
+                chipCandidate =
+                  container === editableRef.current
+                    ? editableRef.current.lastChild
+                    : container.previousSibling;
+              }
+
               if (
-                prevSibling instanceof HTMLElement &&
-                prevSibling.dataset.entityType
+                chipCandidate instanceof HTMLElement &&
+                chipCandidate.dataset.entityType
               ) {
                 e.preventDefault();
-                prevSibling.remove();
+                chipCandidate.remove();
                 onChange(getSerializedValue(editableRef.current!));
               }
             }
