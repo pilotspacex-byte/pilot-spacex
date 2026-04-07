@@ -35,7 +35,7 @@ export interface NoteHealthBadgesProps {
 
 /** Shared pill base styles */
 const PILL_BASE =
-  'inline-flex items-center gap-1 h-5 px-2 rounded-full text-[11px] font-medium cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1';
+  'inline-flex items-center gap-1 h-5 px-2 rounded-full text-xs font-medium cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1';
 
 export function NoteHealthBadges({
   health,
@@ -72,7 +72,7 @@ export function NoteHealthBadges({
               type="button"
               className={cn(
                 PILL_BASE,
-                'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/50'
+                'bg-warning/15 text-warning hover:bg-warning/25'
               )}
               onClick={() =>
                 handleBadgeClick(
@@ -113,9 +113,8 @@ export function NoteHealthBadges({
               type="button"
               className={cn(
                 PILL_BASE,
-                'bg-orange-100 text-orange-800',
-                'dark:bg-orange-900/30 dark:text-orange-300',
-                'hover:bg-orange-200 dark:hover:bg-orange-900/50'
+                'bg-warning/15 text-warning',
+                'hover:bg-warning/25'
               )}
               onClick={() =>
                 handleBadgeClick(
@@ -140,9 +139,8 @@ export function NoteHealthBadges({
               type="button"
               className={cn(
                 PILL_BASE,
-                'bg-amber-100 text-amber-800',
-                'dark:bg-amber-900/30 dark:text-amber-300',
-                'hover:bg-amber-200 dark:hover:bg-amber-900/50'
+                'bg-warning/15 text-warning',
+                'hover:bg-warning/25'
               )}
               onClick={() =>
                 handleBadgeClick(
@@ -167,9 +165,8 @@ export function NoteHealthBadges({
               type="button"
               className={cn(
                 PILL_BASE,
-                'bg-teal-100 text-teal-800',
-                'dark:bg-teal-900/30 dark:text-teal-300',
-                'hover:bg-teal-200 dark:hover:bg-teal-900/50'
+                'bg-success/15 text-success',
+                'hover:bg-success/25'
               )}
               onClick={() =>
                 handleBadgeClick(

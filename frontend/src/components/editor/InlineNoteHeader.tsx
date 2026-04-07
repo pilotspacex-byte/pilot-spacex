@@ -238,7 +238,7 @@ export function InlineNoteHeader({
       {/* Fixed metadata bar - responsive padding matching editor content */}
       <div
         className={cn(
-          'flex-shrink-0 bg-background-subtle/40 backdrop-blur-sm border-b border-border/40',
+          'flex-shrink-0 bg-background-subtle border-b border-border/60',
           // Responsive horizontal padding - matches editor content area
           'px-4',
           className
@@ -249,7 +249,7 @@ export function InlineNoteHeader({
             'flex flex-wrap items-center text-muted-foreground',
             // Responsive gaps and text size
             'gap-1 sm:gap-1.5 md:gap-2 lg:gap-2.5',
-            'text-[10px] sm:text-[11px] md:text-xs',
+            'text-xs',
             // Responsive vertical padding
             'py-1 sm:py-1.5 md:py-2 lg:py-2.5'
           )}
@@ -274,7 +274,7 @@ export function InlineNoteHeader({
               <ChevronRight className="h-3 w-3 flex-shrink-0 hidden sm:block" />
             </>
           )}
-          <span className="text-foreground truncate max-w-[80px] sm:max-w-[120px] md:max-w-[180px] lg:max-w-[240px] font-medium">
+          <span className="text-foreground truncate max-w-[160px] sm:max-w-[200px] md:max-w-[240px] lg:max-w-[320px] font-medium">
             {title || 'Untitled'}
           </span>
 
@@ -484,7 +484,7 @@ export function InlineNoteHeader({
                 <Badge
                   key={tag}
                   className={cn(
-                    'text-[10px] font-medium px-2 py-0.5 rounded-md border-0',
+                    'text-xs font-medium px-2 py-0.5 rounded-sm border-0',
                     color.bg,
                     color.text
                   )}

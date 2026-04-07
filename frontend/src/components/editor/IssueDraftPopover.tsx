@@ -201,10 +201,10 @@ export function IssueDraftPopover({
             Cancel
           </Button>
           <Button
+            variant="primary"
             size="sm"
             onClick={handleSubmit}
             disabled={!title.trim() || isSubmitting}
-            className="bg-emerald-600 text-white hover:bg-emerald-700"
           >
             {isSubmitting ? (
               <>

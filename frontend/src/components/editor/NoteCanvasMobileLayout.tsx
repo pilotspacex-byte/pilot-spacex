@@ -9,7 +9,7 @@
  *
  * @module components/editor/NoteCanvasMobileLayout
  */
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -39,6 +39,7 @@ export function NoteCanvasMobileLayout({
   onClose,
   onOpen,
 }: NoteCanvasMobileLayoutProps) {
+  const shouldReduceMotion = useReducedMotion();
   return (
     <>
       {/* Full-width editor */}
@@ -53,17 +54,21 @@ export function NoteCanvasMobileLayout({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40"
+              transition={{ duration: shouldReduceMotion ? 0 : 0.2 }}
+              className="fixed inset-0 bg-background/70 z-40"
               onClick={onClose}
               aria-hidden="true"
             />
             {/* Slide-over panel */}
             <motion.aside
-              initial={{ x: '100%' }}
+              initial={shouldReduceMotion ? false : { x: '100%' }}
               animate={{ x: 0 }}
-              exit={{ x: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              exit={shouldReduceMotion ? { opacity: 0 } : { x: '100%' }}
+              transition={
+                shouldReduceMotion
+                  ? { duration: 0 }
+                  : { type: 'spring', damping: 25, stiffness: 300 }
+              }
               className={cn(
                 'fixed inset-y-0 right-0 z-50',
                 'w-full max-w-[400px] sm:max-w-[480px]',

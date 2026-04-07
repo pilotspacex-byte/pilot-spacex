@@ -112,17 +112,27 @@ export function SelectionToolbar({
     setIsVisible(true);
   }, [editor]);
 
-  // Listen for selection changes
+  // Listen for selection changes — rAF-throttled to avoid layout reads on every keystroke
   useEffect(() => {
     if (!editor) return;
 
+    let rafId: number | null = null;
+    const throttledUpdate = () => {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        updatePosition();
+      });
+    };
+
     const handleBlur = () => setIsVisible(false);
 
-    editor.on('selectionUpdate', updatePosition);
+    editor.on('selectionUpdate', throttledUpdate);
     editor.on('blur', handleBlur);
 
     return () => {
-      editor.off('selectionUpdate', updatePosition);
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      editor.off('selectionUpdate', throttledUpdate);
       editor.off('blur', handleBlur);
     };
   }, [editor, updatePosition]);
@@ -273,7 +283,7 @@ export function SelectionToolbar({
             top: position.top,
             left: position.left,
             transform: 'translateX(-50%)',
-            zIndex: 50,
+            zIndex: 'var(--z-toolbar)',
           }}
           className={cn(
             'flex items-center gap-0.5 rounded-lg border bg-popover p-1 shadow-lg',
@@ -488,7 +498,7 @@ export function SelectionToolbar({
             top: position.top + 40,
             left: position.left,
             transform: 'translateX(-50%)',
-            zIndex: 51,
+            zIndex: 'var(--z-popover)',
           }}
         >
           <IssueDraftPopover

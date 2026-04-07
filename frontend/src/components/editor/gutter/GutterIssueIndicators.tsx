@@ -10,6 +10,7 @@
  * @see tmp/note-editor-plan.md Section 3a
  * @see tmp/note-editor-ui-design.md Section 3
  */
+import type React from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Editor } from '@tiptap/react';
 
@@ -103,10 +104,8 @@ function IssueDot({
           aria-label={`${issue.identifier}: ${issue.name} (${issue.state.name})`}
         >
           <span
-            className="rounded-full block w-2 h-2"
-            style={{
-              backgroundColor: color,
-            }}
+            className="rounded-full block w-2 h-2 bg-[var(--state-color)]"
+            style={{ '--state-color': color } as React.CSSProperties}
           />
         </button>
       </HoverCardTrigger>
@@ -117,11 +116,8 @@ function IssueDot({
               {issue.identifier}
             </span>
             <span
-              className="text-[10px] font-medium px-1.5 py-0.5 rounded"
-              style={{
-                backgroundColor: `${color}20`,
-                color,
-              }}
+              className="text-xs font-medium px-1.5 py-0.5 rounded bg-[color-mix(in_srgb,var(--state-color)_15%,transparent)] text-[var(--state-color)]"
+              style={{ '--state-color': color } as React.CSSProperties}
             >
               {issue.state.name}
             </span>

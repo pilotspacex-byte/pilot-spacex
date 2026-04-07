@@ -83,9 +83,9 @@ export function OnThisPageTOC({ editor, headings, className }: OnThisPageTOCProp
   if (!editor || headings.length < 2) return null;
 
   return (
-    <nav aria-label="On this page" className={cn('w-[180px] shrink-0', className)}>
+    <nav aria-label="On this page" className={cn('w-full shrink-0', className)}>
       <div className="sticky top-8">
-        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70 mb-3">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 mb-3">
           On this page
         </h3>
         <ul className="space-y-0.5 border-l border-border/40">
@@ -95,7 +95,7 @@ export function OnThisPageTOC({ editor, headings, className }: OnThisPageTOCProp
                 type="button"
                 onClick={() => scrollToHeading(heading)}
                 className={cn(
-                  'block w-full text-left text-[13px] leading-snug py-1 transition-colors',
+                  'block w-full text-left text-sm leading-snug py-1 transition-colors',
                   'hover:text-foreground border-l-2 -ml-px',
                   heading.level === 1 && 'pl-3',
                   heading.level === 2 && 'pl-5',

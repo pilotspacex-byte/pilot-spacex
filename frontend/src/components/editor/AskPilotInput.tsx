@@ -88,7 +88,7 @@ export function AskPilotInput({
       className={cn(
         // Container styling - sticky at bottom of canvas
         'sticky bottom-0 left-0 right-0',
-        'bg-background/80 backdrop-blur-sm',
+        'bg-background',
         'border-t border-border-subtle',
         // Responsive padding
         'px-3 sm:px-4 py-2 sm:py-3',

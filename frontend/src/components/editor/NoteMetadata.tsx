@@ -9,6 +9,7 @@
  *
  * - Linked issues: clickable badges with state color dots (max 5 visible)
  */
+import type React from 'react';
 import Link from 'next/link';
 import { Link2 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -48,12 +49,12 @@ export function NoteMetadata({ linkedIssues, workspaceSlug, className }: NoteMet
               <TooltipTrigger asChild>
                 <Link
                   href={`/${workspaceSlug}/issues/${issue.id}`}
-                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium hover:bg-accent/50 transition-colors"
+                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium hover:bg-accent/50 transition-colors"
                   data-testid={`note-metadata-issue-${issue.identifier}`}
                 >
                   <span
-                    className="h-1.5 w-1.5 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: issue.state.color }}
+                    className="h-1.5 w-1.5 rounded-full flex-shrink-0 bg-[var(--state-color)]"
+                    style={{ '--state-color': issue.state.color } as React.CSSProperties}
                     aria-hidden="true"
                   />
                   {issue.identifier}
@@ -70,7 +71,7 @@ export function NoteMetadata({ linkedIssues, workspaceSlug, className }: NoteMet
             </Tooltip>
           ))}
           {linkedIssues.length > MAX_VISIBLE_ISSUES && (
-            <span className="text-[10px] text-muted-foreground" data-testid="note-metadata-more">
+            <span className="text-xs text-muted-foreground" data-testid="note-metadata-more">
               +{linkedIssues.length - MAX_VISIBLE_ISSUES} more
             </span>
           )}

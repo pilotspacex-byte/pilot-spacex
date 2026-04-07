@@ -187,7 +187,7 @@ function CommentItem({
           <div className="flex items-center gap-2">
             <span className="font-medium text-sm text-foreground">{comment.author.name}</span>
             {comment.isAIGenerated && (
-              <Badge variant="outline" className="text-[10px] gap-1">
+              <Badge variant="outline" className="text-xs gap-1">
                 <Sparkles className="h-3 w-3 text-ai" />
                 AI
               </Badge>
@@ -333,7 +333,7 @@ export const ThreadedDiscussion = observer(function ThreadedDiscussion({
           <div className="flex items-center gap-2 mb-1">
             <MessageSquare className="h-4 w-4 text-muted-foreground" />
             <h3 className="font-semibold text-foreground truncate">{discussion.title}</h3>
-            <Badge variant={isResolved ? 'secondary' : 'default'} className="text-[10px]">
+            <Badge variant={isResolved ? 'secondary' : 'default'} className="text-xs">
               {isResolved ? 'Resolved' : 'Open'}
             </Badge>
           </div>

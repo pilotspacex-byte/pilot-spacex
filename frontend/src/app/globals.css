@@ -108,6 +108,16 @@
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
+
+  /* Semantic z-index scale — single source of truth for stacking */
+  --z-dropdown: 30;
+  --z-sticky: 40;
+  --z-toolbar: 50;
+  --z-popover: 51;
+  --z-modal-backdrop: 55;
+  --z-modal: 60;
+  --z-toast: 70;
+  --z-tooltip: 80;
 }
 
 /* =============================================================================

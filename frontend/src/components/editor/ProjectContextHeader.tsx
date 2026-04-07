@@ -100,7 +100,7 @@ export function ProjectContextHeader({
               style={{ width: `${progress}%` }}
             />
           </div>
-          <span className="text-[10px] text-muted-foreground/70 tabular-nums">
+          <span className="text-xs text-muted-foreground/70 tabular-nums">
             {completedCount}/{project.issueCount}
           </span>
         </div>
@@ -108,7 +108,7 @@ export function ProjectContextHeader({
 
       {/* Active cycle burn-down — shown when a cycle has metrics */}
       {activeCycle?.metrics && (
-        <div className="ml-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        <div className="ml-2 flex items-center gap-1.5 text-xs text-muted-foreground">
           <span className="text-border/60">·</span>
           <span className="truncate max-w-[80px]">{activeCycle.name}</span>
           <div
@@ -120,7 +120,7 @@ export function ProjectContextHeader({
             aria-label={`Cycle: ${activeCycle.metrics.completedIssues} of ${activeCycle.metrics.totalIssues} completed`}
           >
             <div
-              className="h-full bg-emerald-500/70 rounded-full"
+              className="h-full bg-success/70 rounded-full"
               style={{
                 width: `${activeCycle.metrics.totalIssues > 0 ? (activeCycle.metrics.completedIssues / activeCycle.metrics.totalIssues) * 100 : 0}%`,
               }}
@@ -151,7 +151,7 @@ export function ProjectContextHeader({
           >
             {tab.label}
             {tab.id === 'issues' && project.openIssueCount > 0 && (
-              <span className="text-[10px] text-muted-foreground tabular-nums">
+              <span className="text-xs text-muted-foreground tabular-nums">
                 {project.openIssueCount}
               </span>
             )}

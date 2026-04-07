@@ -126,7 +126,7 @@ function VersionItem({
         <div className="flex items-center gap-2">
           <Avatar className="h-6 w-6">
             <AvatarImage src={getCreatedByAvatar(version.createdBy)} alt={getCreatedByName(version.createdBy) ?? 'User'} />
-            <AvatarFallback className="text-[10px]">
+            <AvatarFallback className="text-xs">
               {getInitials(getCreatedByName(version.createdBy))}
             </AvatarFallback>
           </Avatar>
@@ -136,14 +136,14 @@ function VersionItem({
                 Version {version.versionNumber}
               </span>
               {isCurrent && (
-                <Badge variant="default" className="text-[10px]">
+                <Badge variant="default" className="text-xs">
                   Current
                 </Badge>
               )}
               {version.isAIAssisted && (
                 <Badge
                   variant="outline"
-                  className="text-[10px] gap-1 bg-ai-muted border-ai-border text-ai"
+                  className="text-xs gap-1 bg-ai-muted border-ai-border text-ai"
                 >
                   <Sparkles className="h-3 w-3" />
                   You + AI
@@ -293,7 +293,7 @@ export const VersionHistoryPanel = observer(function VersionHistoryPanel({
           <History className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm font-medium">Version History</span>
         </div>
-        <Badge variant="secondary" className="text-[10px]">
+        <Badge variant="secondary" className="text-xs">
           {versions.length} versions
         </Badge>
       </div>

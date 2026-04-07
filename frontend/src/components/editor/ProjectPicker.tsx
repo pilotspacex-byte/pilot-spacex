@@ -140,7 +140,7 @@ export function ProjectPicker({
                     />
                     <div className="flex flex-col min-w-0 flex-1">
                       <span className="truncate font-medium">{project.name}</span>
-                      <span className="text-[10px] text-muted-foreground">
+                      <span className="text-xs text-muted-foreground">
                         {done} of {project.issueCount} issues done
                       </span>
                     </div>

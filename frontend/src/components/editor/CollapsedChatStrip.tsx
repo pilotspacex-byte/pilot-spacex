@@ -36,7 +36,7 @@ export function CollapsedChatStrip({ onClick, className }: CollapsedChatStripPro
               data-testid="collapsed-chat-strip"
             >
               <ChevronLeft className="h-4 w-4 text-ai" />
-              <span className="writing-mode-vertical text-[10px] font-medium text-ai">
+              <span className="writing-mode-vertical text-xs font-medium text-ai">
                 PilotSpace Agent
               </span>
               <MessageSquare className="h-4 w-4 text-ai mt-auto" />
@@ -47,7 +47,7 @@ export function CollapsedChatStrip({ onClick, className }: CollapsedChatStripPro
       </div>
 
       {/* Mobile/Tablet: Horizontal bar at bottom */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-background/90 backdrop-blur-sm">
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-background">
         <Button
           variant="ghost"
           onClick={onClick}

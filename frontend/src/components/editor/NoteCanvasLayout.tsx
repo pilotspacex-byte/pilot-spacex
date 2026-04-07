@@ -17,7 +17,7 @@
  * - Tablet (md-lg): Collapsible ChatView, full-width editor
  * - Mobile (<md): Overlay ChatView panel, compact header
  */
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { notesKeys } from '@/features/notes/hooks';
 import { EditorContent } from '@tiptap/react';
@@ -54,7 +54,6 @@ import { extractHeadings, extractSectionBlocks } from './AutoTOC';
 import type { HeadingItem } from './AutoTOC';
 import { OnThisPageTOC } from './OnThisPageTOC';
 import { NoteHealthBadges } from './NoteHealthBadges';
-import { ProjectContextHeader } from './ProjectContextHeader';
 import type { NoteCanvasProps } from './NoteCanvasEditor';
 import { useNoteCanvasEditor, EditorErrorFallback, EditorSkeleton } from './NoteCanvasEditor';
 
@@ -216,11 +215,10 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
   const [emojiPopoverOpen, setEmojiPopoverOpen] = useState(false);
   const [emojiInput, setEmojiInput] = useState('');
 
-  // Count top-level doc nodes for large-note warning
-  const blockCount = useMemo(() => {
-    if (!editor) return 0;
-    return editor.state.doc.childCount;
-  }, [editor]);
+  // Count top-level doc nodes for large-note warning.
+  // Not memoized: editor.state.doc.childCount is a cheap property read,
+  // and memoizing on `editor` ref alone would return stale counts as content changes.
+  const blockCount = editor?.state.doc.childCount ?? 0;
 
   // Show error state
   if (error || editorError) {
@@ -237,15 +235,6 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
   // Editor content component - reusable for both resizable and non-resizable layouts
   const editorContent = (
     <div className="flex flex-col min-w-0 overflow-hidden h-full">
-      {/* Project context header — shown only when note belongs to a project */}
-      {!isFocusMode && projectId && (
-        <ProjectContextHeader
-          projectId={projectId}
-          workspaceSlug={workspaceSlug}
-          workspaceId={workspaceId}
-        />
-      )}
-
       {/* Inline Note Header - Fixed at top, outside scrollable area */}
       {!isFocusMode && (title || createdAt) && (
         <InlineNoteHeader
@@ -372,7 +361,8 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
                 variant="ghost"
                 size="icon-sm"
                 onClick={onToggleFocusMode}
-                className="fixed top-3 right-3 z-[41] h-7 w-7 text-muted-foreground hover:text-foreground bg-background/80 backdrop-blur-sm border border-border/40 rounded-md"
+                style={{ zIndex: 'var(--z-sticky)' }}
+                className="fixed top-3 right-3 h-7 w-7 text-muted-foreground hover:text-foreground bg-background border border-border shadow-warm-sm rounded-sm"
                 aria-label="Exit focus mode"
               >
                 <Minimize2 className="h-3.5 w-3.5" />

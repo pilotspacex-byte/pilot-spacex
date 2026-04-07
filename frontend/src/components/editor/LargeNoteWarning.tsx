@@ -67,20 +67,16 @@ export function LargeNoteWarning({ noteId, blockCount, className }: LargeNoteWar
       data-testid="large-note-warning"
       className={cn(
         'flex items-center gap-2 px-3 py-2',
-        'bg-amber-50 border-b border-amber-200 text-amber-800',
-        'dark:bg-amber-900/20 dark:border-amber-700/50 dark:text-amber-300',
+        'bg-warning/10 border-b border-warning/30 text-warning',
         className
       )}
     >
-      <TriangleAlert className="h-4 w-4 shrink-0 text-amber-500" aria-hidden="true" />
+      <TriangleAlert className="h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
       <p className="flex-1 text-xs">This note is very large. Consider splitting into sub-notes.</p>
       <Button
         variant="ghost"
         size="icon"
-        className={cn(
-          'h-6 w-6 shrink-0 text-amber-600 hover:text-amber-800 hover:bg-amber-100',
-          'dark:text-amber-400 dark:hover:bg-amber-800/40'
-        )}
+        className="h-6 w-6 shrink-0 text-warning hover:bg-warning/15"
         onClick={dismiss}
         aria-label="Dismiss large note warning"
         data-testid="large-note-warning-dismiss"

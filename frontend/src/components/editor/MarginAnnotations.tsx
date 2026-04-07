@@ -129,16 +129,16 @@ const ANNOTATION_TYPE_CONFIG: Record<
   question: {
     icon: HelpCircle,
     label: 'Question',
-    color: 'text-purple-600',
-    bgColor: 'bg-purple-50',
-    borderColor: 'border-purple-200',
+    color: 'text-info',
+    bgColor: 'bg-info/10',
+    borderColor: 'border-info/30',
   },
   insight: {
     icon: Sparkles,
     label: 'Insight',
-    color: 'text-green-600',
-    bgColor: 'bg-green-50',
-    borderColor: 'border-green-200',
+    color: 'text-success',
+    bgColor: 'bg-success/10',
+    borderColor: 'border-success/30',
   },
   reference: {
     icon: Link2,
@@ -207,7 +207,7 @@ function AnnotationCard({
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex items-center gap-1.5">
           <Icon className={cn('h-3.5 w-3.5', config.color)} />
-          <AIConfidenceTag confidence={annotation.confidence} showIcon className="text-[10px]">
+          <AIConfidenceTag confidence={annotation.confidence} showIcon className="text-xs">
             {getConfidenceLabel(annotation.type, annotation.confidence)}
           </AIConfidenceTag>
         </div>
@@ -218,7 +218,7 @@ function AnnotationCard({
 
       {/* Resolved badge */}
       {(annotation.status === 'accepted' || annotation.status === 'rejected') && (
-        <Badge variant="secondary" className="mt-2 text-[10px]">
+        <Badge variant="secondary" className="mt-2 text-xs">
           <Check className="mr-1 h-3 w-3" />
           {annotation.status === 'accepted' ? 'Applied' : 'Dismissed'}
         </Badge>
@@ -318,7 +318,7 @@ function EmptyState({
         <h3 className="font-medium text-foreground mb-1 text-xs whitespace-nowrap">
           No suggestions yet
         </h3>
-        <p className="text-[10px] text-muted-foreground leading-relaxed">
+        <p className="text-xs text-muted-foreground leading-relaxed">
           AI suggestions will appear here as you write.
         </p>
       </div>
@@ -487,7 +487,7 @@ export const MarginAnnotations = observer(function MarginAnnotations({
         </div>
         <Badge
           variant="outline"
-          className="text-[10px] bg-background border-ai-border text-ai flex-shrink-0 whitespace-nowrap"
+          className="text-xs bg-background border-ai-border text-ai flex-shrink-0 whitespace-nowrap"
         >
           {counts.total} new
         </Badge>
@@ -498,7 +498,7 @@ export const MarginAnnotations = observer(function MarginAnnotations({
         {counts.suggestion > 0 && (
           <Badge
             variant="outline"
-            className="text-[10px] gap-1 bg-ai-muted/50 border-ai-border flex-shrink-0"
+            className="text-xs gap-1 bg-ai-muted/50 border-ai-border flex-shrink-0"
           >
             <Sparkles className="h-3 w-3 text-ai" />
             {counts.suggestion}
@@ -507,7 +507,7 @@ export const MarginAnnotations = observer(function MarginAnnotations({
         {counts.warning > 0 && (
           <Badge
             variant="outline"
-            className="text-[10px] gap-1 bg-destructive/10 border-destructive/30 flex-shrink-0"
+            className="text-xs gap-1 bg-destructive/10 border-destructive/30 flex-shrink-0"
           >
             <AlertTriangle className="h-3 w-3 text-destructive" />
             {counts.warning}
@@ -516,7 +516,7 @@ export const MarginAnnotations = observer(function MarginAnnotations({
         {counts.issue_candidate > 0 && (
           <Badge
             variant="outline"
-            className="text-[10px] gap-1 bg-primary-muted border-primary/30 flex-shrink-0"
+            className="text-xs gap-1 bg-primary-muted border-primary/30 flex-shrink-0"
           >
             <TicketPlus className="h-3 w-3 text-primary" />
             {counts.issue_candidate}
@@ -525,7 +525,7 @@ export const MarginAnnotations = observer(function MarginAnnotations({
         {counts.info > 0 && (
           <Badge
             variant="outline"
-            className="text-[10px] gap-1 bg-ai-muted/50 border-ai-border flex-shrink-0"
+            className="text-xs gap-1 bg-ai-muted/50 border-ai-border flex-shrink-0"
           >
             <Info className="h-3 w-3 text-ai" />
             {counts.info}
@@ -548,7 +548,7 @@ export const MarginAnnotations = observer(function MarginAnnotations({
                 >
                   <span
                     className={cn(
-                      'text-[10px] font-semibold uppercase tracking-wider',
+                      'text-xs font-semibold uppercase tracking-wider',
                       CATEGORY_CONFIG[category].color
                     )}
                   >
@@ -575,7 +575,7 @@ export const MarginAnnotations = observer(function MarginAnnotations({
           {/* Show resolved annotations separately if any exist */}
           {annotations.filter((a) => a.status !== 'pending').length > 0 && (
             <div className="space-y-2 pt-2 border-t border-border">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-2">
                 Resolved
               </span>
               {annotations
