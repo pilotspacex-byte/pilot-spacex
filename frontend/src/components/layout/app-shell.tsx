@@ -2,13 +2,12 @@
 
 import { useEffect } from 'react';
 import { observer } from 'mobx-react-lite';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { Menu } from 'lucide-react';
 import { useUIStore } from '@/stores';
 import { useResponsive } from '@/hooks/useMediaQuery';
 import { Sidebar } from './sidebar';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 import { CommandPalette } from '@/components/search/CommandPalette';
 import { useCommandPaletteShortcut } from '@/hooks/useCommandPaletteShortcut';
 import type { ReactNode } from 'react';
@@ -20,6 +19,7 @@ interface AppShellProps {
 export const AppShell = observer(function AppShell({ children }: AppShellProps) {
   const uiStore = useUIStore();
   const { isMobile, isTablet } = useResponsive();
+  const shouldReduceMotion = useReducedMotion();
   const sidebarOpen = !uiStore.sidebarCollapsed;
 
   useEffect(() => {
@@ -59,10 +59,15 @@ export const AppShell = observer(function AppShell({ children }: AppShellProps) 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: shouldReduceMotion ? 0 : 0.2 }}
             className="fixed inset-0 z-40 bg-background/60 backdrop-blur-sm"
             onClick={() => uiStore.setSidebarCollapsed(true)}
-            aria-hidden="true"
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') uiStore.setSidebarCollapsed(true);
+            }}
+            role="button"
+            tabIndex={-1}
+            aria-label="Close sidebar"
           />
         )}
       </AnimatePresence>
@@ -73,10 +78,10 @@ export const AppShell = observer(function AppShell({ children }: AppShellProps) 
           <AnimatePresence>
             {sidebarOpen && (
               <motion.aside
-                initial={{ x: -260 }}
+                initial={shouldReduceMotion ? false : { x: -260 }}
                 animate={{ x: 0 }}
-                exit={{ x: -260 }}
-                transition={{ duration: 0.2, ease: [0, 0, 0.2, 1] }}
+                exit={shouldReduceMotion ? { opacity: 0 } : { x: -260 }}
+                transition={{ duration: shouldReduceMotion ? 0 : 0.2, ease: [0, 0, 0.2, 1] }}
                 className="fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col border-r border-sidebar-border bg-sidebar"
               >
                 <Sidebar />
@@ -92,7 +97,7 @@ export const AppShell = observer(function AppShell({ children }: AppShellProps) 
             animate={{
               width: isTablet ? 60 : uiStore.sidebarCollapsed ? 60 : uiStore.sidebarWidth,
             }}
-            transition={{ duration: 0.2, ease: [0, 0, 0.2, 1] }}
+            transition={{ duration: shouldReduceMotion ? 0 : 0.2, ease: [0, 0, 0.2, 1] }}
             className="relative flex h-full flex-col border-r border-sidebar-border bg-sidebar"
           >
             <Sidebar />
@@ -118,11 +123,11 @@ export const AppShell = observer(function AppShell({ children }: AppShellProps) 
         )}
 
         {/* Main content */}
-        <main id="main-content" className={cn('flex-1 overflow-auto', 'scrollbar-thin')}>
+        <main id="main-content" className="flex-1 overflow-auto scrollbar-thin">
           <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, ease: [0, 0, 0.2, 1] }}
+            initial={shouldReduceMotion ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: shouldReduceMotion ? 0 : 0.3, ease: [0, 0, 0.2, 1] }}
             className="h-full"
           >
             {children}

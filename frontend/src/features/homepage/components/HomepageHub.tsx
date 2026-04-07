@@ -16,6 +16,8 @@
 
 import { useEffect, useMemo } from 'react';
 import { observer } from 'mobx-react-lite';
+import Link from 'next/link';
+import { MessageSquare } from 'lucide-react';
 import { useAuthStore, useWorkspaceStore } from '@/stores/RootStore';
 import { getAIStore } from '@/stores/ai/AIStore';
 import { ChatView } from '@/features/ai/ChatView';
@@ -153,6 +155,22 @@ export const HomepageHub = observer(function HomepageHub({ workspaceSlug }: Home
       {/* Left: Daily Brief document (scrolls independently) */}
       <section className="min-w-0 flex-1 overflow-y-auto px-6 py-6 lg:px-10 lg:py-8">
         <DailyBrief workspaceSlug={workspaceSlug} />
+
+        {/* Mobile: link to full chat page (ChatView is hidden on <lg) */}
+        <div className="mt-6 lg:hidden">
+          <Link
+            href={`/${workspaceSlug}/chat`}
+            className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/20 hover:shadow-warm-sm"
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+              <MessageSquare className="h-5 w-5 text-primary" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-foreground">Chat with AI</p>
+              <p className="text-xs text-muted-foreground">Ask questions, get insights, plan your work</p>
+            </div>
+          </Link>
+        </div>
       </section>
 
       {/* Right: ChatView command center (desktop only, viewport-pinned) */}
@@ -169,7 +187,7 @@ export const HomepageHub = observer(function HomepageHub({ workspaceSlug }: Home
             suggestedPrompts={suggestedPrompts}
           />
         ) : (
-          <div className="flex h-full items-center justify-center">
+          <div role="status" aria-label="Loading AI chat" className="flex h-full items-center justify-center">
             <p className="text-sm text-muted-foreground">Loading AI...</p>
           </div>
         )}

@@ -4,6 +4,7 @@
  * Note card/list row components extracted from notes page.
  * Includes: NoteGridCard, NoteListRow, GridSkeleton, EmptyState
  */
+import type React from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { FolderKanban, Pin, Plus } from 'lucide-react';
 import Link from 'next/link';
@@ -64,7 +65,12 @@ export function NoteGridCard({ note, workspaceSlug, projectMap, onPrefetch }: No
           ) : (
             <span />
           )}
-          {note.isPinned && <Pin className="h-3.5 w-3.5 text-amber-500 shrink-0" />}
+          {note.isPinned && (
+            <>
+              <Pin className="h-3.5 w-3.5 text-amber-500 shrink-0" aria-hidden="true" />
+              <span className="sr-only">Pinned</span>
+            </>
+          )}
         </div>
 
         {/* Title */}
@@ -79,12 +85,12 @@ export function NoteGridCard({ note, workspaceSlug, projectMap, onPrefetch }: No
               {linkedIssues.slice(0, 3).map((issue) => (
                 <span
                   key={issue.id}
-                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground bg-muted/50"
+                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium text-muted-foreground bg-muted/50"
                   title={`${issue.identifier}: ${issue.state.name}`}
                 >
                   <span
-                    className="h-1.5 w-1.5 rounded-full shrink-0"
-                    style={{ backgroundColor: issue.state.color }}
+                    className="h-1.5 w-1.5 rounded-full shrink-0 bg-[var(--state-color)]"
+                    style={{ '--state-color': issue.state.color } as React.CSSProperties}
                     aria-hidden="true"
                   />
                   <span>{issue.identifier}</span>
@@ -92,7 +98,7 @@ export function NoteGridCard({ note, workspaceSlug, projectMap, onPrefetch }: No
                 </span>
               ))}
               {linkedIssues.length > 3 && (
-                <span className="text-[10px] text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   +{linkedIssues.length - 3}
                 </span>
               )}
@@ -105,7 +111,7 @@ export function NoteGridCard({ note, workspaceSlug, projectMap, onPrefetch }: No
         </div>
 
         {/* Footer: word count + timestamp */}
-        <div className="mt-auto flex items-center justify-between pt-3 border-t border-border-subtle text-[11px] text-muted-foreground">
+        <div className="mt-auto flex items-center justify-between pt-3 border-t border-border-subtle text-xs text-muted-foreground">
           {wordCount > 0 ? (
             <span>{wordCount.toLocaleString()} words</span>
           ) : (
@@ -143,7 +149,12 @@ export function NoteListRow({ note, workspaceSlug, projectMap, onPrefetch }: Not
         )}
       >
         {/* Pin indicator */}
-        {note.isPinned && <Pin className="h-3.5 w-3.5 text-amber-500 shrink-0" />}
+        {note.isPinned && (
+          <>
+            <Pin className="h-3.5 w-3.5 text-amber-500 shrink-0" aria-hidden="true" />
+            <span className="sr-only">Pinned</span>
+          </>
+        )}
 
         {/* Title & preview */}
         <div className="flex-1 min-w-0">
@@ -176,12 +187,12 @@ export function NoteListRow({ note, workspaceSlug, projectMap, onPrefetch }: Not
               {linkedIssues.slice(0, 3).map((issue) => (
                 <span
                   key={issue.id}
-                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground bg-muted/50"
+                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium text-muted-foreground bg-muted/50"
                   title={`${issue.identifier}: ${issue.state.name}`}
                 >
                   <span
-                    className="h-1.5 w-1.5 rounded-full shrink-0"
-                    style={{ backgroundColor: issue.state.color }}
+                    className="h-1.5 w-1.5 rounded-full shrink-0 bg-[var(--state-color)]"
+                    style={{ '--state-color': issue.state.color } as React.CSSProperties}
                     aria-hidden="true"
                   />
                   <span>{issue.identifier}</span>
@@ -189,13 +200,13 @@ export function NoteListRow({ note, workspaceSlug, projectMap, onPrefetch }: Not
                 </span>
               ))}
               {linkedIssues.length > 3 && (
-                <span className="text-[10px] text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   +{linkedIssues.length - 3}
                 </span>
               )}
             </div>
           )}
-          <span className="w-24 text-right">{updatedAt}</span>
+          <span className="min-w-[6rem] text-right whitespace-nowrap">{updatedAt}</span>
         </div>
       </div>
     </Link>
@@ -207,7 +218,7 @@ export function NoteListRow({ note, workspaceSlug, projectMap, onPrefetch }: Not
  */
 export function GridSkeleton() {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div role="status" aria-label="Loading notes" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {Array.from({ length: 6 }).map((_, i) => (
         <div key={i} className="rounded-xl border border-border bg-card p-5">
           <div className="mb-3 flex items-center justify-between">
@@ -234,7 +245,7 @@ export function EmptyState({ onCreate }: { onCreate?: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center py-20 text-center">
       <div className="relative mb-6">
-        <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-primary/6">
+        <div className="flex h-14 w-14 sm:h-16 sm:w-16 lg:h-20 lg:w-20 items-center justify-center rounded-2xl bg-primary/6">
           <span className="font-display text-4xl font-semibold text-primary/40">N</span>
         </div>
         <div className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-lg bg-background shadow-warm-sm border border-border/50">
@@ -247,7 +258,7 @@ export function EmptyState({ onCreate }: { onCreate?: () => void }) {
         workflow.
       </p>
       {onCreate && (
-        <Button onClick={onCreate} className="shadow-warm-sm">
+        <Button variant="primary" onClick={onCreate} className="shadow-warm-sm">
           <Plus className="mr-2 h-4 w-4" />
           Create your first note
         </Button>

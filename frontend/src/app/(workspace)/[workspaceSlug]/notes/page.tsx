@@ -8,7 +8,7 @@ import { useCallback, useMemo, useRef, useState, use } from 'react';
 import { observer } from 'mobx-react-lite';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import {
   FileText,
   FolderKanban,
@@ -79,6 +79,7 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const workspaceStore = useWorkspaceStore();
+  const shouldReduceMotion = useReducedMotion();
   const canCreateContent = workspaceStore.currentUserRole !== 'guest';
 
   // Seed project filter from ?projectId=<id> (e.g. from ProjectNotesPanel "View all" link)
@@ -231,6 +232,7 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
           </div>
           {canCreateContent && (
             <Button
+              variant="primary"
               onClick={handleCreateNote}
               disabled={createNote.isPending}
               className="gap-2 shadow-warm-sm"
@@ -257,6 +259,7 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search notes..."
+            aria-label="Search notes"
             className="pl-9"
           />
         </div>
@@ -270,7 +273,7 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
                 <Filter className="h-4 w-4" />
                 Filter
                 {filterPinned !== undefined && (
-                  <Badge variant="secondary" className="ml-1 text-[10px]">
+                  <Badge variant="secondary" className="ml-1 text-xs">
                     1
                   </Badge>
                 )}
@@ -302,7 +305,7 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
                 <FolderKanban className="h-4 w-4" />
                 Projects
                 {selectedProjectIds.length > 0 && (
-                  <Badge variant="secondary" className="ml-1 text-[10px]">
+                  <Badge variant="secondary" className="ml-1 text-xs">
                     {selectedProjectIds.length}
                   </Badge>
                 )}
@@ -473,13 +476,13 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
               {filteredNotes.map((note, index) => (
                 <motion.div
                   key={note.id}
-                  initial={index < INITIAL_ANIMATED_COUNT ? { opacity: 0, y: 12 } : false}
+                  initial={!shouldReduceMotion && index < INITIAL_ANIMATED_COUNT ? { opacity: 0, y: 12 } : false}
                   animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
+                  exit={shouldReduceMotion ? undefined : { opacity: 0, scale: 0.95 }}
                   transition={
-                    index < INITIAL_ANIMATED_COUNT
+                    !shouldReduceMotion && index < INITIAL_ANIMATED_COUNT
                       ? { delay: Math.min(index * 0.03, 0.3) }
-                      : undefined
+                      : { duration: 0 }
                   }
                 >
                   <NoteGridCard
@@ -533,7 +536,7 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
                     transform: `translateY(${virtualRow.start}px)`,
                   }}
                 >
-                  {isInitialBatch ? (
+                  {isInitialBatch && !shouldReduceMotion ? (
                     <motion.div
                       initial={{ opacity: 0, x: -12 }}
                       animate={{ opacity: 1, x: 0 }}

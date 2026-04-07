@@ -421,7 +421,7 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
 
         {/* Medium-style "On This Page" TOC — fixed to right edge, shown when chat closed */}
         {!isChatViewOpen && noteHeadings.length >= 2 && (
-          <div className="hidden lg:block fixed top-1/4 right-14 w-48 z-30">
+          <div className="hidden xl:block fixed top-1/4 right-14 w-48 z-30">
             <OnThisPageTOC editor={editor} headings={noteHeadings} />
           </div>
         )}

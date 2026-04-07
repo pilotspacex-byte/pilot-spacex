@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { runInAction } from 'mobx';
 import { useRouter, useParams } from 'next/navigation';
-import { motion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import { FileX, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -51,7 +51,7 @@ function sanitizeNoteContent(content: JSONContent | undefined): JSONContent | un
  */
 function NoteDetailSkeleton() {
   return (
-    <div className="flex h-full flex-col">
+    <div role="status" aria-label="Loading note" className="flex h-full flex-col">
       {/* Header skeleton */}
       <div className="border-b border-border">
         <div className="px-6 py-2">
@@ -95,11 +95,12 @@ function NoteDetailSkeleton() {
  */
 function NoteNotFound({ workspaceSlug }: { workspaceSlug: string }) {
   const router = useRouter();
+  const shouldReduceMotion = useReducedMotion();
 
   return (
     <div className="flex h-full flex-col items-center justify-center p-8">
       <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
+        initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         className="flex flex-col items-center text-center"
       >
@@ -131,6 +132,7 @@ function NoteDetailPage() {
   const noteId = params.noteId ?? '';
   const router = useRouter();
   const queryClient = useQueryClient();
+  const shouldReduceMotion = useReducedMotion();
   const noteStore = useNoteStore();
   const uiStore = useUIStore();
 
@@ -439,10 +441,10 @@ function NoteDetailPage() {
         {/* Version History Panel - slides in from right */}
         {showVersionHistory && (
           <motion.div
-            initial={{ x: '100%' }}
+            initial={shouldReduceMotion ? false : { x: '100%' }}
             animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            exit={shouldReduceMotion ? undefined : { x: '100%' }}
+            transition={shouldReduceMotion ? { duration: 0 } : { type: 'spring', damping: 25, stiffness: 300 }}
             className="absolute right-0 top-0 bottom-0 w-80 border-l border-border bg-background shadow-lg z-10"
           >
             <VersionHistoryPanel

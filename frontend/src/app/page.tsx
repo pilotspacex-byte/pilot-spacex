@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { motion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import { Compass, Loader2, Plus, Building2, ArrowLeft, Check, AlertCircle } from 'lucide-react';
 import { WorkspaceSelector, addRecentWorkspace } from '@/components/workspace-selector';
 import { Button } from '@/components/ui/button';
@@ -18,20 +18,22 @@ import { supabase } from '@/lib/supabase';
 const WORKSPACE_STORAGE_KEY = 'pilot-space:last-workspace';
 
 const fadeUp = {
-  initial: { opacity: 0, y: 20 },
+  initial: (prefersReducedMotion: boolean) =>
+    prefersReducedMotion ? { opacity: 1 } : { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
 };
 
-const stagger = {
+const stagger = (prefersReducedMotion: boolean) => ({
   animate: {
     transition: {
-      staggerChildren: 0.1,
+      staggerChildren: prefersReducedMotion ? 0 : 0.1,
     },
   },
-};
+});
 
 export default function HomePage() {
   const router = useRouter();
+  const prefersReducedMotion = useReducedMotion() ?? false;
   const [isLoading, setIsLoading] = React.useState(true);
   const [hasWorkspaces, setHasWorkspaces] = React.useState(true);
   const [fetchError, setFetchError] = React.useState<string | null>(null);
@@ -259,17 +261,18 @@ export default function HomePage() {
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-background px-4 py-12">
       <motion.div
-        variants={stagger}
+        variants={stagger(prefersReducedMotion)}
         initial="initial"
         animate="animate"
+        custom={prefersReducedMotion}
         className="flex w-full max-w-md flex-col items-center"
       >
         {/* Logo */}
-        <motion.div variants={fadeUp} className="mb-8">
+        <motion.div variants={fadeUp} custom={prefersReducedMotion} className="mb-8">
           <motion.div
             className="relative"
-            animate={{ rotate: [0, 5, -5, 0] }}
-            transition={{ repeat: Infinity, duration: 6, ease: 'easeInOut' }}
+            animate={prefersReducedMotion ? undefined : { rotate: [0, 5, -5, 0] }}
+            transition={prefersReducedMotion ? undefined : { repeat: Infinity, duration: 6, ease: 'easeInOut' }}
           >
             <div className="absolute inset-0 blur-2xl">
               <div className="h-20 w-20 rounded-full bg-primary/20" />
@@ -283,17 +286,18 @@ export default function HomePage() {
         {/* Welcome Text */}
         <motion.h1
           variants={fadeUp}
+          custom={prefersReducedMotion}
           className="mb-2 text-center text-3xl font-semibold tracking-tight text-foreground"
         >
           Welcome to Pilot Space
         </motion.h1>
 
-        <motion.p variants={fadeUp} className="mb-8 text-center text-muted-foreground">
+        <motion.p variants={fadeUp} custom={prefersReducedMotion} className="mb-8 text-center text-muted-foreground">
           {hasWorkspaces ? 'Select a workspace to get started' : 'Create your first workspace'}
         </motion.p>
 
         {/* Workspace Selector or Creation Wizard */}
-        <motion.div variants={fadeUp} className="w-full">
+        <motion.div variants={fadeUp} custom={prefersReducedMotion} className="w-full">
           {hasWorkspaces ? (
             <WorkspaceSelector onSelect={handleWorkspaceSelect} />
           ) : step === 1 ? (
