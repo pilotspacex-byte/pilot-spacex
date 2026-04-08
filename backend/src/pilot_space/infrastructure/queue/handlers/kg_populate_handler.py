@@ -35,6 +35,7 @@ from pilot_space.application.services.note.markdown_chunker import (
 from pilot_space.domain.graph_edge import EdgeType, GraphEdge
 from pilot_space.domain.graph_node import NodeType
 from pilot_space.domain.graph_query import ScoredNode
+from pilot_space.domain.memory.memory_type import MEMORY_TYPE_TO_NODE_TYPE, MemoryType
 from pilot_space.infrastructure.database.models.cycle import Cycle as CycleModel
 from pilot_space.infrastructure.database.models.graph_edge import GraphEdgeModel
 from pilot_space.infrastructure.database.models.graph_node import GraphNodeModel
@@ -112,13 +113,34 @@ class KgPopulateHandler:
             pass
         self._embedding = self._fallback_embedding
 
-    async def handle(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """Dispatch to _handle_issue or _handle_note based on entity_type.
+    async def handle(self, payload: dict[str, Any]) -> dict[str, Any]:  # noqa: PLR0911
+        """Dispatch based on payload shape.
+
+        Phase 69 extension: if ``payload['memory_type']`` is set to one of
+        ``agent_turn``, ``user_correction``, or ``pr_review_finding``, the
+        handler routes to ``_handle_memory_type`` which creates a single
+        graph node with the corresponding ``NodeType``. Existing note /
+        issue / project / cycle ingestion paths are unchanged.
 
         Validation errors (bad payload, unknown entity_type) return
         ``{"success": False}`` so the worker ACKs them. Infrastructure
         errors propagate as exceptions for worker retry / dead-letter.
         """
+        # Phase 69 discriminator — handle new memory types first.
+        memory_type_raw = payload.get("memory_type")
+        if memory_type_raw:
+            try:
+                memory_type = MemoryType(memory_type_raw)
+            except ValueError:
+                logger.warning("KgPopulateHandler: unknown memory_type %r", memory_type_raw)
+                return {"success": False, "error": f"unknown memory_type: {memory_type_raw}"}
+            if memory_type in (
+                MemoryType.AGENT_TURN,
+                MemoryType.USER_CORRECTION,
+                MemoryType.PR_REVIEW_FINDING,
+            ):
+                return await self._handle_memory_type(memory_type, payload)
+
         try:
             p = _KgPopulatePayload.from_dict(payload)
         except (KeyError, ValueError) as exc:
@@ -138,6 +160,80 @@ class KgPopulateHandler:
             return await self._handle_cycle(p)
         logger.warning("KgPopulateHandler: unknown entity_type %r", p.entity_type)
         return {"success": False, "error": f"unknown entity_type: {p.entity_type}"}
+
+    async def _handle_memory_type(
+        self,
+        memory_type: MemoryType,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Create a single graph node for a Phase 69 memory type.
+
+        Expected payload keys:
+            memory_type: one of 'agent_turn' | 'user_correction' | 'pr_review_finding'
+            workspace_id: UUID string
+            content: text content to embed + store
+            metadata: optional dict of provenance fields
+            label: optional short display label
+            external_id: optional FK to originating entity
+            user_id: optional user scope
+        """
+        try:
+            workspace_id = UUID(payload["workspace_id"])
+        except (KeyError, ValueError) as exc:
+            logger.warning("KgPopulateHandler: invalid memory payload %r — %s", payload, exc)
+            return {"success": False, "error": f"invalid payload: {exc}"}
+
+        content = str(payload.get("content") or "").strip()
+        if not content:
+            return {"success": False, "error": "content is required"}
+
+        metadata = payload.get("metadata") or {}
+        if not isinstance(metadata, dict):
+            metadata = {}
+        label = str(payload.get("label") or content[:120])
+        external_id_raw = payload.get("external_id")
+        external_id = UUID(external_id_raw) if external_id_raw else None
+        user_id_raw = payload.get("user_id")
+        user_id = UUID(user_id_raw) if user_id_raw else None
+
+        node_type = MEMORY_TYPE_TO_NODE_TYPE[memory_type]
+
+        # Resolve workspace BYOK embedding key before we let GraphWriteService
+        # enqueue embeddings for the new node.
+        await self._resolve_workspace_embedding(workspace_id)
+
+        write_svc = GraphWriteService(
+            knowledge_graph_repository=self._repo,
+            queue=self._queue,
+            session=self._session,
+            auto_commit=False,
+        )
+        result = await write_svc.execute(
+            GraphWritePayload(
+                workspace_id=workspace_id,
+                nodes=[
+                    NodeInput(
+                        node_type=node_type,
+                        label=label[:120],
+                        content=content[:2000],
+                        external_id=external_id,
+                        user_id=user_id,
+                        properties={**metadata, "memory_type": memory_type.value},
+                    )
+                ],
+            )
+        )
+
+        logger.info(
+            "KgPopulateHandler: memory_type=%s → %d node(s)",
+            memory_type.value,
+            len(result.node_ids),
+        )
+        return {
+            "success": True,
+            "memory_type": memory_type.value,
+            "node_ids": [str(n) for n in result.node_ids],
+        }
 
     async def _handle_issue(self, p: _KgPopulatePayload) -> dict[str, Any]:
         issue = await self._session.get(IssueModel, p.entity_id)
