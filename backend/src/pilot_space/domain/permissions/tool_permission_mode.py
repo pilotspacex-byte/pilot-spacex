@@ -12,10 +12,10 @@ DD-003: tools classified as ``CRITICAL_REQUIRE_APPROVAL`` in
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 
-class ToolPermissionMode(str, Enum):
+class ToolPermissionMode(StrEnum):
     """Approval mode for a single AI tool in a single workspace.
 
     Attributes:
