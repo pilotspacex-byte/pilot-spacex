@@ -27,6 +27,7 @@ from pilot_space.api.v1.routers.ai_costs import router as ai_costs_router
 from pilot_space.api.v1.routers.ai_drive import router as ai_drive_router
 from pilot_space.api.v1.routers.ai_extraction import router as ai_extraction_router
 from pilot_space.api.v1.routers.ai_governance import router as ai_governance_router
+from pilot_space.api.v1.routers.ai_memory_telemetry import router as ai_memory_telemetry_router
 from pilot_space.api.v1.routers.ai_permissions import router as ai_permissions_router
 from pilot_space.api.v1.routers.ai_sessions import router as ai_sessions_router
 from pilot_space.api.v1.routers.ai_tasks import router as ai_tasks_router
@@ -174,6 +175,7 @@ __all__ = [
     "ai_drive_router",
     "ai_extraction_router",
     "ai_governance_router",
+    "ai_memory_telemetry_router",
     "ai_permissions_router",
     "ai_pr_review_router",
     "ai_router",
