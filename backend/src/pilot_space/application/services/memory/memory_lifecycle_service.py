@@ -20,7 +20,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import and_, delete, select, update
+from sqlalchemy import and_, delete, select, text, update
 
 from pilot_space.domain.exceptions import ForbiddenError, NotFoundError
 from pilot_space.domain.memory.memory_type import MEMORY_TYPE_TO_NODE_TYPE
@@ -51,6 +51,7 @@ class ForgetPayload:
 class GDPRForgetPayload:
     user_id: UUID
     workspace_id: UUID
+    actor_user_id: UUID
 
 
 class MemoryLifecycleService:
@@ -73,7 +74,7 @@ class MemoryLifecycleService:
         """Set ``properties.pinned = true`` on the target node.
 
         Raises:
-            NotFoundError: Node does not exist.
+            NotFoundError: Node does not exist or was deleted concurrently.
             ForbiddenError: Node belongs to a different workspace.
         """
         node = await self._load_node(payload.node_id)
@@ -84,10 +85,27 @@ class MemoryLifecycleService:
         props["pinned_by"] = str(payload.actor_user_id)
         props["pinned_at"] = datetime.now(tz=UTC).isoformat()
 
-        await self._session.execute(
+        # C3: guard against a concurrent ``forget`` landing between _load_node
+        # and this UPDATE — without ``is_deleted == False`` in the WHERE clause
+        # the pin would silently resurrect a tombstoned node's ``properties``
+        # while leaving ``is_deleted=true``, producing a contradictory row.
+        result = await self._session.execute(
             update(GraphNodeModel)
-            .where(GraphNodeModel.id == payload.node_id)
+            .where(
+                GraphNodeModel.id == payload.node_id,
+                GraphNodeModel.is_deleted == False,  # noqa: E712
+            )
             .values(properties=props, updated_at=datetime.now(tz=UTC))
+        )
+        if (getattr(result, "rowcount", 0) or 0) == 0:
+            raise NotFoundError(
+                f"memory node {payload.node_id} was deleted before pin could commit"
+            )
+        await self._write_audit(
+            action="pin",
+            workspace_id=payload.workspace_id,
+            actor_user_id=payload.actor_user_id,
+            node_id=payload.node_id,
         )
         logger.info(
             "memory_lifecycle: pinned node %s by %s",
@@ -114,6 +132,12 @@ class MemoryLifecycleService:
             update(GraphNodeModel)
             .where(GraphNodeModel.id == payload.node_id)
             .values(is_deleted=True, deleted_at=now, updated_at=now)
+        )
+        await self._write_audit(
+            action="forget",
+            workspace_id=payload.workspace_id,
+            actor_user_id=payload.actor_user_id,
+            node_id=payload.node_id,
         )
         logger.info(
             "memory_lifecycle: forgot node %s by %s",
@@ -144,10 +168,18 @@ class MemoryLifecycleService:
             )
         )
         deleted = getattr(result, "rowcount", 0) or 0
+        await self._write_audit(
+            action="gdpr_forget",
+            workspace_id=payload.workspace_id,
+            actor_user_id=payload.actor_user_id,
+            target_user_id=payload.user_id,
+            deleted_count=deleted,
+        )
         logger.info(
-            "memory_lifecycle: gdpr_forget workspace=%s user=%s deleted=%d",
+            "memory_lifecycle: gdpr_forget workspace=%s user=%s actor=%s deleted=%d",
             payload.workspace_id,
             payload.user_id,
+            payload.actor_user_id,
             deleted,
         )
         return deleted
@@ -216,6 +248,52 @@ class MemoryLifecycleService:
         if node.workspace_id != workspace_id:
             raise ForbiddenError(
                 f"memory node {node.id} does not belong to workspace {workspace_id}"
+            )
+
+    async def _write_audit(
+        self,
+        *,
+        action: str,
+        workspace_id: UUID,
+        actor_user_id: UUID,
+        node_id: UUID | None = None,
+        target_user_id: UUID | None = None,
+        deleted_count: int | None = None,
+    ) -> None:
+        """Insert a durable audit row for pin / forget / gdpr_forget.
+
+        Writes to ``memory_lifecycle_audit`` (migration 107) via raw SQL so
+        the service does not take a dependency on an ORM model that exists
+        only for this one write path. Best-effort: logs and continues on
+        failure so audit writes cannot mask the primary mutation's success.
+        """
+        try:
+            await self._session.execute(
+                text(
+                    """
+                    INSERT INTO memory_lifecycle_audit
+                        (workspace_id, actor_user_id, action,
+                         node_id, target_user_id, deleted_count)
+                    VALUES
+                        (:workspace_id, :actor_user_id, :action,
+                         :node_id, :target_user_id, :deleted_count)
+                    """
+                ),
+                {
+                    "workspace_id": str(workspace_id),
+                    "actor_user_id": str(actor_user_id),
+                    "action": action,
+                    "node_id": str(node_id) if node_id else None,
+                    "target_user_id": str(target_user_id) if target_user_id else None,
+                    "deleted_count": deleted_count,
+                },
+            )
+        except Exception:
+            logger.warning(
+                "memory_lifecycle: audit write failed action=%s workspace=%s",
+                action,
+                workspace_id,
+                exc_info=True,
             )
 
 

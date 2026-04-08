@@ -272,6 +272,7 @@ async def test_admin_can_gdpr_forget(
     assert len(fake_lifecycle.gdpr_calls) == 1
     assert fake_lifecycle.gdpr_calls[0].user_id == TARGET_USER_ID
     assert fake_lifecycle.gdpr_calls[0].workspace_id == WORKSPACE_ID
+    assert fake_lifecycle.gdpr_calls[0].actor_user_id == USER_ID
 
 
 def test_routes_use_empty_string_on_collection_roots() -> None:

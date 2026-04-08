@@ -42,11 +42,16 @@ logger = get_logger(__name__)
 _CACHE_AGENT_NAME = "memory_recall"
 _DEFAULT_K = 8
 _DEFAULT_MIN_SCORE = 0.7
+# Hard ceiling on the downstream GraphSearch call (embed + hybrid query).
+# Exists to protect the agent's first-token latency when embedding providers
+# stall. Chosen well above the 200ms p95 SLO so normal traffic is unaffected.
+_RECALL_HARD_TIMEOUT_S = 0.5
 
 # Module-level single-flight lock registry keyed by cache key.
 # Prevents thundering-herd: concurrent identical recalls share one in-flight
-# coroutine. Locks are short-lived and keyed; OK to leak a few per process.
-_inflight_locks: dict[str, asyncio.Lock] = {}
+# coroutine. Each acquire bumps a refcount; the last releaser pops the entry
+# so the registry size is bounded by in-flight parallelism, not cardinality.
+_inflight_locks: dict[str, tuple[asyncio.Lock, int]] = {}
 _inflight_registry_lock = asyncio.Lock()
 
 
@@ -140,6 +145,13 @@ class MemoryRecallService:
         )
         node_types: list[NodeType] = [t.to_node_type() for t in types_tuple]
 
+        # H3: include an embedding-model fingerprint so rotating BYOK keys or
+        # switching providers mid-TTL can't serve vectors from a stale model.
+        embedding_fp = (
+            getattr(self._embedding, "model_name", None)
+            or getattr(self._embedding, "provider", None)
+            or "default"
+        )
         cache_input = {
             "workspace_id": str(payload.workspace_id),
             "query": payload.query,
@@ -147,6 +159,7 @@ class MemoryRecallService:
             "k": payload.k,
             "min_score": payload.min_score,
             "user_id": str(payload.user_id) if payload.user_id else None,
+            "embedding_fp": str(embedding_fp),
         }
 
         # 1. Fast-path cache check (no lock needed for read)
@@ -161,41 +174,64 @@ class MemoryRecallService:
                 elapsed_ms=elapsed_ms,
             )
 
-        # 2. Single-flight: concurrent callers share one in-flight call
-        lock = await self._get_inflight_lock(cache_input)
-        async with lock:
-            # 3. Re-check cache after acquiring the lock
-            cached = await self._cache_get(cache_input)
-            if cached is not None:
-                elapsed_ms = (time.perf_counter() - t0) * 1000.0
-                record_recall_hit()
-                record_recall_latency_ms(elapsed_ms)
-                return RecallResult(
-                    items=cached,
-                    cache_hit=True,
-                    elapsed_ms=elapsed_ms,
-                )
+        # 2. Single-flight: concurrent callers share one in-flight call.
+        # The registry key is stable across callers so refcount release in
+        # the finally block is guaranteed even if the delegate raises.
+        registry_key = _stable_key(cache_input)
+        lock = await self._acquire_inflight_lock(registry_key)
+        try:
+            async with lock:
+                # 3. Re-check cache after acquiring the lock
+                cached = await self._cache_get(cache_input)
+                if cached is not None:
+                    elapsed_ms = (time.perf_counter() - t0) * 1000.0
+                    record_recall_hit()
+                    record_recall_latency_ms(elapsed_ms)
+                    return RecallResult(
+                        items=cached,
+                        cache_hit=True,
+                        elapsed_ms=elapsed_ms,
+                    )
 
-            # 4. Delegate to GraphSearchService
-            result = await self._graph_search.execute(
-                GraphSearchPayload(
-                    query=payload.query,
-                    workspace_id=payload.workspace_id,
-                    user_id=payload.user_id,
-                    node_types=node_types,
-                    limit=payload.k,
-                )
-            )
+                # 4. Delegate to GraphSearchService under a hard timeout.
+                # C4: on timeout we degrade gracefully — empty recall, no
+                # <memory> block, agent still produces a response.
+                try:
+                    result = await asyncio.wait_for(
+                        self._graph_search.execute(
+                            GraphSearchPayload(
+                                query=payload.query,
+                                workspace_id=payload.workspace_id,
+                                user_id=payload.user_id,
+                                node_types=node_types,
+                                limit=payload.k,
+                            )
+                        ),
+                        timeout=_RECALL_HARD_TIMEOUT_S,
+                    )
+                except TimeoutError:
+                    elapsed_ms = (time.perf_counter() - t0) * 1000.0
+                    record_recall_miss()
+                    record_recall_latency_ms(elapsed_ms)
+                    logger.warning(
+                        "memory_recall: graph_search timed out after %.0fms "
+                        "workspace=%s — degrading to empty recall",
+                        _RECALL_HARD_TIMEOUT_S * 1000.0,
+                        payload.workspace_id,
+                    )
+                    return RecallResult(items=[], cache_hit=False, elapsed_ms=elapsed_ms)
 
-            # 5. Filter by min_score + materialize MemoryItem
-            items: list[MemoryItem] = [
-                _scored_to_memory_item(sn)
-                for sn in result.nodes
-                if sn.score >= payload.min_score
-            ]
+                # 5. Filter by min_score + materialize MemoryItem
+                items: list[MemoryItem] = [
+                    _scored_to_memory_item(sn)
+                    for sn in result.nodes
+                    if sn.score >= payload.min_score
+                ]
 
-            # 6. Cache the result
-            await self._cache_set(cache_input, items)
+                # 6. Cache the result
+                await self._cache_set(cache_input, items)
+        finally:
+            await self._release_inflight_lock(registry_key)
 
         elapsed_ms = (time.perf_counter() - t0) * 1000.0
         record_recall_miss()
@@ -238,17 +274,35 @@ class MemoryRecallService:
         except Exception:
             logger.warning("memory_recall: cache set failed", exc_info=True)
 
-    async def _get_inflight_lock(self, cache_input: Mapping[str, object]) -> asyncio.Lock:
-        """Return (or create) a per-key asyncio.Lock for single-flight."""
-        # The registry lock protects dict mutation; the returned lock
-        # is the one callers contend on for single-flight.
-        key = _stable_key(cache_input)
+    async def _acquire_inflight_lock(self, key: str) -> asyncio.Lock:
+        """Return the per-key lock and bump its refcount.
+
+        Callers MUST pair this with :meth:`_release_inflight_lock` in a
+        ``finally`` block so the registry entry is popped when the last
+        concurrent caller exits — otherwise the registry would leak one
+        entry per unique cache key.
+        """
         async with _inflight_registry_lock:
-            lock = _inflight_locks.get(key)
-            if lock is None:
+            entry = _inflight_locks.get(key)
+            if entry is None:
                 lock = asyncio.Lock()
-                _inflight_locks[key] = lock
+                _inflight_locks[key] = (lock, 1)
+                return lock
+            lock, refcount = entry
+            _inflight_locks[key] = (lock, refcount + 1)
             return lock
+
+    async def _release_inflight_lock(self, key: str) -> None:
+        """Decrement the per-key refcount and pop the entry at zero."""
+        async with _inflight_registry_lock:
+            entry = _inflight_locks.get(key)
+            if entry is None:
+                return
+            lock, refcount = entry
+            if refcount <= 1:
+                _inflight_locks.pop(key, None)
+            else:
+                _inflight_locks[key] = (lock, refcount - 1)
 
 
 # ---------------------------------------------------------------------------

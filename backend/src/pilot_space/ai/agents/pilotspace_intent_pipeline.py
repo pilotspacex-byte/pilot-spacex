@@ -555,6 +555,11 @@ async def recall_graph_context(
         from pilot_space.application.services.memory.graph_search_service import (
             GraphSearchPayload,
         )
+        from pilot_space.domain.memory.memory_type import MEMORY_TYPE_TO_NODE_TYPE
+
+        # H1: match the MemoryRecallService path's node-type scope so recall
+        # quality does not silently change when the service falls back.
+        _memory_node_types = list(MEMORY_TYPE_TO_NODE_TYPE.values())
 
         payload = GraphSearchPayload(
             query=query,
@@ -562,6 +567,7 @@ async def recall_graph_context(
             user_id=user_id,
             limit=limit,
             since=since,
+            node_types=_memory_node_types,
         )
         result = await graph_search_service.execute(payload)
         entries = [

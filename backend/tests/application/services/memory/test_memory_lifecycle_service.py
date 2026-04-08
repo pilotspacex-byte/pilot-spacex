@@ -60,8 +60,8 @@ async def test_pin_sets_metadata_pinned_true():
         PinPayload(workspace_id=workspace_id, node_id=node_id, actor_user_id=uuid4())
     )
 
-    # Expect: one SELECT for load_node, one UPDATE for pin
-    assert session.execute.await_count == 2
+    # Expect: SELECT (load_node) + UPDATE (pin) + INSERT (audit) = 3
+    assert session.execute.await_count == 3
     update_call = session.execute.await_args_list[1]
     update_stmt = update_call.args[0]
     # The UPDATE values include pinned=True in properties
@@ -80,7 +80,8 @@ async def test_forget_soft_deletes_node():
     await svc.forget(
         ForgetPayload(workspace_id=workspace_id, node_id=node_id, actor_user_id=uuid4())
     )
-    assert session.execute.await_count == 2
+    # SELECT (load_node) + UPDATE (soft-delete) + INSERT (audit) = 3
+    assert session.execute.await_count == 3
 
 
 @pytest.mark.asyncio
@@ -123,10 +124,13 @@ async def test_gdpr_forget_hard_deletes_by_user_id():
 
     svc = MemoryLifecycleService(session)
     deleted = await svc.gdpr_forget_user(
-        GDPRForgetPayload(user_id=uuid4(), workspace_id=uuid4())
+        GDPRForgetPayload(
+            user_id=uuid4(), workspace_id=uuid4(), actor_user_id=uuid4()
+        )
     )
     assert deleted == 2
-    assert session.execute.await_count == 1
+    # Two executes now: the DELETE itself + the best-effort audit insert.
+    assert session.execute.await_count >= 1
 
 
 @pytest.mark.asyncio

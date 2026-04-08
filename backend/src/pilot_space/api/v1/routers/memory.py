@@ -223,7 +223,10 @@ class RecallRequest(BaseModel):
 
     query: str = Field(..., min_length=1)
     k: int = Field(default=8, ge=1, le=50)
-    types: list[str] | None = None
+    # C2: Pydantic coerces unknown values into a 422 RFC 7807 response
+    # via the global handler, instead of raising ValueError at the route
+    # boundary and producing a plain 500.
+    types: list[MemoryType] | None = None
     min_score: float = Field(default=0.7, ge=0.0, le=1.0)
 
 
@@ -277,9 +280,9 @@ async def recall_memory(
     """Hybrid semantic recall over the workspace knowledge graph."""
     _ = session  # ContextVar population — required for DI session lookup.
 
-    types_tuple: tuple[MemoryType, ...] | None = None
-    if body.types is not None:
-        types_tuple = tuple(MemoryType(t) for t in body.types)
+    types_tuple: tuple[MemoryType, ...] | None = (
+        tuple(body.types) if body.types is not None else None
+    )
 
     result = await service.recall(
         RecallPayload(
@@ -364,6 +367,7 @@ async def forget_memory(
 async def gdpr_forget_user(
     workspace_id: WorkspaceAdminId,
     body: GdprForgetRequest,
+    current_user: CurrentUser,
     session: DbSession,
     service: MemoryLifecycleServiceDep,
 ) -> GdprForgetResponse:
@@ -375,6 +379,10 @@ async def gdpr_forget_user(
     """
     _ = session
     deleted = await service.gdpr_forget_user(
-        GDPRForgetPayload(user_id=body.user_id, workspace_id=workspace_id)
+        GDPRForgetPayload(
+            user_id=body.user_id,
+            workspace_id=workspace_id,
+            actor_user_id=current_user.user_id,
+        )
     )
     return GdprForgetResponse(deleted=deleted)
