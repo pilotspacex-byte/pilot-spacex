@@ -136,6 +136,7 @@ markers = [
     "performance: marks tests as performance benchmarks",
     "benchmark: marks tests as latency/throughput benchmarks (excluded from PR gate)",
     "contract: marks tests as contract tests (schema parity between backend and frontend)",
+    "postgres: requires real PostgreSQL via TEST_DATABASE_URL (skipped otherwise)",
 ]
 
 [tool.coverage.run]

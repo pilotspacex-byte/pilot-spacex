@@ -951,6 +951,54 @@ async def test_issue(
     return sample_issue
 
 
+# ============================================================================
+# Phase 70: postgres_session fixture for real-PG RLS integration tests
+# ============================================================================
+
+
+@pytest.fixture
+async def postgres_session() -> AsyncGenerator[AsyncSession, None]:
+    """Yield an AsyncSession bound to a real PostgreSQL instance.
+
+    Gated on ``TEST_DATABASE_URL``: if unset or not pointing at PostgreSQL,
+    the test is skipped. Unlike ``db_session`` (which wraps a rollback),
+    this fixture COMMITS — required for RLS policy tests where two
+    sessions need to see each other's committed rows.
+
+    The caller is responsible for cleaning up rows it creates (typically
+    by scoping data to a fresh workspace UUID and deleting on teardown).
+
+    SQLite caveat (see ``.claude/rules/testing.md``): statements like
+    ``SET LOCAL app.current_user_id = '...'`` are PostgreSQL-specific
+    no-ops on SQLite, which silently defeats RLS coverage. Tests that
+    depend on RLS MUST use this fixture, not ``db_session``.
+    """
+    url = os.environ.get("TEST_DATABASE_URL")
+    if not url or not url.startswith(("postgresql", "postgres")):
+        pytest.skip("TEST_DATABASE_URL not set to a PostgreSQL URL")
+
+    # Ensure settings cache is clean so other tests don't see stale env.
+    try:
+        from pilot_space.config import get_settings
+
+        get_settings.cache_clear()
+    except Exception:  # pragma: no cover - defensive
+        pass
+
+    engine: AsyncEngine = create_async_engine(url, future=True, pool_pre_ping=True)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+    session = session_factory()
+    try:
+        yield session
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise
+    finally:
+        await session.close()
+        await engine.dispose()
+
+
 __all__ = [
     "MOCK_CHAT_RESPONSES",
     "MOCK_STREAMING_CHUNKS",
@@ -977,6 +1025,7 @@ __all__ = [
     "mock_token_payload",
     "mock_workspace_context",
     "note_factory",
+    "postgres_session",
     "project_factory",
     "random_uuid",
     "redis_cache",
