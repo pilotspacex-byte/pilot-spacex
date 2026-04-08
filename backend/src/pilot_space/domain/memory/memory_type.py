@@ -12,12 +12,12 @@ See ``.planning/phases/69-ai-memory-and-granular-tool-permissions/``.
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 from pilot_space.domain.graph_node import NodeType
 
 
-class MemoryType(str, Enum):
+class MemoryType(StrEnum):
     """High-level memory discriminator used by recall / lifecycle services.
 
     Values are stable and are serialized into pgmq payloads as the
