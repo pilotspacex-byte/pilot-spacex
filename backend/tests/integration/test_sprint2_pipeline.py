@@ -276,6 +276,7 @@ class TestSaveSkillOutcomeToMemory:
         result = await save_skill_outcome_to_memory(
             memory_save_service=None,
             workspace_id=_workspace_id(),
+            actor_user_id=uuid.uuid4(),
             content="skill outcome summary",
         )
         assert result is False
@@ -287,6 +288,7 @@ class TestSaveSkillOutcomeToMemory:
         result = await save_skill_outcome_to_memory(
             memory_save_service=service,
             workspace_id=_workspace_id(),
+            actor_user_id=uuid.uuid4(),
             content="",
         )
         assert result is False
@@ -301,6 +303,7 @@ class TestSaveSkillOutcomeToMemory:
         result = await save_skill_outcome_to_memory(
             memory_save_service=service,
             workspace_id=_workspace_id(),
+            actor_user_id=uuid.uuid4(),
             content="Generated 5 unit tests for auth module",
         )
 
@@ -319,6 +322,7 @@ class TestSaveSkillOutcomeToMemory:
         result = await save_skill_outcome_to_memory(
             memory_save_service=service,
             workspace_id=_workspace_id(),
+            actor_user_id=uuid.uuid4(),
             content="Some skill outcome",
         )
 
@@ -334,6 +338,7 @@ class TestSaveSkillOutcomeToMemory:
         await save_skill_outcome_to_memory(
             memory_save_service=service,
             workspace_id=_workspace_id(),
+            actor_user_id=uuid.uuid4(),
             content="some content",
             source_id=source_id,
         )
@@ -431,6 +436,7 @@ class TestFullPipelineIntegration:
         saved = await save_skill_outcome_to_memory(
             memory_save_service=save_service,
             workspace_id=_workspace_id(),
+            actor_user_id=uuid.uuid4(),
             content="Generated 3 issues from the note",
             source_id=uuid.UUID(_intent_id()),
         )
