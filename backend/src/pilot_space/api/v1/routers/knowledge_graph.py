@@ -490,6 +490,7 @@ def _build_kg_payload(
     entity_id: UUID,
     workspace_id: UUID,
     project_id: UUID,
+    actor_user_id: UUID,
 ) -> dict[str, str]:
     """Build a kg_populate queue message payload."""
     return {
@@ -497,6 +498,7 @@ def _build_kg_payload(
         "entity_type": entity_type,
         "entity_id": str(entity_id),
         "workspace_id": str(workspace_id),
+        "actor_user_id": str(actor_user_id),
         "project_id": str(project_id),
     }
 
@@ -539,7 +541,7 @@ async def regenerate_issue_knowledge_graph(
 
     await queue_client.enqueue(
         QueueName.AI_NORMAL,
-        _build_kg_payload("issue", issue.id, issue.workspace_id, issue.project_id),
+        _build_kg_payload("issue", issue.id, issue.workspace_id, issue.project_id, current_user_id),
     )
     _regen_logger.info(
         "kg_regenerate_issue",
@@ -585,7 +587,7 @@ async def regenerate_project_knowledge_graph(
     # 1. Enqueue the project itself
     await queue_client.enqueue(
         QueueName.AI_NORMAL,
-        _build_kg_payload("project", project_id, project.workspace_id, project_id),
+        _build_kg_payload("project", project_id, project.workspace_id, project_id, current_user_id),
     )
     enqueued += 1
 
@@ -599,7 +601,7 @@ async def regenerate_project_knowledge_graph(
     for (issue_id,) in issue_rows.all():
         await queue_client.enqueue(
             QueueName.AI_NORMAL,
-            _build_kg_payload("issue", issue_id, project.workspace_id, project_id),
+            _build_kg_payload("issue", issue_id, project.workspace_id, project_id, current_user_id),
         )
         enqueued += 1
 
@@ -613,7 +615,7 @@ async def regenerate_project_knowledge_graph(
     for (note_id,) in note_rows.all():
         await queue_client.enqueue(
             QueueName.AI_NORMAL,
-            _build_kg_payload("note", note_id, project.workspace_id, project_id),
+            _build_kg_payload("note", note_id, project.workspace_id, project_id, current_user_id),
         )
         enqueued += 1
 
@@ -627,7 +629,7 @@ async def regenerate_project_knowledge_graph(
     for (cycle_id,) in cycle_rows.all():
         await queue_client.enqueue(
             QueueName.AI_NORMAL,
-            _build_kg_payload("cycle", cycle_id, project.workspace_id, project_id),
+            _build_kg_payload("cycle", cycle_id, project.workspace_id, project_id, current_user_id),
         )
         enqueued += 1
 

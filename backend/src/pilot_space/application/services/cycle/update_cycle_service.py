@@ -194,6 +194,7 @@ class UpdateCycleService:
                         "entity_type": "cycle",
                         "entity_id": str(cycle.id),
                         "workspace_id": str(cycle.workspace_id),
+                        "actor_user_id": str(payload.actor_id),
                         "project_id": str(cycle.project_id),
                     },
                 )

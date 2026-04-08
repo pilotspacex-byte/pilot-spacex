@@ -157,11 +157,12 @@ class ProjectDetailService:
             raise NotFoundError("Project not found")
         return project
 
-    async def enqueue_kg_populate(self, project: Project) -> None:
+    async def enqueue_kg_populate(self, project: Project, actor_user_id: UUID) -> None:
         """Enqueue a KG populate job for a project (non-fatal).
 
         Args:
             project: The project entity to populate KG for.
+            actor_user_id: Acting user id for RLS context on the worker side.
         """
         try:
             from pilot_space.container import get_container
@@ -177,6 +178,7 @@ class ProjectDetailService:
                     "entity_type": "project",
                     "entity_id": str(project.id),
                     "workspace_id": str(project.workspace_id),
+                    "actor_user_id": str(actor_user_id),
                     "project_id": str(project.id),
                 },
             )

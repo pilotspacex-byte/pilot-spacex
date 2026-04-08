@@ -594,6 +594,8 @@ class WorkspaceService:
                         "task_type": "send_invitation_email",
                         "email": normalized_email,
                         "invitation_id": str(invitation.id),
+                        "actor_user_id": str(invited_by),
+                        "workspace_id": str(workspace_id),
                     },
                 )
             except Exception as exc:

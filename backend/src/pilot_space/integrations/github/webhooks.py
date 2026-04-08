@@ -359,7 +359,7 @@ class GitHubWebhookHandler:
             return None
 
         queue_payload = {
-            "type": "github_webhook",
+            "task_type": "github_webhook",
             "workspace_id": str(workspace_id),
             "integration_id": str(integration_id),
             "event_type": webhook.event_type.value,

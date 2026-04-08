@@ -174,6 +174,7 @@ async def ingest_constitution(
     session: SessionDep,
     response: Response,
     _member: Annotated[UUID, Depends(require_workspace_member)],
+    current_user: CurrentUser,
 ) -> ConstitutionIngestResponse:
     """Ingest workspace constitution rules as a new version."""
     response.headers["Deprecation"] = "true"
@@ -202,6 +203,7 @@ async def ingest_constitution(
     result = await service.execute(
         ConstitutionIngestPayload(
             workspace_id=workspace_id,
+            actor_user_id=current_user.user_id,
             rules=rule_inputs,
         )
     )

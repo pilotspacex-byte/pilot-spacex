@@ -64,6 +64,7 @@ class _KgPopulatePayload:
     project_id: UUID
     entity_type: str  # "issue" | "note" | "project" | "cycle"
     entity_id: UUID
+    actor_user_id: UUID
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> _KgPopulatePayload:
@@ -72,6 +73,7 @@ class _KgPopulatePayload:
             project_id=UUID(d["project_id"]),
             entity_type=d["entity_type"],
             entity_id=UUID(d["entity_id"]),
+            actor_user_id=UUID(d["actor_user_id"]),
         )
 
 
@@ -195,6 +197,10 @@ class KgPopulateHandler:
         external_id = UUID(external_id_raw) if external_id_raw else None
         user_id_raw = payload.get("user_id")
         user_id = UUID(user_id_raw) if user_id_raw else None
+        actor_user_id_raw = payload.get("actor_user_id")
+        if not actor_user_id_raw:
+            return {"success": False, "error": "actor_user_id is required"}
+        actor_user_id = UUID(actor_user_id_raw)
 
         node_type = MEMORY_TYPE_TO_NODE_TYPE[memory_type]
 
@@ -211,6 +217,7 @@ class KgPopulateHandler:
         result = await write_svc.execute(
             GraphWritePayload(
                 workspace_id=workspace_id,
+                actor_user_id=actor_user_id,
                 nodes=[
                     NodeInput(
                         node_type=node_type,
@@ -258,6 +265,7 @@ class KgPopulateHandler:
         result = await write_svc.execute(
             GraphWritePayload(
                 workspace_id=issue.workspace_id,
+                actor_user_id=p.actor_user_id,
                 nodes=[
                     NodeInput(
                         node_type=NodeType.ISSUE,
@@ -306,6 +314,7 @@ class KgPopulateHandler:
                 chunk_result = await write_svc.execute(
                     GraphWritePayload(
                         workspace_id=issue.workspace_id,
+                        actor_user_id=p.actor_user_id,
                         nodes=chunk_nodes,
                     )
                 )
@@ -395,6 +404,7 @@ class KgPopulateHandler:
         parent_result = await write_svc.execute(
             GraphWritePayload(
                 workspace_id=note.workspace_id,
+                actor_user_id=p.actor_user_id,
                 nodes=[
                     NodeInput(
                         node_type=NodeType.NOTE,
@@ -448,6 +458,7 @@ class KgPopulateHandler:
             chunk_result = await write_svc.execute(
                 GraphWritePayload(
                     workspace_id=note.workspace_id,
+                    actor_user_id=p.actor_user_id,
                     nodes=chunk_nodes,
                 )
             )
@@ -515,6 +526,7 @@ class KgPopulateHandler:
         result = await write_svc.execute(
             GraphWritePayload(
                 workspace_id=project.workspace_id,
+                actor_user_id=p.actor_user_id,
                 nodes=[
                     NodeInput(
                         node_type=NodeType.PROJECT,
@@ -584,6 +596,7 @@ class KgPopulateHandler:
         result = await write_svc.execute(
             GraphWritePayload(
                 workspace_id=cycle.workspace_id,
+                actor_user_id=p.actor_user_id,
                 nodes=[
                     NodeInput(
                         node_type=NodeType.CYCLE,

@@ -422,6 +422,7 @@ async def save_skill_outcome_to_memory(
     *,
     memory_save_service: MemorySaveService | None,
     workspace_id: UUID,
+    actor_user_id: UUID,
     content: str,
     source_id: UUID | None = None,
 ) -> bool:
@@ -449,6 +450,7 @@ async def save_skill_outcome_to_memory(
             workspace_id=workspace_id,
             content=content,
             source_type=MemorySourceType.SKILL_OUTCOME,
+            actor_user_id=actor_user_id,
             source_id=source_id,
         )
         await memory_save_service.execute(payload)
@@ -651,9 +653,16 @@ async def extract_and_persist_to_graph(
             )
             return False
 
+        if user_id is None:
+            logger.warning(
+                "[IntentPipeline] Skipping KG write — no user_id in scope workspace=%s",
+                workspace_id,
+            )
+            return False
         await graph_write_service.execute(
             GraphWritePayload(
                 workspace_id=workspace_id,
+                actor_user_id=user_id,
                 nodes=result.nodes,
                 edges=result.edges,
                 user_id=user_id,

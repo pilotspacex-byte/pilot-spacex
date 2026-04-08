@@ -173,13 +173,19 @@ async def _background_graph_extraction(
         # Phase 2: Write phase — open session only now that we have data to persist.
         # set_rls_context is required: graph tables are RLS-protected and inserts
         # will be denied without the app.current_user_id session variable.
+        if user_id is None:
+            logger.warning(
+                "[SDK/BackgroundGraph] Skipping KG write — no user_id in scope workspace=%s",
+                workspace_id,
+            )
+            return
         async with get_db_session() as bg_session:
-            if user_id is not None:
-                await set_rls_context(bg_session, user_id, workspace_id)
+            await set_rls_context(bg_session, user_id, workspace_id)
             graph_write_svc = build_graph_write_service_for_session(bg_session, graph_queue_client)
             await graph_write_svc.execute(
                 GraphWritePayload(
                     workspace_id=workspace_id,
+                    actor_user_id=user_id,
                     nodes=result.nodes,
                     edges=result.edges,
                     user_id=user_id,

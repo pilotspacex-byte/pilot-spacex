@@ -124,10 +124,22 @@ class MemoryDLQJobHandler:
                 await self._session.commit()
                 continue
 
-            # Re-enqueue embedding job
+            # Re-enqueue embedding job (forward stored payload including
+            # actor_user_id from original enqueue for RLS context)
             try:
                 job_payload: dict[str, Any] = dict(entry.payload)  # type: ignore[arg-type]
-                await self._queue.enqueue(QueueName.AI_NORMAL, job_payload)
+                # Ensure RLS identity fields are present (forwarded from original)
+                if "actor_user_id" not in job_payload and entry.workspace_id:
+                    # Legacy DLQ entries may predate actor_user_id — skip them
+                    logger.warning(
+                        "MemoryDLQJobHandler: skipping legacy DLQ entry %s without actor_user_id",
+                        entry.id,
+                    )
+                    continue
+                await self._queue.enqueue(QueueName.AI_NORMAL, {
+                    **job_payload,
+                    "actor_user_id": job_payload.get("actor_user_id"),
+                })
 
                 # Update attempts and next_retry_at
                 entry.attempts = (entry.attempts or 0) + 1  # type: ignore[operator]

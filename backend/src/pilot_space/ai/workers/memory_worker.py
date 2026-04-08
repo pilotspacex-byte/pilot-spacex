@@ -140,7 +140,7 @@ class MemoryWorker:
         try:
             await self.queue.enqueue(
                 QueueName.AI_NORMAL,
-                {"task_type": TASK_GRAPH_EXPIRATION},
+                {"task_type": "graph_expiration"},
             )
             self._last_expiration_enqueue = now
             logger.info("MemoryWorker: enqueued graph_expiration task")
@@ -155,7 +155,7 @@ class MemoryWorker:
         try:
             await self.queue.enqueue(
                 QueueName.AI_NORMAL,
-                {"task_type": TASK_ARTIFACT_CLEANUP},
+                {"task_type": "artifact_cleanup"},
             )
             self._last_artifact_cleanup_enqueue = now
             logger.info("MemoryWorker: enqueued artifact_cleanup task")

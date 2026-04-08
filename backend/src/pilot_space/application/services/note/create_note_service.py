@@ -226,6 +226,7 @@ class CreateNoteService:
                         "entity_type": "note",
                         "entity_id": str(created_note.id),
                         "workspace_id": str(payload.workspace_id),
+                        "actor_user_id": str(payload.owner_id),
                         "project_id": str(payload.project_id),
                     },
                 )

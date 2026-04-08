@@ -254,6 +254,7 @@ class CreateIssueService:
                         "entity_type": "issue",
                         "entity_id": str(issue.id),
                         "workspace_id": str(payload.workspace_id),
+                        "actor_user_id": str(payload.reporter_id),
                         "project_id": str(payload.project_id),
                     },
                 )
