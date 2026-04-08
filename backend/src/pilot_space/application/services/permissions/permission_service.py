@@ -50,6 +50,9 @@ from pilot_space.application.services.permissions.policy_templates import (
 )
 from pilot_space.dependencies.auth import get_current_session
 from pilot_space.domain.permissions.tool_permission_mode import ToolPermissionMode
+from pilot_space.infrastructure.database.models.tool_permission_audit_log import (
+    ToolPermissionAuditLog,
+)
 from pilot_space.infrastructure.database.repositories.workspace_tool_permission_repository import (
     WorkspaceToolPermissionRepository,
 )
@@ -418,6 +421,20 @@ class PermissionService:
                 )
             )
         return merged
+
+
+    # ------------------------------------------------------------------
+    # Audit log view
+    # ------------------------------------------------------------------
+
+    async def list_audit_log(
+        self,
+        workspace_id: UUID,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[ToolPermissionAuditLog]:
+        """Return audit-log rows for a workspace, most-recent first."""
+        return await self._repo().list_audit_log(workspace_id, limit, offset)
 
 
 __all__ = [

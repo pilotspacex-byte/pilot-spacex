@@ -26,6 +26,7 @@ from pilot_space.api.v1.routers import (
     ai_drive_router,
     ai_extraction_router,
     ai_governance_router,
+    ai_permissions_router,
     ai_pr_review_router,
     ai_router,
     ai_sessions_router,
@@ -336,6 +337,10 @@ if ai_router is not None:  # type: ignore[reportUnnecessaryComparison]
 if ai_annotations_router is not None:  # type: ignore[reportUnnecessaryComparison]
     app.include_router(ai_annotations_router, prefix=API_V1_PREFIX)
 app.include_router(ai_approvals_router, prefix=f"{API_V1_PREFIX}/ai")
+app.include_router(
+    ai_permissions_router,
+    prefix=f"{API_V1_PREFIX}/workspaces/{{workspace_id}}/ai/permissions",
+)
 app.include_router(ai_attachments_router, prefix=f"{API_V1_PREFIX}/ai")
 app.include_router(transcription_router, prefix=f"{API_V1_PREFIX}/ai")
 app.include_router(transcription_ws_router, prefix=f"{API_V1_PREFIX}/ai")

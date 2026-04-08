@@ -12,7 +12,7 @@ from __future__ import annotations
 import uuid
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select
+from sqlalchemy import desc, select
 
 from pilot_space.infrastructure.database.models.tool_permission_audit_log import (
     ToolPermissionAuditLog,
@@ -125,6 +125,28 @@ class WorkspaceToolPermissionRepository:
         self._session.add(row)
         await self._session.flush()
         return row
+
+    async def list_audit_log(
+        self,
+        workspace_id: uuid.UUID,
+        limit: int,
+        offset: int,
+    ) -> list[ToolPermissionAuditLog]:
+        """Return audit-log rows for a workspace, most-recent first.
+
+        Args:
+            workspace_id: Owning workspace.
+            limit: Max rows to return.
+            offset: Rows to skip.
+        """
+        result = await self._session.execute(
+            select(ToolPermissionAuditLog)
+            .where(ToolPermissionAuditLog.workspace_id == workspace_id)
+            .order_by(desc(ToolPermissionAuditLog.created_at))
+            .limit(limit)
+            .offset(offset)
+        )
+        return list(result.scalars().all())
 
 
 __all__ = ["WorkspaceToolPermissionRepository"]
