@@ -24,8 +24,10 @@ import asyncio
 import json
 import time
 from typing import TYPE_CHECKING, Any
+from uuid import UUID
 
 from pilot_space.application.services.embedding_service import EmbeddingConfig, EmbeddingService
+from pilot_space.infrastructure.database.rls import set_rls_context
 from pilot_space.infrastructure.logging import get_logger
 from pilot_space.infrastructure.queue.models import QueueName
 
@@ -47,6 +49,18 @@ TASK_GRAPH_EXPIRATION = "graph_expiration"
 TASK_DOCUMENT_INGESTION = "document_ingestion"
 TASK_ARTIFACT_CLEANUP = "artifact_cleanup"
 TASK_SEND_INVITATION_EMAIL = "send_invitation_email"
+
+# RLS bypass allowlist (PROD-04): task types that are intentionally
+# cross-workspace or system-scoped. MemoryWorker skips set_rls_context
+# for these and relies on the handler to scope queries explicitly.
+# Keep in sync with scripts/audit_enqueue_actor_user_id.py allowlist.
+_RLS_BYPASS_TASKS: frozenset[str] = frozenset(
+    {
+        TASK_GRAPH_EXPIRATION,
+        TASK_ARTIFACT_CLEANUP,
+        TASK_SEND_INVITATION_EMAIL,
+    }
+)
 
 # _BATCH_SIZE MUST remain 1: _process() handles only messages[0].
 # Increasing this without updating the loop would silently drop messages 1..N.
@@ -200,6 +214,32 @@ class MemoryWorker:
 
         try:
             async with self._session_factory() as session:
+                if task_type not in _RLS_BYPASS_TASKS:
+                    workspace_id_raw = payload.get("workspace_id")
+                    actor_user_id_raw = payload.get("actor_user_id")
+                    if not workspace_id_raw or not actor_user_id_raw:
+                        logger.error(
+                            "memory_worker.rls_context.missing_identity",
+                            extra={
+                                "task_type": task_type,
+                                "has_workspace": bool(workspace_id_raw),
+                                "has_actor": bool(actor_user_id_raw),
+                            },
+                        )
+                        raise ValueError(  # noqa: TRY301
+                            f"MemoryWorker {task_type}: payload missing "
+                            "workspace_id/actor_user_id (RLS fail-closed)"
+                        )
+                    await set_rls_context(
+                        session,
+                        user_id=UUID(str(actor_user_id_raw)),
+                        workspace_id=UUID(str(workspace_id_raw)),
+                    )
+                else:
+                    logger.debug(
+                        "memory_worker.rls_context.bypass",
+                        extra={"task_type": task_type},
+                    )
                 result = await self._dispatch(task_type, payload, session)
                 await session.commit()
                 await self.queue.ack(QueueName.AI_NORMAL, msg_id)
