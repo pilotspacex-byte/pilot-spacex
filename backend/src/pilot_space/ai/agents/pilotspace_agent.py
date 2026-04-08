@@ -1307,6 +1307,59 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                                 self._background_tasks.add(_bg_task)
                                 _bg_task.add_done_callback(self._background_tasks.discard)
 
+                        # PROD-01 (Phase 70 Wave 2): agent_turn memory producer.
+                        # Fire-and-forget, non-fatal. Opt-out flag is threaded
+                        # through `enabled` by Wave 3 (plan 70-06) — hard-coded
+                        # True here for now.
+                        try:
+                            _turn_queue_client = self._graph_queue_client
+                            if (
+                                context.workspace_id
+                                and context.user_id
+                                and _turn_queue_client is not None
+                            ):
+                                _assistant_text_parts = [
+                                    block.get("text", "")
+                                    for block in content_blocks.values()
+                                    if block.get("type") == "text" and block.get("text")
+                                ]
+                                _assistant_text_joined = "\n".join(
+                                    p for p in _assistant_text_parts if p
+                                )
+                                from pilot_space.ai.memory.producers.agent_turn_producer import (
+                                    enqueue_agent_turn_memory,
+                                )
+
+                                _ttft_val = locals().get("ttft")
+                                _ttft_ms = (
+                                    round(_ttft_val * 1000, 1) if _ttft_val else None
+                                )
+                                _duration_val = locals().get("duration_ms")
+                                _turn_task = asyncio.create_task(
+                                    enqueue_agent_turn_memory(
+                                        queue_client=_turn_queue_client,
+                                        workspace_id=context.workspace_id,
+                                        actor_user_id=context.user_id,
+                                        session_id=str(session_id_str),
+                                        user_message=input_data.message,
+                                        assistant_text=_assistant_text_joined,
+                                        tools_used=[],
+                                        metadata={
+                                            "ttft_ms": _ttft_ms,
+                                            "duration_ms": _duration_val,
+                                        },
+                                        enabled=True,
+                                    )
+                                )
+                                self._background_tasks.add(_turn_task)
+                                _turn_task.add_done_callback(
+                                    self._background_tasks.discard
+                                )
+                        except Exception:
+                            logger.exception(
+                                "agent_turn producer enqueue failed (non-fatal)"
+                            )
+
                     await client.disconnect()
                 clear_context()
                 # Propagate error info so db_session_cm rolls back on failure (D-1 fix).

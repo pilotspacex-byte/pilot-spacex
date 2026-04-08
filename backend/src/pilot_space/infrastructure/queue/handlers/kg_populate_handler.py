@@ -14,6 +14,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import and_, delete, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pilot_space.application.services.embedding_service import (
@@ -214,22 +215,45 @@ class KgPopulateHandler:
             session=self._session,
             auto_commit=False,
         )
-        result = await write_svc.execute(
-            GraphWritePayload(
-                workspace_id=workspace_id,
-                actor_user_id=actor_user_id,
-                nodes=[
-                    NodeInput(
-                        node_type=node_type,
-                        label=label[:120],
-                        content=content[:2000],
-                        external_id=external_id,
-                        user_id=user_id,
-                        properties={**metadata, "memory_type": memory_type.value},
-                    )
-                ],
+        try:
+            result = await write_svc.execute(
+                GraphWritePayload(
+                    workspace_id=workspace_id,
+                    actor_user_id=actor_user_id,
+                    nodes=[
+                        NodeInput(
+                            node_type=node_type,
+                            label=label[:120],
+                            content=content[:2000],
+                            external_id=external_id,
+                            user_id=user_id,
+                            properties={**metadata, "memory_type": memory_type.value},
+                        )
+                    ],
+                )
             )
-        )
+        except IntegrityError as exc:
+            # Partial unique index uq_graph_nodes_agent_turn_cache (migration 106)
+            # scopes agent_turn dedup to (workspace_id, session_id, turn_index).
+            # Replay hits the index — ACK the job and move on. Only treat as
+            # duplicate when the failing index matches; otherwise re-raise.
+            msg = str(exc.orig) if exc.orig is not None else str(exc)
+            if "uq_graph_nodes_agent_turn_cache" in msg:
+                await self._session.rollback()
+                logger.info(
+                    "KgPopulateHandler: duplicate %s replay (workspace=%s session=%s turn=%s) — ACK",
+                    memory_type.value,
+                    workspace_id,
+                    metadata.get("session_id"),
+                    metadata.get("turn_index"),
+                )
+                return {
+                    "success": True,
+                    "memory_type": memory_type.value,
+                    "duplicate": True,
+                    "node_ids": [],
+                }
+            raise
 
         logger.info(
             "KgPopulateHandler: memory_type=%s → %d node(s)",

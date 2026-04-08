@@ -26,6 +26,41 @@ from typing import Final
 
 _LATENCY_BUFFER_SIZE: Final[int] = 1024
 
+# ---------------------------------------------------------------------------
+# Phase 70 — memory producer counters
+# ---------------------------------------------------------------------------
+
+_producer_enqueued: dict[str, int] = {}
+_producer_dropped: dict[tuple[str, str], int] = {}
+
+
+def record_producer_enqueued(memory_type: str) -> None:
+    """Increment the successful enqueue counter for a memory producer."""
+    _producer_enqueued[memory_type] = _producer_enqueued.get(memory_type, 0) + 1
+
+
+def record_producer_dropped(memory_type: str, reason: str) -> None:
+    """Increment the drop counter for a memory producer.
+
+    ``reason`` is one of ``"opt_out"``, ``"enqueue_error"``, ``"duplicate"``.
+    """
+    key = (memory_type, reason)
+    _producer_dropped[key] = _producer_dropped.get(key, 0) + 1
+
+
+def get_producer_counters() -> dict[str, dict[str, int]]:
+    """Return a point-in-time snapshot of producer counters."""
+    return {
+        "enqueued": dict(_producer_enqueued),
+        "dropped": {f"{k[0]}::{k[1]}": v for k, v in _producer_dropped.items()},
+    }
+
+
+def reset_producer_counters() -> None:
+    """Clear all producer counters. Tests only."""
+    _producer_enqueued.clear()
+    _producer_dropped.clear()
+
 
 class _MemoryMetrics:
     """Singleton counter bag — avoids ``global`` boilerplate."""
@@ -98,9 +133,13 @@ def reset_metrics() -> None:
 __all__ = [
     "get_hit_rate",
     "get_latency_p95_ms",
+    "get_producer_counters",
+    "record_producer_dropped",
+    "record_producer_enqueued",
     "record_recall_hit",
     "record_recall_latency_ms",
     "record_recall_miss",
     "reset_metrics",
+    "reset_producer_counters",
     "snapshot",
 ]
