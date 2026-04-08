@@ -154,9 +154,7 @@ async def test_workspace_tool_permissions_rls_isolation(
     await pg_session.execute(text("SELECT set_config('role', 'authenticated', true)"))
     await set_rls_context(pg_session, user_id=user_a)
 
-    result = await pg_session.execute(
-        text("SELECT workspace_id FROM workspace_tool_permissions")
-    )
+    result = await pg_session.execute(text("SELECT workspace_id FROM workspace_tool_permissions"))
     visible = {row[0] for row in result.fetchall()}
     assert ws_a in visible
     assert ws_b not in visible

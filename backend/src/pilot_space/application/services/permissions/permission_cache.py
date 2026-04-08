@@ -68,9 +68,7 @@ class PermissionCache:
     ) -> None:
         self._max_entries = max_entries
         self._ttl = ttl_seconds
-        self._store: OrderedDict[tuple[UUID, str], tuple[ToolPermissionMode, float]] = (
-            OrderedDict()
-        )
+        self._store: OrderedDict[tuple[UUID, str], tuple[ToolPermissionMode, float]] = OrderedDict()
         self._subscriber_task: asyncio.Task[None] | None = None
 
     def get(self, workspace_id: UUID, tool_name: str) -> ToolPermissionMode | None:

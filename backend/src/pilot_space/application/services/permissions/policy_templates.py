@@ -27,9 +27,7 @@ from pilot_space.ai.sdk.permission_handler import (
 from pilot_space.domain.permissions.tool_permission_mode import ToolPermissionMode
 
 # Expose module-local alias for the DD-003 classification map.
-ACTION_CLASSIFICATIONS: dict[str, ActionClassification] = (
-    PermissionHandler.ACTION_CLASSIFICATIONS
-)
+ACTION_CLASSIFICATIONS: dict[str, ActionClassification] = PermissionHandler.ACTION_CLASSIFICATIONS
 
 
 def _short_tool_name(tool_name: str) -> str:
@@ -46,9 +44,7 @@ def _classify(tool_name: str) -> ActionClassification:
     if tool_name in ACTION_CLASSIFICATIONS:
         return ACTION_CLASSIFICATIONS[tool_name]
     short = _short_tool_name(tool_name)
-    return ACTION_CLASSIFICATIONS.get(
-        short, ActionClassification.DEFAULT_REQUIRE_APPROVAL
-    )
+    return ACTION_CLASSIFICATIONS.get(short, ActionClassification.DEFAULT_REQUIRE_APPROVAL)
 
 
 def _classification_to_mode(c: ActionClassification) -> ToolPermissionMode:

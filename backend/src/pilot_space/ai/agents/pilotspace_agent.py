@@ -832,9 +832,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                     ),
                     "sources": [
                         {
-                            "type": str(
-                                e.get("source_type") or e.get("node_type") or "unknown"
-                            ),
+                            "type": str(e.get("source_type") or e.get("node_type") or "unknown"),
                             "id": str(
                                 e.get("source_id") or e.get("node_id") or e.get("label") or ""
                             ),
@@ -843,9 +841,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                         for e in graph_context
                     ],
                 }
-                await tool_event_queue.put(
-                    format_sse_event("memory_used", _mem_payload)
-                )
+                await tool_event_queue.put(format_sse_event("memory_used", _mem_payload))
             except Exception:
                 logger.debug(
                     "[SDK/Space] Failed to emit memory_used SSE event",
@@ -952,13 +948,9 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
 
             _perm_svc = get_container().permission_service()
             _resolved = await _perm_svc.list_all(context.workspace_id)
-            _denied_names = {
-                r.tool_name for r in _resolved if r.mode is ToolPermissionMode.DENY
-            }
+            _denied_names = {r.tool_name for r in _resolved if r.mode is ToolPermissionMode.DENY}
             if _denied_names:
-                filtered_allowed_tools = filter_denied_tools(
-                    raw_allowed_tools, _denied_names
-                )
+                filtered_allowed_tools = filter_denied_tools(raw_allowed_tools, _denied_names)
                 logger.info(
                     "[SDK/Space] Filtered %d denied tools from allowed_tools",
                     len(raw_allowed_tools) - len(filtered_allowed_tools),

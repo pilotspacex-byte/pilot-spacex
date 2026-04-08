@@ -354,9 +354,7 @@ class PermissionHandler:
             )
 
             try:
-                mode = await self._permission_service.resolve(
-                    workspace_id, action_name
-                )
+                mode = await self._permission_service.resolve(workspace_id, action_name)
             except Exception:
                 logger.exception(
                     "PermissionService.resolve failed for workspace=%s tool=%s; "
@@ -373,18 +371,12 @@ class PermissionHandler:
             if mode is ToolPermissionMode.AUTO:
                 # DD-003 defense-in-depth: CRITICAL can never be auto-executed,
                 # even if the DB row (or a compromised override) says otherwise.
-                if (
-                    default_classification
-                    == ActionClassification.CRITICAL_REQUIRE_APPROVAL
-                ):
+                if default_classification == ActionClassification.CRITICAL_REQUIRE_APPROVAL:
                     classification = ActionClassification.CRITICAL_REQUIRE_APPROVAL
                 else:
                     classification = ActionClassification.AUTO_EXECUTE
             elif mode is ToolPermissionMode.ASK:
-                if (
-                    default_classification
-                    == ActionClassification.CRITICAL_REQUIRE_APPROVAL
-                ):
+                if default_classification == ActionClassification.CRITICAL_REQUIRE_APPROVAL:
                     classification = ActionClassification.CRITICAL_REQUIRE_APPROVAL
                 else:
                     classification = ActionClassification.DEFAULT_REQUIRE_APPROVAL

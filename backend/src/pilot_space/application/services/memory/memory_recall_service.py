@@ -260,9 +260,7 @@ class MemoryRecallService:
             return None
         return [MemoryItem(**item) for item in raw if isinstance(item, dict)]
 
-    async def _cache_set(
-        self, cache_input: Mapping[str, object], items: list[MemoryItem]
-    ) -> None:
+    async def _cache_set(self, cache_input: Mapping[str, object], items: list[MemoryItem]) -> None:
         if self._cache is None:
             return
         try:

@@ -131,7 +131,11 @@ class FakePermissionService:
         applied = 0
         skipped: list[str] = []
         for tool in self._known:
-            target = ToolPermissionMode.ASK if template_name == "conservative" else ToolPermissionMode.AUTO
+            target = (
+                ToolPermissionMode.ASK
+                if template_name == "conservative"
+                else ToolPermissionMode.AUTO
+            )
             try:
                 await self.set(
                     workspace_id=workspace_id,

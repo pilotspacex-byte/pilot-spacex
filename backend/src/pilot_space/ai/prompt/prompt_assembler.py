@@ -291,12 +291,8 @@ def format_graph_context(graph_context: list[dict[str, Any]]) -> str:
         return ""
     lines = ["<memory>"]
     for entry in graph_context:
-        source_type = str(
-            entry.get("source_type") or entry.get("node_type") or "unknown"
-        )
-        source_id = str(
-            entry.get("source_id") or entry.get("node_id") or entry.get("label") or ""
-        )
+        source_type = str(entry.get("source_type") or entry.get("node_type") or "unknown")
+        source_id = str(entry.get("source_id") or entry.get("node_id") or entry.get("label") or "")
         try:
             score = float(entry.get("score", 0.0))
         except (TypeError, ValueError):

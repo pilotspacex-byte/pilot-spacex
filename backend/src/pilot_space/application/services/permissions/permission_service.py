@@ -64,9 +64,7 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-ACTION_CLASSIFICATIONS: dict[str, ActionClassification] = (
-    PermissionHandler.ACTION_CLASSIFICATIONS
-)
+ACTION_CLASSIFICATIONS: dict[str, ActionClassification] = PermissionHandler.ACTION_CLASSIFICATIONS
 
 
 def _short_tool_name(tool_name: str) -> str:
@@ -137,9 +135,7 @@ class PermissionService:
         self,
         cache: PermissionCache,
         redis_client: Redis | None = None,
-        approval_overrides_provider: (
-            Callable[[UUID], dict[str, str] | None] | None
-        ) = None,
+        approval_overrides_provider: (Callable[[UUID], dict[str, str] | None] | None) = None,
     ) -> None:
         """Initialize the service.
 
@@ -202,8 +198,7 @@ class PermissionService:
                 return ToolPermissionMode(row.mode)
             except ValueError:
                 logger.warning(
-                    "Invalid mode %r stored for workspace=%s tool=%s; "
-                    "falling back to default",
+                    "Invalid mode %r stored for workspace=%s tool=%s; falling back to default",
                     row.mode,
                     workspace_id,
                     tool_name,
@@ -216,8 +211,7 @@ class PermissionService:
                 return ToolPermissionMode(overrides[tool_name])
             except ValueError:
                 logger.warning(
-                    "Invalid override %r for workspace=%s tool=%s; "
-                    "falling back to default",
+                    "Invalid override %r for workspace=%s tool=%s; falling back to default",
                     overrides[tool_name],
                     workspace_id,
                     tool_name,
@@ -287,9 +281,7 @@ class PermissionService:
         """Publish a Redis invalidation message (best effort)."""
         if self._redis is None:
             return
-        payload = json.dumps(
-            {"workspace_id": str(workspace_id), "tool_name": tool_name}
-        )
+        payload = json.dumps({"workspace_id": str(workspace_id), "tool_name": tool_name})
         try:
             await self._redis.publish(INVALIDATION_CHANNEL, payload)
         except Exception:
@@ -357,9 +349,7 @@ class PermissionService:
         """Publish a workspace-wide invalidation (empty ``tool_name``)."""
         if self._redis is None:
             return
-        payload = json.dumps(
-            {"workspace_id": str(workspace_id), "tool_name": ""}
-        )
+        payload = json.dumps({"workspace_id": str(workspace_id), "tool_name": ""})
         try:
             await self._redis.publish(INVALIDATION_CHANNEL, payload)
         except Exception:
@@ -421,7 +411,6 @@ class PermissionService:
                 )
             )
         return merged
-
 
     # ------------------------------------------------------------------
     # Audit log view

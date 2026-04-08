@@ -84,9 +84,7 @@ async def test_recall_uses_cache_on_second_call():
         async def set(self, agent_name, input_data, response):
             stored[agent_name] = response
 
-    svc = MemoryRecallService(
-        graph_search=graph_search, embedding=embedding, cache=FakeCache()
-    )
+    svc = MemoryRecallService(graph_search=graph_search, embedding=embedding, cache=FakeCache())
     payload = RecallPayload(workspace_id=uuid4(), query="q", k=4, min_score=0.5)
 
     r1 = await svc.recall(payload)

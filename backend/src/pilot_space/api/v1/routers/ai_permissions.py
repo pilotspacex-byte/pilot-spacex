@@ -138,9 +138,7 @@ async def set_tool_permission(
 @router.post("/template/{template_name}")
 async def apply_template(
     workspace_id: WorkspaceAdminId,
-    template_name: Annotated[
-        str, Path(description="conservative | standard | trusted")
-    ],
+    template_name: Annotated[str, Path(description="conservative | standard | trusted")],
     current_user: CurrentUser,
     session: DbSession,
     service: PermissionServiceDep,

@@ -85,14 +85,10 @@ class FakeRepository:
     rows: dict[tuple[UUID, str], FakePermissionRow] = field(default_factory=dict)
     audit: list[FakeAuditRow] = field(default_factory=list)
 
-    async def get(
-        self, workspace_id: UUID, tool_name: str
-    ) -> FakePermissionRow | None:
+    async def get(self, workspace_id: UUID, tool_name: str) -> FakePermissionRow | None:
         return self.rows.get((workspace_id, tool_name))
 
-    async def list_for_workspace(
-        self, workspace_id: UUID
-    ) -> list[FakePermissionRow]:
+    async def list_for_workspace(self, workspace_id: UUID) -> list[FakePermissionRow]:
         return sorted(
             (r for (w, _t), r in self.rows.items() if w == workspace_id),
             key=lambda r: r.tool_name,
