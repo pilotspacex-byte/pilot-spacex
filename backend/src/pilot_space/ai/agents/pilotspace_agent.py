@@ -781,6 +781,25 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         streaming_input = estimate_tokens(input_data) > 30_000
 
         _openai_key_for_recall = await get_workspace_embedding_key(db_session, context.workspace_id)
+
+        # Phase 69-05: Resolve MemoryRecallService lazily from the container
+        # (same pattern as permission_service in Task 01). The service is
+        # request-scoped and wraps GraphSearchService with a hot cache +
+        # single-flight, so concurrent identical recalls collapse to one
+        # embed + DB round-trip. Graceful degradation: on any resolution
+        # failure we fall through to the legacy graph_search_service path.
+        _memory_recall_service: Any | None = None
+        try:
+            from pilot_space.container.container import get_container
+
+            _memory_recall_service = get_container().memory_recall_service()
+        except Exception:
+            logger.debug(
+                "[SDK/Space] Could not resolve MemoryRecallService; using legacy "
+                "graph_search_service recall path",
+                exc_info=True,
+            )
+
         graph_context = await recall_graph_context(
             workspace_id=context.workspace_id,
             user_id=context.user_id,
@@ -788,7 +807,50 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             graph_search_service=build_graph_search_service_for_session(  # fresh per-req
                 db_session, openai_api_key=_openai_key_for_recall
             ),
+            memory_recall_service=_memory_recall_service,
         )
+
+        # Phase 69-05: Emit a `memory_used` SSE event BEFORE the assistant
+        # text starts streaming when recall returned items. We push directly
+        # onto tool_event_queue (already plumbed to the stream loop) so the
+        # event is yielded alongside tool-use events with no extra plumbing.
+        # Empty-result case: no event — avoid polluting the UI. Emission
+        # site chosen here (consumer) rather than inside recall_graph_context
+        # because the queue is already in scope and the helper is reused by
+        # non-streaming callers that do not have a queue.
+        if graph_context:
+            try:
+                from pilot_space.api.v1.streaming import format_sse_event
+
+                _mem_payload: dict[str, Any] = {
+                    "count": len(graph_context),
+                    "types": sorted(
+                        {
+                            str(e.get("source_type") or e.get("node_type") or "unknown")
+                            for e in graph_context
+                        }
+                    ),
+                    "sources": [
+                        {
+                            "type": str(
+                                e.get("source_type") or e.get("node_type") or "unknown"
+                            ),
+                            "id": str(
+                                e.get("source_id") or e.get("node_id") or e.get("label") or ""
+                            ),
+                            "score": round(float(e.get("score", 0.0) or 0.0), 3),
+                        }
+                        for e in graph_context
+                    ],
+                }
+                await tool_event_queue.put(
+                    format_sse_event("memory_used", _mem_payload)
+                )
+            except Exception:
+                logger.debug(
+                    "[SDK/Space] Failed to emit memory_used SSE event",
+                    exc_info=True,
+                )
 
         assembled = await assemble_system_prompt(
             PromptLayerConfig(

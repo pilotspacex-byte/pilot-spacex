@@ -33,6 +33,9 @@ if TYPE_CHECKING:
     from pilot_space.application.services.memory.graph_write_service import (
         GraphWriteService,
     )
+    from pilot_space.application.services.memory.memory_recall_service import (
+        MemoryRecallService,
+    )
     from pilot_space.application.services.memory.memory_save_service import (
         MemorySaveService,
     )
@@ -469,8 +472,15 @@ async def recall_graph_context(
     graph_search_service: GraphSearchService | None,
     limit: int = 10,
     since: datetime | None = None,
+    memory_recall_service: MemoryRecallService | None = None,
 ) -> list[dict[str, Any]]:
     """Graph-aware context recall replacing recall_workspace_context.
+
+    Phase 69-05: When ``memory_recall_service`` is provided, delegate the
+    recall to it (typed, cached, single-flight) and convert the resulting
+    ``MemoryItem`` objects to the legacy list-of-dict shape with added
+    provenance fields (``source_type``, ``source_id``, ``node_id``) so
+    the prompt assembler can render the ``<memory>`` XML block.
 
     Args:
         workspace_id: Current workspace UUID.
@@ -479,10 +489,61 @@ async def recall_graph_context(
         graph_search_service: Optional injected GraphSearchService.
         limit: Maximum number of scored nodes to return.
         since: Optional lower bound on updated_at for temporal filtering.
+        memory_recall_service: Optional MemoryRecallService (Phase 69 Wave 3).
+            When provided, takes precedence over ``graph_search_service``.
 
     Returns:
         List of graph context dicts; empty on failure or missing service.
     """
+    # --- Phase 69-05 path: delegate to MemoryRecallService ------------------
+    if memory_recall_service is not None:
+        try:
+            from pilot_space.application.services.memory.memory_recall_service import (
+                RecallPayload,
+            )
+
+            recall_result = await memory_recall_service.recall(
+                RecallPayload(
+                    workspace_id=workspace_id,
+                    query=query,
+                    k=limit,
+                    user_id=user_id,
+                )
+            )
+            entries: list[dict[str, Any]] = [
+                {
+                    # Legacy fields (back-compat with format_graph_context
+                    # callers and existing tests).
+                    "content": item.snippet,
+                    "label": item.source_type,
+                    "node_type": item.source_type,
+                    "score": item.score,
+                    "properties": {"created_at": item.created_at},
+                    # Phase 69 provenance fields — consumed by the new
+                    # <memory> block renderer in prompt_assembler.
+                    "source_type": item.source_type,
+                    "source_id": item.source_id,
+                    "node_id": item.node_id,
+                }
+                for item in recall_result.items
+            ]
+            logger.debug(
+                "[IntentPipeline] MemoryRecallService returned %d items "
+                "workspace=%s cache_hit=%s elapsed_ms=%.1f",
+                len(entries),
+                workspace_id,
+                recall_result.cache_hit,
+                recall_result.elapsed_ms,
+            )
+            return entries
+        except Exception:
+            logger.warning(
+                "[IntentPipeline] MemoryRecallService failed, falling back to "
+                "graph_search_service path",
+                exc_info=True,
+            )
+            # Fall through to legacy path below.
+
     if not graph_search_service:
         logger.debug(
             "[IntentPipeline] No GraphSearchService — skipping graph recall workspace=%s",
