@@ -927,6 +927,54 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
 
         can_use_tool_cb = create_can_use_tool_callback(tool_event_queue, context.user_id)
 
+        # ------------------------------------------------------------------
+        # SEC-03: DENY filter — fail-closed
+        # ------------------------------------------------------------------
+        # Resolve workspace-level DENY list from PermissionHandler (which may
+        # consult a PermissionService if one is wired).  On ANY exception the
+        # filter defaults to an EMPTY tool list (fail-closed) rather than
+        # passing the full unfiltered set through (fail-open).
+        # ------------------------------------------------------------------
+        raw_allowed_tools: list[str] = sdk_params.get("allowed_tools", [])
+        filtered_allowed_tools: list[str] = []  # SEC-03: fail-closed default
+
+        try:
+            from pilot_space.ai.sdk.permission_handler import filter_denied_tools
+
+            # Collect tools classified as CRITICAL that also appear in workspace
+            # deny overrides.  When a full PermissionService is available this
+            # will be replaced with a list_all() call; for now we derive the
+            # deny set from workspace_settings approval_overrides that map to
+            # "deny".
+            _ws_settings = getattr(self._permission_handler, "_workspace_settings", {}) or {}
+            _overrides: dict[str, str] = _ws_settings.get("approval_overrides") or {}
+            _denied_names = [
+                name for name, mode in _overrides.items() if str(mode).lower() == "deny"
+            ]
+            if _denied_names:
+                filtered_allowed_tools = filter_denied_tools(raw_allowed_tools, _denied_names)
+                logger.info(
+                    "[SDK/Space] DENY filter removed %d tool(s) for workspace %s: %s",
+                    len(raw_allowed_tools) - len(filtered_allowed_tools),
+                    context.workspace_id,
+                    _denied_names,
+                )
+            else:
+                filtered_allowed_tools = raw_allowed_tools
+        except Exception:
+            # SEC-03: FAIL-CLOSED — if we cannot resolve permissions, deny
+            # ALL tools rather than allowing potentially denied tools through.
+            # This matches the principle of least privilege: when the permission
+            # system is degraded, restrict rather than permit.
+            logger.warning(
+                "[SDK/Space] PermissionService failed for DENY filter; "
+                "FAIL-CLOSED: filtering ALL tools. Workspace %s will have "
+                "no tool access until PermissionService recovers.",
+                context.workspace_id,
+                exc_info=True,
+            )
+            filtered_allowed_tools = []
+
         _r = getattr(self, "_resolved_model", None)  # AIPR-04 model override
         # Model priority: AIPR-04 override > workspace provider config > SDK default
         _model = (
