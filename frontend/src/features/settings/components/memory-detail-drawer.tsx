@@ -52,7 +52,10 @@ function DetailSkeleton() {
 }
 
 function formatTimestamp(iso: string): string {
-  return new Date(iso).toLocaleString();
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(iso));
 }
 
 export function MemoryDetailDrawer({
@@ -125,7 +128,7 @@ export function MemoryDetailDrawer({
                     Content
                   </h4>
                   <pre className="whitespace-pre-wrap text-sm text-foreground bg-muted/30 rounded-md p-3 max-h-[50vh] overflow-y-auto overflow-x-auto">
-                    {detail.content}
+                    {detail.content.replace(/<!--[\s\S]*?-->/g, '').trim()}
                   </pre>
                 </section>
 
@@ -135,21 +138,23 @@ export function MemoryDetailDrawer({
                     <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
                       Properties
                     </h4>
-                    <div className="rounded-md border text-sm">
-                      {Object.entries(detail.properties).map(([key, value]) => (
-                        <div
-                          key={key}
-                          className="flex items-start border-b last:border-b-0 px-3 py-1.5"
-                        >
-                          <span className="w-32 shrink-0 font-mono text-xs text-muted-foreground">
-                            {key}
-                          </span>
-                          <span className="text-xs text-foreground break-all">
-                            {typeof value === 'string' ? value : JSON.stringify(value)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
+                    <table className="w-full rounded-md border text-sm">
+                      <tbody>
+                        {Object.entries(detail.properties).map(([key, value]) => (
+                          <tr key={key} className="border-b last:border-b-0">
+                            <th
+                              scope="row"
+                              className="min-w-[100px] max-w-[140px] shrink-0 px-3 py-1.5 text-left align-top font-mono text-xs font-normal text-muted-foreground"
+                            >
+                              {key}
+                            </th>
+                            <td className="px-3 py-1.5 text-xs text-foreground break-all">
+                              {typeof value === 'string' ? value : JSON.stringify(value)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </section>
                 )}
 

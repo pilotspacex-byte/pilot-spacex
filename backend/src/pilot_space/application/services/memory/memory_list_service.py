@@ -10,6 +10,7 @@ GIN-indexed containment — NOT the ``pinned_at`` column.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 from dataclasses import dataclass
@@ -246,12 +247,20 @@ class MemoryListService:
 
         props: dict[str, Any] = dict(node.properties or {})
 
-        # Resolve provenance label from external_id (lazy — only on detail view)
+        # Resolve provenance label from external_id (lazy — only on detail view).
+        # Fallback: for note_chunk nodes without external_id, try
+        # properties.parent_note_id as the provenance source.
         source_label: str | None = None
         source_url: str | None = None
-        if node.external_id is not None:
+        provenance_id = node.external_id
+        if provenance_id is None and node.node_type == "note_chunk":
+            raw_parent = props.get("parent_note_id")
+            if raw_parent:
+                with contextlib.suppress(ValueError, TypeError):
+                    provenance_id = UUID(str(raw_parent))
+        if provenance_id is not None:
             source_label, source_url = await self._resolve_provenance(
-                node.node_type, node.external_id
+                node.node_type, provenance_id
             )
 
         embedding_dim: int | None = None
