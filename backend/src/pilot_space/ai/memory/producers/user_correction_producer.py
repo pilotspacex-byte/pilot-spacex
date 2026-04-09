@@ -102,6 +102,9 @@ async def enqueue_user_correction_memory(
         "memory_type": _MEMORY_TYPE,
         "workspace_id": str(workspace_id),
         "actor_user_id": str(actor_user_id),
+        # SEC-06: GDPR deletion key — enables "forget me" queries across all memory types.
+        # Distinct from actor_user_id (who triggered) vs user_id (whose data this is).
+        "user_id": str(actor_user_id),
         "session_id": session_id,
         "subtype": subtype,
         "tool_name": tool_name,

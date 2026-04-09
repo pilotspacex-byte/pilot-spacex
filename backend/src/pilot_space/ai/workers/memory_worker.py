@@ -63,6 +63,30 @@ _RLS_BYPASS_TASKS: frozenset[str] = frozenset(
     }
 )
 
+# RLS bypass allowlist (PROD-04): task types that are intentionally
+# cross-workspace or system-scoped. MemoryWorker skips set_rls_context
+# for these and relies on the handler to scope queries explicitly.
+# Keep in sync with scripts/audit_enqueue_actor_user_id.py allowlist.
+#
+# Security rationale per task type:
+# - TASK_GRAPH_EXPIRATION: System-wide sweep deleting expired nodes across
+#   all workspaces. Runs on a daily timer, not user-triggered. Handler
+#   filters by expiration timestamp, not workspace_id.
+# - TASK_ARTIFACT_CLEANUP: System-wide sweep removing orphaned storage
+#   objects. Hourly timer, not user-triggered. Handler uses storage API
+#   with its own auth, not RLS.
+# - TASK_SEND_INVITATION_EMAIL: Triggered by invitation flow. Email
+#   sending has no DB writes that need workspace RLS — it reads the
+#   invitation record (already validated at creation time) and calls
+#   the email provider.
+_RLS_BYPASS_TASKS: frozenset[str] = frozenset(
+    {
+        TASK_GRAPH_EXPIRATION,
+        TASK_ARTIFACT_CLEANUP,
+        TASK_SEND_INVITATION_EMAIL,
+    }
+)
+
 # _BATCH_SIZE MUST remain 1: _process() handles only messages[0].
 # Increasing this without updating the loop would silently drop messages 1..N.
 _BATCH_SIZE = 1

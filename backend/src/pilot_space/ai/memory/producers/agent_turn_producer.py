@@ -65,6 +65,13 @@ async def _derive_turn_index(workspace_id: UUID, session_id: str) -> int:
     Uses a short-lived request-scoped session. Returns ``0`` if the query
     fails so the producer can still enqueue — the DB unique index is the
     source of truth for de-dupe.
+
+    SEC-07: RLS context is NOT set here because ``set_rls_context`` requires
+    a non-None ``user_id: UUID`` and this helper only has ``workspace_id``.
+    Workspace isolation is enforced by the explicit
+    ``WHERE workspace_id = :workspace_id`` filter in the query. The filter is
+    the functional equivalent of RLS for this read-only count — removing it
+    would require changing the function signature (which is a separate task).
     """
     try:
         from pilot_space.infrastructure.database import get_db_session
@@ -140,6 +147,9 @@ async def enqueue_agent_turn_memory(
         "memory_type": _MEMORY_TYPE,
         "workspace_id": str(workspace_id),
         "actor_user_id": str(actor_user_id),
+        # SEC-06: GDPR deletion key — enables "forget me" queries across all memory types.
+        # Distinct from actor_user_id (who triggered) vs user_id (whose data this is).
+        "user_id": str(actor_user_id),
         "session_id": session_id,
         "turn_index": turn_index,
         "user_text": user_snippet,
