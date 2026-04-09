@@ -225,6 +225,9 @@ class MemoryWorker:
         try:
             from sqlalchemy import text
 
+            # SEC-08: Backfill is intentionally cross-workspace (system sweep).
+            # Runs under the worker's service_role connection — no set_rls_context needed.
+            # Individual graph_embedding tasks enqueued below DO set RLS via _process().
             async with self._session_factory() as session:
                 rows = (
                     await session.execute(
@@ -234,8 +237,8 @@ class MemoryWorker:
                             "AND is_deleted = false "
                             "AND coalesce(content, label, '') != '' "
                             "ORDER BY created_at DESC "
-                            f"LIMIT {_EMBEDDING_BACKFILL_BATCH}"
-                        )
+                            "LIMIT :batch_limit"
+                        ).bindparams(batch_limit=_EMBEDDING_BACKFILL_BATCH)
                     )
                 ).fetchall()
 

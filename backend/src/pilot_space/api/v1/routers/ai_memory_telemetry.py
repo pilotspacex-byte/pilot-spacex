@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pilot_space.api.v1.schemas.base import BaseSchema
 
 from pilot_space.ai.telemetry import memory_metrics
 from pilot_space.application.services.workspace_ai_settings_toggles import (
@@ -31,7 +31,7 @@ router = APIRouter(tags=["ai-memory-telemetry"])
 # ---------------------------------------------------------------------------
 
 
-class ToggleUpdateRequest(BaseModel):
+class ToggleUpdateRequest(BaseSchema):
     """Request body for PUT /toggles/{producer}."""
 
     enabled: bool
