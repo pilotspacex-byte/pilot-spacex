@@ -180,6 +180,8 @@ export const SessionResumeMenu = observer<SessionResumeMenuProps>(
           side="top"
           sideOffset={8}
           style={{ width: popoverWidth ?? 450 }}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => e.preventDefault()}
         >
           <Command shouldFilter={false}>
             <CommandInput placeholder="Search sessions..." onValueChange={onSearch} />

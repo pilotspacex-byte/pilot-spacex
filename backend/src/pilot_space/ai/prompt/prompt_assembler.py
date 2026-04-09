@@ -132,6 +132,11 @@ async def assemble_system_prompt(config: PromptLayerConfig) -> AssembledPrompt:
     if rule_summaries:
         sections.append("## Available Rule Domains (not loaded)\n" + "\n".join(rule_summaries))
 
+    # Mention resolution rule (conditional on @[Type:uuid] tokens in message)
+    if config.has_mention_context:
+        sections.append(_build_mention_resolution_rule())
+        layers_loaded.append("mention_resolution")
+
     prompt = "\n\n".join(sections)
     estimated_tokens = len(prompt) // 4  # ~4 chars per token for English text
 
@@ -219,6 +224,32 @@ def _build_disabled_features_section(config: PromptLayerConfig) -> str | None:
         f"If the user requests functionality related to a disabled feature, politely inform them "
         f"that the feature is not enabled and suggest they ask a workspace admin to enable it "
         f"in Settings > Features."
+    )
+
+
+def _build_mention_resolution_rule() -> str:
+    """Build the mention-resolution instruction for Layer 6.
+
+    Injected when the user message contains @[Type:uuid] entity references.
+    Instructs the agent which MCP tools to call for each entity type.
+    """
+    return (
+        "## Entity Reference Resolution\n\n"
+        "The user message contains one or more `@[Type:uuid]` entity references. "
+        "Before generating your response:\n"
+        "1. For each `@[Note:uuid]`: call `mcp__pilot-notes-query__search_notes` with the note's UUID as the query "
+        "and `include_content=True` to retrieve the note's title and content preview. "
+        "If you need the full note content beyond the preview, follow up with "
+        "`mcp__pilot-note-content__search_note_content` using the note UUID and a broad pattern (e.g., `.`) "
+        "to retrieve all blocks.\n"
+        "2. For each `@[Issue:uuid]`: call `mcp__pilot-issues__get_issue` with the UUID "
+        "to retrieve the full issue description and all structured fields.\n"
+        "3. For each `@[Project:uuid]`: call `mcp__pilot-projects__get_project_context` "
+        "to retrieve project details and the names/titles of related notes and issues.\n\n"
+        "If a tool returns an error or the entity is not found or inaccessible, "
+        "skip that entity gracefully and continue processing the remaining references. "
+        "Do not expose the error to the user.\n"
+        "Never include raw `@[Type:uuid]` strings in your response."
     )
 
 

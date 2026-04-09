@@ -1,14 +1,15 @@
 /**
  * SkillMenu - Searchable skill selector with keyboard navigation
  * Follows shadcn/ui Command pattern for accessible menus
+ * Search stays in the chat input (external query prop, no CommandInput)
  */
 
-import { memo, useCallback, useState, KeyboardEvent } from 'react';
+import { memo, useCallback } from 'react';
+import type { RefObject } from 'react';
 import {
   Command,
   CommandEmpty,
   CommandGroup,
-  CommandInput,
   CommandItem,
   CommandList,
   CommandSeparator,
@@ -47,6 +48,10 @@ interface SkillMenuProps {
   popoverClassName?: string;
   /** Width in pixels for popover content */
   popoverWidth?: number;
+  /** External search query — typed in the chat input after '/'. No CommandInput rendered. */
+  searchQuery?: string;
+  /** Ref forwarded to the cmdk Command root DOM node for keyboard event forwarding */
+  commandRef?: RefObject<HTMLDivElement | null>;
 }
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -71,13 +76,14 @@ export const SkillMenu = memo<SkillMenuProps>(
     open,
     onOpenChange,
     onSelect,
-    onCancel,
+    onCancel: _onCancel,
     skills: skillsProp,
     children,
     popoverClassName,
     popoverWidth,
+    searchQuery = '',
+    commandRef,
   }) => {
-    const [searchValue, setSearchValue] = useState('');
     const activeSkills = skillsProp ?? SKILLS;
 
     const handleSelect = useCallback(
@@ -86,37 +92,24 @@ export const SkillMenu = memo<SkillMenuProps>(
         if (skill) {
           onSelect(skill);
           onOpenChange(false);
-          setSearchValue('');
         }
       },
       [activeSkills, onSelect, onOpenChange]
     );
 
-    const handleKeyDown = useCallback(
-      (e: KeyboardEvent<HTMLInputElement>) => {
-        // Escape: close menu and remove trigger char
-        if (e.key === 'Escape') {
-          e.preventDefault();
-          onOpenChange(false);
-          onCancel?.();
-          setSearchValue('');
-          return;
-        }
-        // Backspace on empty input: close menu and remove trigger char
-        if (e.key === 'Backspace' && searchValue === '') {
-          e.preventDefault();
-          onOpenChange(false);
-          onCancel?.();
-          return;
-        }
-      },
-      [searchValue, onOpenChange, onCancel]
-    );
+    // Filter skills by searchQuery (name or description match)
+    const filteredSkills = searchQuery
+      ? activeSkills.filter(
+          (s) =>
+            s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            s.description.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+      : activeSkills;
 
-    // Group skills by category
+    // Group filtered skills by category
     const skillsByCategory = SKILL_CATEGORIES.map((category) => ({
       ...category,
-      skills: activeSkills.filter((s) => s.category === category.id),
+      skills: filteredSkills.filter((s) => s.category === category.id),
     })).filter((group) => group.skills.length > 0);
 
     return (
@@ -128,17 +121,14 @@ export const SkillMenu = memo<SkillMenuProps>(
           side="top"
           sideOffset={8}
           style={popoverWidth ? { width: popoverWidth } : undefined}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onCloseAutoFocus={(e) => e.preventDefault()}
         >
-          <Command>
-            <CommandInput
-              placeholder="Search skills..."
-              value={searchValue}
-              onValueChange={setSearchValue}
-              onKeyDown={handleKeyDown}
-              className="h-8 text-sm"
-            />
+          <Command ref={commandRef} filter={() => 1}>
             <CommandList className="max-h-[280px]">
-              <CommandEmpty>No skills found.</CommandEmpty>
+              {searchQuery && filteredSkills.length === 0 && (
+                <CommandEmpty>No skills found.</CommandEmpty>
+              )}
 
               {skillsByCategory.map((group, idx) => {
                 return (
@@ -159,7 +149,7 @@ export const SkillMenu = memo<SkillMenuProps>(
                             <SkillIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
 
                             <span className="font-mono text-xs font-medium shrink-0">
-                              \{skill.name}
+                              /{skill.name}
                             </span>
 
                             <span className="text-xs text-muted-foreground truncate">

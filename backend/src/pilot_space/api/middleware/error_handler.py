@@ -369,7 +369,9 @@ async def workspace_invitation_error_handler(
     exc: Exception,
 ) -> JSONResponse:
     """Handle WorkspaceInvitationError with RFC 7807 Problem Details response."""
-    from pilot_space.application.services.workspace_invitation import WorkspaceInvitationError
+    from pilot_space.application.services.workspace_invitation import (
+        WorkspaceInvitationError,
+    )
 
     if isinstance(exc, WorkspaceInvitationError):
         return create_problem_response(
@@ -420,7 +422,9 @@ def register_exception_handlers(app: Any) -> None:
     from pilot_space.application.services.feature_toggle import FeatureToggleError
     from pilot_space.application.services.mcp.exceptions import McpServerError
     from pilot_space.application.services.transcription import TranscriptionError
-    from pilot_space.application.services.workspace_invitation import WorkspaceInvitationError
+    from pilot_space.application.services.workspace_invitation import (
+        WorkspaceInvitationError,
+    )
     from pilot_space.application.services.workspace_member import WorkspaceMemberError
     from pilot_space.domain.exceptions import AppError
 

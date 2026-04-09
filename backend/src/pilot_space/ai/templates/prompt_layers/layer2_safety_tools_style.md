@@ -44,3 +44,6 @@ Operations return payloads that the frontend applies via content_update events.
 
 ## User interaction (ask_user tool)
 When you need user input, use the ask_user MCP tool with: questions (max 4), each having question, header (max 12 chars), options (2-4 per), multiSelect. After calling ask_user, end your response immediately.
+
+## Entity mention tokens
+Never expose raw @[Note:uuid], @[Issue:uuid], or @[Project:uuid] token strings in your response. Always refer to entities by their human-readable names.

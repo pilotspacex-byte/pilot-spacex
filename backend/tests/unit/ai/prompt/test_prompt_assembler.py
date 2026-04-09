@@ -294,7 +294,10 @@ class TestSkillsLayer:
             user_message="hello",
             user_skills=[
                 {"name": "Python Expert", "description": "Advanced Python development"},
-                {"name": "TDD Coach", "description": "Test-driven development practices"},
+                {
+                    "name": "TDD Coach",
+                    "description": "Test-driven development practices",
+                },
             ],
         )
         result = await assemble_system_prompt(config)
@@ -394,3 +397,65 @@ class TestFullAssembly:
         assert "skills" in result.layers_loaded
         assert len(result.rules_loaded) > 0
         assert result.estimated_tokens > 0
+
+
+class TestMentionContextLayer:
+    """Tests for mention context layer injection (Phase 04)."""
+
+    @pytest.mark.asyncio
+    async def test_with_mention_context_includes_resolution_rule(self) -> None:
+        """FR-04-1: Agent receives entity resolution instruction when @[ tokens present."""
+        config = PromptLayerConfig(
+            user_message="tell me about @[Note:abc-123]",
+            has_mention_context=True,
+        )
+        result = await assemble_system_prompt(config)
+        assert "Entity Reference Resolution" in result.prompt
+        assert "mention_resolution" in result.layers_loaded
+
+    @pytest.mark.asyncio
+    async def test_without_mention_context_skips_rule(self) -> None:
+        """FR-04-1 inverse: No mention instruction when no @[ tokens."""
+        config = PromptLayerConfig(
+            user_message="tell me about this project",
+            has_mention_context=False,
+        )
+        result = await assemble_system_prompt(config)
+        assert "Entity Reference Resolution" not in result.prompt
+        assert "mention_resolution" not in result.layers_loaded
+
+    @pytest.mark.asyncio
+    async def test_mention_context_includes_mcp_tool_names(self) -> None:
+        """FR-04-1/FR-04-2: Prompt references correct MCP tools per entity type."""
+        config = PromptLayerConfig(
+            user_message="summarize @[Project:ghi-789]",
+            has_mention_context=True,
+        )
+        result = await assemble_system_prompt(config)
+        assert "mcp__pilot-notes-query__search_notes" in result.prompt
+        assert "mcp__pilot-issues__get_issue" in result.prompt
+        assert "mcp__pilot-projects__get_project_context" in result.prompt
+
+    @pytest.mark.asyncio
+    async def test_mention_context_includes_graceful_skip_language(self) -> None:
+        """FR-04-3: Prompt instructs agent to skip inaccessible entities gracefully."""
+        config = PromptLayerConfig(
+            user_message="check @[Issue:def-456]",
+            has_mention_context=True,
+        )
+        result = await assemble_system_prompt(config)
+        prompt_lower = result.prompt.lower()
+        # Must contain skip/continue language for inaccessible entities
+        assert "skip" in prompt_lower, "Prompt must instruct agent to skip inaccessible entities"
+        assert "continue" in prompt_lower, "Prompt must instruct agent to continue after skipping"
+        # Should mention the error condition
+        assert any(term in prompt_lower for term in ["not found", "inaccessible", "error"]), (
+            "Prompt must reference entity-not-found or inaccessible scenario"
+        )
+
+    @pytest.mark.asyncio
+    async def test_standing_instruction_always_present(self) -> None:
+        """FR-04-4: Standing 'never expose raw tokens' instruction is always present."""
+        config = PromptLayerConfig(user_message="hello", has_mention_context=False)
+        result = await assemble_system_prompt(config)
+        assert "Never expose raw" in result.prompt

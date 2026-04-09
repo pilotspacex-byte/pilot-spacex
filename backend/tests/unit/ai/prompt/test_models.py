@@ -71,10 +71,15 @@ class TestPromptLayerConfig:
         assert cfg.project_names is None
         assert cfg.user_message == ""
         assert cfg.has_note_context is False
+        assert cfg.has_mention_context is False
         assert cfg.memory_entries == []
         assert cfg.pending_approvals == 0
         assert cfg.budget_warning is None
         assert cfg.conversation_summary is None
+
+    def test_has_mention_context_explicit_true(self) -> None:
+        cfg = PromptLayerConfig(has_mention_context=True)
+        assert cfg.has_mention_context is True
 
     def test_full_config(self) -> None:
         cfg = PromptLayerConfig(

@@ -60,6 +60,7 @@ class PromptLayerConfig(BaseModel):
         project_names: Active project names in the workspace.
         user_message: The current user message for intent classification.
         has_note_context: Whether note context is present in the conversation.
+        has_mention_context: Whether @[Type:uuid] mention tokens are present in the message.
         memory_entries: Retrieved memory entries for context (legacy).
         graph_context: Scored nodes from the knowledge graph (preferred over memory_entries).
         pending_approvals: Count of pending approval requests.
@@ -78,6 +79,7 @@ class PromptLayerConfig(BaseModel):
     project_names: list[str] | None = None
     user_message: str = ""
     has_note_context: bool = False
+    has_mention_context: bool = False
     memory_entries: list[dict[str, Any]] = Field(default_factory=list)
     graph_context: list[dict[str, Any]] = Field(default_factory=list)
     pending_approvals: int = 0

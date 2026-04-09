@@ -797,6 +797,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 project_names=input_data.context.get("project_names"),
                 user_message=input_data.message,
                 has_note_context="<note_context>" in input_data.message,
+                has_mention_context="@[" in input_data.message,
                 graph_context=graph_context,
                 user_skills=_user_skills_for_prompt,
                 feature_toggles=_feature_toggles,

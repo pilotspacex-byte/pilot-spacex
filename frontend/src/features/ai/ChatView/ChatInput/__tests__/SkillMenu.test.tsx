@@ -34,7 +34,7 @@ describe('SkillMenu', () => {
 
     // Should show all default skills (session + fallback)
     for (const skill of SKILLS) {
-      expect(screen.getByText(`\\${skill.name}`)).toBeInTheDocument();
+      expect(screen.getByText(`/${skill.name}`)).toBeInTheDocument();
     }
   });
 
@@ -51,7 +51,7 @@ describe('SkillMenu', () => {
 
     renderSkillMenu({ skills: dynamicSkills });
 
-    expect(screen.getByText('\\custom-skill')).toBeInTheDocument();
+    expect(screen.getByText('/custom-skill')).toBeInTheDocument();
     expect(screen.getByText('A custom skill from API')).toBeInTheDocument();
   });
 
@@ -69,8 +69,8 @@ describe('SkillMenu', () => {
     renderSkillMenu({ skills: dynamicSkills });
 
     // Hardcoded-only skills like extract-issues should NOT appear
-    expect(screen.queryByText('\\extract-issues')).not.toBeInTheDocument();
-    expect(screen.getByText('\\only-this')).toBeInTheDocument();
+    expect(screen.queryByText('/extract-issues')).not.toBeInTheDocument();
+    expect(screen.getByText('/only-this')).toBeInTheDocument();
   });
 
   it('session skills are present in combined SKILLS constant', () => {
@@ -125,7 +125,7 @@ describe('SkillMenu', () => {
     renderSkillMenu({ skills });
 
     // Name and description rendered, examples omitted in compact layout
-    expect(screen.getByText('\\compact-skill')).toBeInTheDocument();
+    expect(screen.getByText('/compact-skill')).toBeInTheDocument();
     expect(screen.getByText('Short desc')).toBeInTheDocument();
     expect(screen.queryByText(/Try this example/)).not.toBeInTheDocument();
   });
