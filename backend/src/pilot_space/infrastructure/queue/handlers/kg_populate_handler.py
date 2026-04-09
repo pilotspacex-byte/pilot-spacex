@@ -247,14 +247,34 @@ class KgPopulateHandler:
             #   * uq_graph_nodes_pr_review_finding     (migration 107)
             #       (workspace_id, repo, pr_number, file_path, line_number)
             # Replay hits one of these — rollback, ACK, and move on. Only
-            # treat as duplicate when the failing index matches; otherwise
-            # re-raise.
-            msg = str(exc.orig) if exc.orig is not None else str(exc)
-            known_dedup_indexes = (
+            # treat as duplicate when the failing constraint matches;
+            # otherwise re-raise so FK/CHECK violations propagate.
+            _KNOWN_DEDUP_INDEXES = frozenset({
                 "uq_graph_nodes_agent_turn_cache",
                 "uq_graph_nodes_pr_review_finding",
-            )
-            if any(name in msg for name in known_dedup_indexes):
+            })
+            # Prefer the DB driver's parsed constraint name (psycopg2/asyncpg
+            # expose it on the original exception). Fall back to message
+            # substring only when the driver doesn't provide the name.
+            constraint_name: str | None = None
+            orig = exc.orig
+            if orig is not None:
+                # psycopg2: orig.diag.constraint_name
+                diag = getattr(orig, "diag", None)
+                if diag is not None:
+                    constraint_name = getattr(diag, "constraint_name", None)
+                # asyncpg: orig.constraint_name (no diag wrapper)
+                if constraint_name is None:
+                    constraint_name = getattr(orig, "constraint_name", None)
+            # Last resort: match on error message (covers edge-case drivers)
+            if constraint_name is None:
+                msg = str(orig) if orig is not None else str(exc)
+                for name in _KNOWN_DEDUP_INDEXES:
+                    if name in msg:
+                        constraint_name = name
+                        break
+
+            if constraint_name and constraint_name in _KNOWN_DEDUP_INDEXES:
                 await self._session.rollback()
                 logger.info(
                     "KgPopulateHandler: duplicate %s replay (workspace=%s) — ACK",
