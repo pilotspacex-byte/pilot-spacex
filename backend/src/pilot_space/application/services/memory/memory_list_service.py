@@ -12,19 +12,14 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
 from sqlalchemy import and_, cast, func, select
 from sqlalchemy.dialects.postgresql import JSONB
 
-from pilot_space.api.v1.schemas.base import BulkResponse
-from pilot_space.api.v1.schemas.memory import (
-    MemoryDetailResponse,
-    MemoryListItem,
-    MemoryListResponse,
-    MemoryStatsResponse,
-)
 from pilot_space.application.services.memory.memory_lifecycle_service import (
     ForgetPayload,
     MemoryLifecycleService,
@@ -43,6 +38,77 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _SNIPPET_LENGTH = 200
+
+
+# ---------------------------------------------------------------------------
+# Service-layer result dataclasses (avoid circular import with API schemas)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(slots=True)
+class MemoryListItemResult:
+    """Single item in the memory list."""
+
+    id: UUID
+    node_type: str
+    kind: str | None
+    label: str
+    content_snippet: str
+    pinned: bool
+    score: float | None
+    source_type: str | None
+    source_id: UUID | None
+    created_at: datetime
+
+
+@dataclass(slots=True)
+class MemoryListResult:
+    """Paginated memory list result."""
+
+    items: list[MemoryListItemResult]
+    total: int
+    offset: int
+    limit: int
+    has_next: bool
+
+
+@dataclass(slots=True)
+class MemoryDetailResult:
+    """Full detail for a single memory node."""
+
+    id: UUID
+    node_type: str
+    kind: str | None
+    label: str
+    content: str
+    properties: dict[str, Any]
+    pinned: bool
+    source_type: str | None
+    source_id: UUID | None
+    source_label: str | None
+    source_url: str | None
+    embedding_dim: int | None
+    created_at: datetime
+    updated_at: datetime
+
+
+@dataclass(slots=True)
+class MemoryStatsResult:
+    """Aggregated memory statistics."""
+
+    total: int
+    by_type: dict[str, int]
+    pinned_count: int
+    last_ingestion: datetime | None
+
+
+@dataclass(slots=True)
+class BulkActionResult:
+    """Result of a bulk pin/forget operation."""
+
+    succeeded: list[UUID]
+    failed: list[dict[str, Any]]
+    total_processed: int
 
 
 class MemoryListService:
@@ -76,7 +142,7 @@ class MemoryListService:
         q: str | None = None,
         offset: int = 0,
         limit: int = 50,
-    ) -> MemoryListResponse:
+    ) -> MemoryListResult:
         """Return a paginated, filterable list of memory nodes.
 
         When ``q`` is provided, performs a two-pass semantic search:
@@ -109,7 +175,7 @@ class MemoryListService:
     # Stats
     # ------------------------------------------------------------------
 
-    async def get_stats(self, workspace_id: UUID) -> MemoryStatsResponse:
+    async def get_stats(self, workspace_id: UUID) -> MemoryStatsResult:
         """Return aggregated counts grouped by node_type."""
         base_where = and_(
             GraphNodeModel.workspace_id == workspace_id,
@@ -128,7 +194,6 @@ class MemoryListService:
 
         total = 0
         by_type: dict[str, int] = {}
-        last_ingestion = None
 
         for node_type, cnt in rows:
             by_type[str(node_type)] = int(cnt)
@@ -153,7 +218,7 @@ class MemoryListService:
         )
         last_ingestion = (await self._session.execute(last_stmt)).scalar()
 
-        return MemoryStatsResponse(
+        return MemoryStatsResult(
             total=total,
             by_type=by_type,
             pinned_count=int(pinned_count),
@@ -168,7 +233,7 @@ class MemoryListService:
         self,
         workspace_id: UUID,
         node_id: UUID,
-    ) -> MemoryDetailResponse:
+    ) -> MemoryDetailResult:
         """Load a single memory node with provenance resolution."""
         stmt = select(GraphNodeModel).where(
             GraphNodeModel.id == node_id,
@@ -196,7 +261,7 @@ class MemoryListService:
             except TypeError:
                 embedding_dim = None
 
-        return MemoryDetailResponse(
+        return MemoryDetailResult(
             id=node.id,
             node_type=node.node_type,
             kind=props.get("kind"),
@@ -224,7 +289,7 @@ class MemoryListService:
         memory_ids: list[UUID],
         *,
         actor_user_id: UUID | None = None,
-    ) -> BulkResponse[UUID]:
+    ) -> BulkActionResult:
         """Pin or forget multiple memory nodes, collecting per-ID results."""
         succeeded: list[UUID] = []
         failed: list[dict[str, Any]] = []
@@ -252,7 +317,7 @@ class MemoryListService:
             except Exception as exc:
                 failed.append({"id": str(mid), "error": str(exc)})
 
-        return BulkResponse[UUID](
+        return BulkActionResult(
             succeeded=succeeded,
             failed=failed,
             total_processed=len(memory_ids),
@@ -271,7 +336,7 @@ class MemoryListService:
         pinned: bool | None,
         offset: int,
         limit: int,
-    ) -> MemoryListResponse:
+    ) -> MemoryListResult:
         where = self._build_filters(workspace_id, node_types=node_types, kind=kind, pinned=pinned)
 
         count_stmt = select(func.count()).select_from(GraphNodeModel).where(where)
@@ -286,8 +351,8 @@ class MemoryListService:
         )
         rows = (await self._session.execute(items_stmt)).scalars().all()
 
-        items = [self._node_to_list_item(row) for row in rows]
-        return MemoryListResponse(
+        items = [self._node_to_item(row) for row in rows]
+        return MemoryListResult(
             items=items,
             total=int(total),
             offset=offset,
@@ -309,7 +374,7 @@ class MemoryListService:
         pinned: bool | None,
         offset: int,
         limit: int,
-    ) -> MemoryListResponse:
+    ) -> MemoryListResult:
         """Two-pass semantic search: recall scored IDs, then paginate."""
         recall_result = await self._recall_service.recall(
             RecallPayload(
@@ -321,7 +386,7 @@ class MemoryListService:
         )
 
         if not recall_result.items:
-            return MemoryListResponse(
+            return MemoryListResult(
                 items=[], total=0, offset=offset, limit=limit, has_next=False
             )
 
@@ -354,12 +419,12 @@ class MemoryListService:
 
         # Attach scores and sort by score DESC
         items = [
-            self._node_to_list_item(row, score=score_map.get(str(row.id)))
+            self._node_to_item(row, score=score_map.get(str(row.id)))
             for row in rows
         ]
         items.sort(key=lambda i: i.score or 0.0, reverse=True)
 
-        return MemoryListResponse(
+        return MemoryListResult(
             items=items,
             total=int(total),
             offset=offset,
@@ -372,13 +437,13 @@ class MemoryListService:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _node_to_list_item(
+    def _node_to_item(
         node: GraphNodeModel,
         *,
         score: float | None = None,
-    ) -> MemoryListItem:
+    ) -> MemoryListItemResult:
         props: dict[str, Any] = dict(node.properties or {})
-        return MemoryListItem(
+        return MemoryListItemResult(
             id=node.id,
             node_type=node.node_type,
             kind=props.get("kind"),
@@ -482,5 +547,10 @@ class MemoryListService:
 
 
 __all__ = [
+    "BulkActionResult",
+    "MemoryDetailResult",
+    "MemoryListItemResult",
+    "MemoryListResult",
     "MemoryListService",
+    "MemoryStatsResult",
 ]
