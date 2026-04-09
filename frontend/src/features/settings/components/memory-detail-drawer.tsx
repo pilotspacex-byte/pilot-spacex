@@ -7,7 +7,7 @@
 'use client';
 
 import * as React from 'react';
-import { Pin, PinOff, Trash2, ExternalLink } from 'lucide-react';
+import { Pin, PinOff, Trash2, ExternalLink, FileText, Brain, MessageSquare, GitPullRequest, AlertCircle } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -58,6 +58,36 @@ function formatTimestamp(iso: string): string {
   }).format(new Date(iso));
 }
 
+/** Strip markdown headings + HTML comments for cleaner display. */
+function cleanContent(raw: string): string {
+  return raw
+    .replace(/<!--[\s\S]*?-->/g, '') // TipTap block IDs
+    .replace(/^#{1,6}\s+/gm, '')     // markdown headings (## Foo → Foo)
+    .trim();
+}
+
+/** Human-readable node type label + icon. */
+const NODE_TYPE_LABELS: Record<string, { label: string; Icon: React.ElementType }> = {
+  note_chunk: { label: 'Note excerpt', Icon: FileText },
+  note: { label: 'Note', Icon: FileText },
+  issue: { label: 'Issue', Icon: AlertCircle },
+  decision: { label: 'Decision', Icon: Brain },
+  agent_turn: { label: 'AI conversation', Icon: MessageSquare },
+  user_correction: { label: 'Correction', Icon: AlertCircle },
+  pr_review_finding: { label: 'PR review finding', Icon: GitPullRequest },
+  learned_pattern: { label: 'Learned pattern', Icon: Brain },
+};
+
+function getTypeInfo(nodeType: string) {
+  return NODE_TYPE_LABELS[nodeType] ?? { label: nodeType.replace(/_/g, ' '), Icon: FileText };
+}
+
+/** Properties we hide from the admin — internal plumbing, not useful. */
+const HIDDEN_PROPERTIES = new Set([
+  'chunk_index', 'heading_level', 'parent_note_id', 'parent_issue_id',
+  'pinned', 'source_type', 'source_id', 'memory_type',
+]);
+
 export function MemoryDetailDrawer({
   workspaceId,
   nodeId,
@@ -103,101 +133,105 @@ export function MemoryDetailDrawer({
           </>
         ) : (
           <div className="flex h-full flex-col">
-            <SheetHeader>
-              <SheetTitle className="text-base">{detail.label}</SheetTitle>
-              <SheetDescription className="flex items-center gap-2">
-                <Badge variant="secondary" className="text-xs">
-                  {detail.nodeType.replace(/_/g, ' ')}
-                </Badge>
-                {detail.kind && (
-                  <Badge variant="outline" className="text-xs">
-                    {detail.kind}
-                  </Badge>
+            {(() => {
+              const typeInfo = getTypeInfo(detail.nodeType);
+              return (
+                <SheetHeader>
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                      <typeInfo.Icon className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="min-w-0">
+                      <SheetTitle className="text-base leading-tight">{detail.label}</SheetTitle>
+                      <SheetDescription className="flex items-center gap-2 mt-1">
+                        <Badge variant="secondary" className="text-xs">
+                          {typeInfo.label}
+                        </Badge>
+                        {detail.kind && detail.kind !== 'raw' && (
+                          <Badge variant="outline" className="text-xs">
+                            {detail.kind}
+                          </Badge>
+                        )}
+                        {detail.pinned && (
+                          <Pin className="h-3 w-3 text-primary" aria-label="Pinned" />
+                        )}
+                      </SheetDescription>
+                    </div>
+                  </div>
+                </SheetHeader>
+              );
+            })()}
+
+            {/* Source attribution — prominent when available */}
+            {detail.sourceLabel && (
+              <div className="flex items-center gap-2 mt-3 px-1 py-2 rounded-md bg-muted/40 text-sm">
+                <span className="text-muted-foreground">From</span>
+                <span className="font-medium text-foreground">{detail.sourceLabel}</span>
+                {detail.sourceUrl && (
+                  <a
+                    href={detail.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline inline-flex items-center gap-0.5 ml-auto"
+                    aria-label={`Open ${detail.sourceLabel}`}
+                  >
+                    Open <ExternalLink className="h-3 w-3" />
+                  </a>
                 )}
-                {detail.pinned && (
-                  <Pin className="h-3 w-3 text-primary" aria-label="Pinned" />
-                )}
-              </SheetDescription>
-            </SheetHeader>
+              </div>
+            )}
 
             <ScrollArea className="flex-1 mt-4">
               <div className="space-y-5 pr-2">
-                {/* Content */}
+                {/* Content — cleaned and readable */}
                 <section>
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                    Content
-                  </h4>
-                  <pre className="whitespace-pre-wrap text-sm text-foreground bg-muted/30 rounded-md p-3 max-h-[50vh] overflow-y-auto overflow-x-auto">
-                    {detail.content.replace(/<!--[\s\S]*?-->/g, '').trim()}
-                  </pre>
-                </section>
-
-                {/* Properties */}
-                {Object.keys(detail.properties).length > 0 && (
-                  <section>
-                    <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                      Properties
-                    </h4>
-                    <table className="w-full rounded-md border text-sm">
-                      <tbody>
-                        {Object.entries(detail.properties).map(([key, value]) => (
-                          <tr key={key} className="border-b last:border-b-0">
-                            <th
-                              scope="row"
-                              className="min-w-[100px] max-w-[140px] shrink-0 px-3 py-1.5 text-left align-top font-mono text-xs font-normal text-muted-foreground"
-                            >
-                              {key}
-                            </th>
-                            <td className="px-3 py-1.5 text-xs text-foreground break-all">
-                              {typeof value === 'string' ? value : JSON.stringify(value)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </section>
-                )}
-
-                {/* Provenance */}
-                <section>
-                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                    Provenance
-                  </h4>
-                  <div className="space-y-1 text-sm">
-                    {detail.sourceType && (
-                      <div className="flex items-center gap-2">
-                        <span className="text-muted-foreground">Source:</span>
-                        <span className="text-foreground">
-                          {detail.sourceLabel ?? detail.sourceType}
-                        </span>
-                        {detail.sourceUrl && (
-                          <a
-                            href={detail.sourceUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline inline-flex items-center gap-0.5"
-                          >
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        )}
-                      </div>
-                    )}
-                    {detail.embeddingDim != null && (
-                      <div>
-                        <span className="text-muted-foreground">Embedding:</span>{' '}
-                        <span className="font-mono text-xs">{detail.embeddingDim}d</span>
-                      </div>
-                    )}
-                    <div>
-                      <span className="text-muted-foreground">Created:</span>{' '}
-                      {formatTimestamp(detail.createdAt)}
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Updated:</span>{' '}
-                      {formatTimestamp(detail.updatedAt)}
-                    </div>
+                  <div className="prose prose-sm max-w-none text-foreground whitespace-pre-wrap rounded-md bg-muted/20 p-4 max-h-[50vh] overflow-y-auto overflow-x-auto leading-relaxed">
+                    {cleanContent(detail.content)}
                   </div>
                 </section>
+
+                {/* Metadata — only user-relevant properties, collapsed by default */}
+                {(() => {
+                  const visibleProps = Object.entries(detail.properties).filter(
+                    ([key]) => !HIDDEN_PROPERTIES.has(key)
+                  );
+                  if (visibleProps.length === 0) return null;
+                  return (
+                    <details className="group">
+                      <summary className="text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
+                        Metadata ({visibleProps.length})
+                      </summary>
+                      <table className="w-full rounded-md border text-sm mt-2">
+                        <tbody>
+                          {visibleProps.map(([key, value]) => (
+                            <tr key={key} className="border-b last:border-b-0">
+                              <th
+                                scope="row"
+                                className="min-w-[100px] max-w-[140px] shrink-0 px-3 py-1.5 text-left align-top font-mono text-xs font-normal text-muted-foreground"
+                              >
+                                {key}
+                              </th>
+                              <td className="px-3 py-1.5 text-xs text-foreground break-all">
+                                {typeof value === 'string' ? value : JSON.stringify(value)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </details>
+                  );
+                })()}
+
+                {/* Timeline — clean, minimal */}
+                <div className="space-y-1.5 text-xs text-muted-foreground">
+                  <div>Created {formatTimestamp(detail.createdAt)}</div>
+                  {detail.updatedAt !== detail.createdAt && (
+                    <div>Updated {formatTimestamp(detail.updatedAt)}</div>
+                  )}
+                  {detail.embeddingDim != null && (
+                    <div>{detail.embeddingDim}-dim embedding</div>
+                  )}
+                </div>
               </div>
             </ScrollArea>
 

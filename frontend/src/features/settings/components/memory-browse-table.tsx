@@ -24,6 +24,18 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useMemoryList } from '../hooks/use-ai-memory';
 import type { MemoryListParams, MemoryListItem } from '../hooks/use-ai-memory';
 
+/** Human-readable node type labels for the table. */
+const NODE_TYPE_DISPLAY: Record<string, string> = {
+  note_chunk: 'Note excerpt',
+  note: 'Note',
+  issue: 'Issue',
+  decision: 'Decision',
+  agent_turn: 'AI conversation',
+  user_correction: 'Correction',
+  pr_review_finding: 'PR finding',
+  learned_pattern: 'Pattern',
+};
+
 interface MemoryBrowseTableProps {
   workspaceId: string;
   params: MemoryListParams;
@@ -218,7 +230,7 @@ export function MemoryBrowseTable({
                   </TableCell>
                   <TableCell>
                     <Badge variant="secondary" className="text-xs whitespace-nowrap">
-                      {item.nodeType.replace(/_/g, ' ')}
+                      {NODE_TYPE_DISPLAY[item.nodeType] ?? item.nodeType.replace(/_/g, ' ')}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
@@ -231,7 +243,10 @@ export function MemoryBrowseTable({
                   </TableCell>
                   <TableCell>
                     <span className="text-sm text-muted-foreground line-clamp-1">
-                      {item.contentSnippet}
+                      {item.contentSnippet
+                        .replace(/<!--[\s\S]*?-->/g, '')
+                        .replace(/^#{1,6}\s+/gm, '')
+                        .trim() || '(empty)'}
                     </span>
                   </TableCell>
                   {showScore && (
