@@ -133,17 +133,18 @@ export function MemoryDetailDrawer({
           </>
         ) : (
           <div className="flex h-full flex-col">
+            {/* Header — SheetHeader provides its own p-4 */}
             {(() => {
               const typeInfo = getTypeInfo(detail.nodeType);
               return (
-                <SheetHeader>
+                <SheetHeader className="pb-0">
                   <div className="flex items-start gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                      <typeInfo.Icon className="h-4 w-4 text-primary" />
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                      <typeInfo.Icon className="h-5 w-5 text-primary" />
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <SheetTitle className="text-base leading-tight">{detail.label}</SheetTitle>
-                      <SheetDescription className="flex items-center gap-2 mt-1">
+                      <SheetDescription className="flex items-center gap-2 mt-1.5">
                         <Badge variant="secondary" className="text-xs">
                           {typeInfo.label}
                         </Badge>
@@ -162,30 +163,36 @@ export function MemoryDetailDrawer({
               );
             })()}
 
-            {/* Source attribution — prominent when available */}
-            {detail.sourceLabel && (
-              <div className="flex items-center gap-2 mt-3 px-1 py-2 rounded-md bg-muted/40 text-sm">
-                <span className="text-muted-foreground">From</span>
-                <span className="font-medium text-foreground">{detail.sourceLabel}</span>
-                {detail.sourceUrl && (
-                  <a
-                    href={detail.sourceUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline inline-flex items-center gap-0.5 ml-auto"
-                    aria-label={`Open ${detail.sourceLabel}`}
-                  >
-                    Open <ExternalLink className="h-3 w-3" />
-                  </a>
-                )}
-              </div>
-            )}
+            {/* Source attribution — sits inside the padded container */}
+            <div className="px-5">
+              {detail.sourceLabel && (
+                <div className="flex items-center gap-2 mt-3 px-3 py-2.5 rounded-lg bg-muted/40 text-sm border border-border/50">
+                  <span className="text-muted-foreground">From</span>
+                  <span className="font-medium text-foreground truncate">{detail.sourceLabel}</span>
+                  {detail.sourceUrl && (
+                    <a
+                      href={detail.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline inline-flex items-center gap-1 ml-auto shrink-0 text-xs"
+                      aria-label={`Open ${detail.sourceLabel}`}
+                    >
+                      Open <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
 
+            {/* Scrollable body — consistent horizontal padding */}
             <ScrollArea className="flex-1 mt-4">
-              <div className="space-y-5 pr-2">
+              <div className="space-y-6 px-5 pb-4">
                 {/* Content — cleaned and readable */}
                 <section>
-                  <div className="prose prose-sm max-w-none text-foreground whitespace-pre-wrap rounded-md bg-muted/20 p-4 max-h-[50vh] overflow-y-auto overflow-x-auto leading-relaxed">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                    Content
+                  </h4>
+                  <div className="whitespace-pre-wrap text-sm text-foreground leading-relaxed rounded-lg bg-muted/20 p-4 max-h-[50vh] overflow-y-auto overflow-x-auto border border-border/30">
                     {cleanContent(detail.content)}
                   </div>
                 </section>
@@ -201,17 +208,17 @@ export function MemoryDetailDrawer({
                       <summary className="text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
                         Metadata ({visibleProps.length})
                       </summary>
-                      <table className="w-full rounded-md border text-sm mt-2">
+                      <table className="w-full rounded-lg border text-sm mt-2">
                         <tbody>
                           {visibleProps.map(([key, value]) => (
                             <tr key={key} className="border-b last:border-b-0">
                               <th
                                 scope="row"
-                                className="min-w-[100px] max-w-[140px] shrink-0 px-3 py-1.5 text-left align-top font-mono text-xs font-normal text-muted-foreground"
+                                className="min-w-[100px] max-w-[140px] shrink-0 px-3 py-2 text-left align-top font-mono text-xs font-normal text-muted-foreground"
                               >
                                 {key}
                               </th>
-                              <td className="px-3 py-1.5 text-xs text-foreground break-all">
+                              <td className="px-3 py-2 text-xs text-foreground break-all">
                                 {typeof value === 'string' ? value : JSON.stringify(value)}
                               </td>
                             </tr>
@@ -222,8 +229,8 @@ export function MemoryDetailDrawer({
                   );
                 })()}
 
-                {/* Timeline — clean, minimal */}
-                <div className="space-y-1.5 text-xs text-muted-foreground">
+                {/* Timeline — clean, minimal, with subtle top border */}
+                <div className="space-y-1 border-t pt-4 text-xs text-muted-foreground">
                   <div>Created {formatTimestamp(detail.createdAt)}</div>
                   {detail.updatedAt !== detail.createdAt && (
                     <div>Updated {formatTimestamp(detail.updatedAt)}</div>
@@ -235,8 +242,8 @@ export function MemoryDetailDrawer({
               </div>
             </ScrollArea>
 
-            {/* Actions */}
-            <div className="flex items-center gap-2 border-t pt-3 mt-3">
+            {/* Actions — pinned to bottom with consistent padding */}
+            <div className="flex items-center gap-2 border-t px-5 py-4">
               <Button
                 variant="outline"
                 size="sm"
