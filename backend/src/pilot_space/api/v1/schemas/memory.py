@@ -4,10 +4,14 @@ T-036: POST /api/v1/ai/memory/search
        GET  /api/v1/ai/memory/constitution/version
 
 Feature 015: AI Workforce Platform — Memory Engine
+
+Phase 71: Memory browse/list/search/stats/detail/bulk schemas.
 """
 
 from __future__ import annotations
 
+from datetime import datetime
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import Field, field_validator
@@ -106,3 +110,68 @@ class ConstitutionIngestResponse(BaseSchema):
     version: int = Field(description="New version number created")
     rule_count: int = Field(description="Number of rules ingested")
     indexing_enqueued: bool = Field(description="Whether async vector indexing was enqueued")
+
+
+# ---------------------------------------------------------------------------
+# Phase 71 — Memory browse / list / search / stats / detail / bulk schemas
+# ---------------------------------------------------------------------------
+
+
+class MemoryListItem(BaseSchema):
+    """Single item in the memory list response."""
+
+    id: UUID
+    node_type: str
+    kind: str | None = None
+    label: str
+    content_snippet: str = Field(description="First 200 chars of content")
+    pinned: bool = False
+    score: float | None = None
+    source_type: str | None = None
+    source_id: UUID | None = None
+    created_at: datetime
+
+
+class MemoryListResponse(BaseSchema):
+    """Offset-based pagination response for memory list."""
+
+    items: list[MemoryListItem]
+    total: int = Field(ge=0)
+    offset: int = Field(ge=0)
+    limit: int = Field(ge=1, le=100)
+    has_next: bool
+
+
+class MemoryDetailResponse(BaseSchema):
+    """Full detail for a single memory node with provenance."""
+
+    id: UUID
+    node_type: str
+    kind: str | None = None
+    label: str
+    content: str
+    properties: dict[str, Any]
+    pinned: bool = False
+    source_type: str | None = None
+    source_id: UUID | None = None
+    source_label: str | None = None
+    source_url: str | None = None
+    embedding_dim: int | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class MemoryStatsResponse(BaseSchema):
+    """Aggregated statistics for workspace memory."""
+
+    total: int
+    by_type: dict[str, int]
+    pinned_count: int
+    last_ingestion: datetime | None
+
+
+class BulkMemoryRequest(BaseSchema):
+    """Request body for bulk pin/forget operations."""
+
+    action: Literal["pin", "forget"]
+    memory_ids: list[UUID] = Field(min_length=1, max_length=100)

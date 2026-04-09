@@ -89,6 +89,9 @@ from pilot_space.application.services.memory.knowledge_graph_query_service impor
 from pilot_space.application.services.memory.memory_lifecycle_service import (
     MemoryLifecycleService,
 )
+from pilot_space.application.services.memory.memory_list_service import (
+    MemoryListService,
+)
 from pilot_space.application.services.memory.memory_recall_service import (
     MemoryRecallService,
 )
@@ -1037,6 +1040,13 @@ class Container(SkillContainer, PluginContainer):
     memory_lifecycle_service = providers.Factory(
         MemoryLifecycleService,
         session=providers.Callable(get_current_session),
+    )
+
+    memory_list_service = providers.Factory(
+        MemoryListService,
+        session=providers.Callable(get_current_session),
+        recall_service=memory_recall_service,
+        lifecycle_service=memory_lifecycle_service,
     )
 
     # Knowledge Graph Query Service

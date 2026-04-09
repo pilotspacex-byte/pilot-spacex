@@ -78,6 +78,9 @@ from pilot_space.application.services.memory.knowledge_graph_query_service impor
 from pilot_space.application.services.memory.memory_lifecycle_service import (
     MemoryLifecycleService,
 )
+from pilot_space.application.services.memory.memory_list_service import (
+    MemoryListService,
+)
 from pilot_space.application.services.memory.memory_recall_service import (
     MemoryRecallService,
 )
@@ -1013,6 +1016,16 @@ MemoryLifecycleServiceDep = Annotated[
 ]
 
 
+@inject
+def _get_memory_list_service(
+    svc: MemoryListService = Depends(Provide[Container.memory_list_service]),
+) -> MemoryListService:
+    return svc
+
+
+MemoryListServiceDep = Annotated[MemoryListService, Depends(_get_memory_list_service)]
+
+
 __all__ = [  # noqa: RUF022
     "ActionButtonServiceDep",
     "ActivityRepositoryDep",
@@ -1108,6 +1121,7 @@ __all__ = [  # noqa: RUF022
     "PermissionServiceDep",
     "MemoryRecallServiceDep",
     "MemoryLifecycleServiceDep",
+    "MemoryListServiceDep",
 ]
 
 
