@@ -206,8 +206,12 @@ class MemoryWorker:
             TASK_SEND_INVITATION_EMAIL,
             TASK_SUMMARIZE_NOTE,
         ):
-            logger.debug("MemoryWorker: skipping unknown task_type %s", task_type)
-            await self.queue.nack(
+            logger.warning(
+                "MemoryWorker: unknown task_type %s (msg %s) — moving to dead letter",
+                task_type,
+                msg_id,
+            )
+            await self.queue.move_to_dead_letter(
                 QueueName.AI_NORMAL,
                 msg_id,
                 error=f"Unknown task_type: {task_type}",
