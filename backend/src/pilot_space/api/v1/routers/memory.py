@@ -364,17 +364,16 @@ async def gdpr_forget_user(
     session: DbSession,
     service: MemoryLifecycleServiceDep,
 ) -> SuccessResponse:
-    """Hard-delete every memory node owned by ``user_id``. Admin-only.
+    """Hard-delete memory nodes owned by ``user_id`` within this workspace.
 
-    Note: ``workspace_id`` from the path is intentionally NOT forwarded to
-    the service. ``MemoryLifecycleService.gdpr_forget_user`` is a global
-    hard delete keyed only on ``user_id`` (per its docstring); admin
-    authorization on the enclosing workspace is the actual access guard
-    for this endpoint.
+    Scoped to the workspace — an admin of workspace A cannot erase memories
+    belonging to workspace B. For platform-wide GDPR erasure, use a
+    service-role call with ``workspace_id=None``.
     """
     _ = session
-    _ = workspace_id  # admin auth guard only; service is global-scope
-    await service.gdpr_forget_user(GDPRForgetPayload(user_id=body.user_id))
+    await service.gdpr_forget_user(
+        GDPRForgetPayload(user_id=body.user_id, workspace_id=workspace_id)
+    )
     return SuccessResponse(success=True)
 
 

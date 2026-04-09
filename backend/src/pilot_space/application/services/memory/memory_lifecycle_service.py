@@ -49,6 +49,7 @@ class ForgetPayload:
 @dataclass(frozen=True, slots=True)
 class GDPRForgetPayload:
     user_id: UUID
+    workspace_id: UUID | None = None
 
 
 class MemoryLifecycleService:
@@ -124,16 +125,28 @@ class MemoryLifecycleService:
     # ------------------------------------------------------------------
 
     async def gdpr_forget_user(self, payload: GDPRForgetPayload) -> int:
-        """Hard-delete every graph node whose ``user_id`` matches.
+        """Hard-delete graph nodes whose ``user_id`` matches.
 
-        Caller MUST be in a service-role / admin context. Returns the
-        number of nodes deleted.
+        When ``workspace_id`` is provided, deletes are scoped to that
+        workspace only (admin-of-workspace flow). When ``workspace_id``
+        is None, deletes globally (platform-admin / service-role flow).
+
+        Returns the number of nodes deleted.
         """
+        conditions = [GraphNodeModel.user_id == payload.user_id]
+        if payload.workspace_id is not None:
+            conditions.append(GraphNodeModel.workspace_id == payload.workspace_id)
+
         result = await self._session.execute(
-            delete(GraphNodeModel).where(GraphNodeModel.user_id == payload.user_id)
+            delete(GraphNodeModel).where(and_(*conditions))
         )
         deleted = getattr(result, "rowcount", 0) or 0
-        logger.info("memory_lifecycle: gdpr_forget user=%s deleted=%d", payload.user_id, deleted)
+        logger.info(
+            "memory_lifecycle: gdpr_forget user=%s workspace=%s deleted=%d",
+            payload.user_id,
+            payload.workspace_id,
+            deleted,
+        )
         return deleted
 
     # ------------------------------------------------------------------
