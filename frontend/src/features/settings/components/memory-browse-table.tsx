@@ -171,7 +171,7 @@ export function MemoryBrowseTable({
     [onRowClick, selectedIds, onSelectionChange],
   );
 
-  const columnCount = showScore ? 8 : 7;
+  const columnCount = showScore ? 7 : 6;
   const rangeStart = total > 0 ? offset + 1 : 0;
   const rangeEnd = Math.min(offset + limit, total);
 
@@ -189,9 +189,8 @@ export function MemoryBrowseTable({
                   aria-label="Select all memories on this page"
                 />
               </TableHead>
-              <TableHead className="w-[120px]">Type</TableHead>
-              <TableHead className="w-[80px]">Kind</TableHead>
-              <TableHead className="w-[180px]">Label</TableHead>
+              <TableHead className="w-[140px]">Type</TableHead>
+              <TableHead className="w-[200px]">Label</TableHead>
               <TableHead>Snippet</TableHead>
               {showScore && <TableHead className="w-[70px]">Score</TableHead>}
               <TableHead className="w-[50px]">
@@ -205,8 +204,19 @@ export function MemoryBrowseTable({
               <TableSkeleton columns={columnCount} />
             ) : items.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={columnCount} className="h-24 text-center text-muted-foreground">
-                  No memories found. Try adjusting your filters or search query.
+                <TableCell colSpan={columnCount} className="h-32 text-center">
+                  <div className="space-y-1.5">
+                    <p className="text-sm font-medium text-foreground">
+                      {params.q || params.type || params.kind || params.pinned
+                        ? 'No matching memories'
+                        : 'No memories yet'}
+                    </p>
+                    <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+                      {params.q || params.type || params.kind || params.pinned
+                        ? 'Try adjusting your search or filters to find what you\'re looking for.'
+                        : 'Memories are created automatically when your team writes notes, resolves issues, or chats with Pilot. They\'ll appear here once available.'}
+                    </p>
+                  </div>
                 </TableCell>
               </TableRow>
             ) : (
@@ -229,12 +239,16 @@ export function MemoryBrowseTable({
                     />
                   </TableCell>
                   <TableCell>
-                    <Badge variant="secondary" className="text-xs whitespace-nowrap">
-                      {NODE_TYPE_DISPLAY[item.nodeType] ?? item.nodeType.replace(/_/g, ' ')}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {item.kind ?? '-'}
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant="secondary" className="text-xs whitespace-nowrap">
+                        {NODE_TYPE_DISPLAY[item.nodeType] ?? item.nodeType.replace(/_/g, ' ')}
+                      </Badge>
+                      {item.kind && item.kind !== 'raw' && (
+                        <Badge variant="outline" className="text-[10px] whitespace-nowrap">
+                          {item.kind}
+                        </Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <span className="text-sm font-medium truncate block max-w-[180px]" title={item.label}>

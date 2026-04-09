@@ -33,10 +33,6 @@ import { useStore } from '@/stores';
 import { ToolPermissionsTable } from '../components/tool-permissions-table';
 import { PolicyTemplatePicker } from '../components/policy-template-picker';
 import { PermissionAuditLog } from '../components/permission-audit-log';
-import { MemoryProducerToggles } from '../components/memory-producer-toggles';
-import { MemoryRecallPlayground } from '../components/memory-recall-playground';
-import { MemoryTelemetryCard } from '../components/memory-telemetry-card';
-import { GdprForgetUserCard } from '../components/gdpr-forget-user-card';
 
 // ---- Types ----
 
@@ -391,31 +387,7 @@ export function AIGovernanceSettingsPage() {
           <PermissionAuditLog workspaceId={workspaceId} />
         </div>
 
-        {/* Phase 69 — Long-term memory admin */}
-        <div className="space-y-4 border-t pt-8">
-          <div className="space-y-1">
-            <h2 className="text-lg font-semibold tracking-tight">Long-term Memory</h2>
-            <p className="text-sm text-muted-foreground">
-              Inspect what the AI will recall, pin essentials, forget noise. Use the GDPR action
-              for compliance-driven erasure.
-            </p>
-          </div>
-          <MemoryRecallPlayground workspaceId={workspaceId} />
-          <GdprForgetUserCard workspaceId={workspaceId} />
-        </div>
-
-        {/* Phase 70 — Memory Intelligence (producers + telemetry) */}
-        <div className="space-y-4 border-t pt-8">
-          <div className="space-y-1">
-            <h2 className="text-lg font-semibold tracking-tight">Memory Intelligence</h2>
-            <p className="text-sm text-muted-foreground">
-              Control which AI interactions feed into long-term memory and monitor recall
-              performance. Changes take effect on the next producer event.
-            </p>
-          </div>
-          <MemoryProducerToggles workspaceId={workspaceId} />
-          <MemoryTelemetryCard workspaceId={workspaceId} />
-        </div>
+        {/* Memory admin sections moved to Settings > Memory page for better IA */}
       </div>
     </div>
   );

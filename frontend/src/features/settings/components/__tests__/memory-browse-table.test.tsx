@@ -136,8 +136,9 @@ describe('MemoryBrowseTable', () => {
     mockUseMemoryList.mockReturnValue(mockResponse([], 0));
     render(<MemoryBrowseTable {...defaultProps} />);
 
+    expect(screen.getByText('No memories yet')).toBeInTheDocument();
     expect(
-      screen.getByText('No memories found. Try adjusting your filters or search query.'),
+      screen.getByText(/Memories are created automatically/),
     ).toBeInTheDocument();
   });
 
