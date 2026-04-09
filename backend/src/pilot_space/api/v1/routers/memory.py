@@ -232,7 +232,9 @@ class RecallRequest(BaseSchema):
 
     query: str = Field(..., min_length=1)
     k: int = Field(default=8, ge=1, le=50)
-    types: list[str] | None = None
+    # Pydantic coerces unknown values into a 422 RFC 7807 response
+    # via the global handler, instead of raising ValueError.
+    types: list[MemoryType] | None = None
     min_score: float = Field(default=0.0, ge=0.0, le=1.0)
 
 
@@ -353,28 +355,37 @@ async def forget_memory(
     return SuccessResponse(success=True)
 
 
+class GdprForgetResponse(BaseSchema):
+    deleted: int
+
+
 @router.post(
     "/workspaces/{workspace_id}/ai/memory/gdpr-forget-user",
-    response_model=SuccessResponse,
-    summary="GDPR hard-delete all memories for a user",
+    response_model=GdprForgetResponse,
+    summary="GDPR hard-delete a user's memories within this workspace",
 )
 async def gdpr_forget_user(
     workspace_id: WorkspaceAdminId,
     body: GdprForgetRequest,
+    current_user: CurrentUser,
     session: DbSession,
     service: MemoryLifecycleServiceDep,
-) -> SuccessResponse:
-    """Hard-delete memory nodes owned by ``user_id`` within this workspace.
+) -> GdprForgetResponse:
+    """Hard-delete every memory node owned by ``user_id`` within the
+    enclosing workspace. Admin-only.
 
-    Scoped to the workspace — an admin of workspace A cannot erase memories
-    belonging to workspace B. For platform-wide GDPR erasure, use a
-    service-role call with ``workspace_id=None``.
+    Scoped to ``workspace_id`` so a workspace admin cannot purge data from
+    other workspaces. Restricted to Phase 69 memory node types only.
     """
     _ = session
-    await service.gdpr_forget_user(
-        GDPRForgetPayload(user_id=body.user_id, workspace_id=workspace_id)
+    deleted = await service.gdpr_forget_user(
+        GDPRForgetPayload(
+            user_id=body.user_id,
+            workspace_id=workspace_id,
+            actor_user_id=current_user.user_id,
+        )
     )
-    return SuccessResponse(success=True)
+    return GdprForgetResponse(deleted=deleted)
 
 
 # ---------------------------------------------------------------------------

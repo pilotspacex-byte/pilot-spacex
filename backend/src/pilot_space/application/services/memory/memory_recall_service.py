@@ -42,6 +42,10 @@ logger = get_logger(__name__)
 _CACHE_AGENT_NAME = "memory_recall"
 _DEFAULT_K = 8
 _DEFAULT_MIN_SCORE = 0.0
+# Hard ceiling on the downstream GraphSearch call (embed + hybrid query).
+# Exists to protect the agent's first-token latency when embedding providers
+# stall. Chosen well above the 200ms p95 SLO so normal traffic is unaffected.
+_RECALL_HARD_TIMEOUT_S = 0.5
 
 # Module-level single-flight lock registry keyed by cache key.
 # Prevents thundering-herd: concurrent identical recalls share one in-flight
@@ -156,6 +160,7 @@ class MemoryRecallService:
             "min_score": payload.min_score,
             "user_id": str(payload.user_id) if payload.user_id else None,
             "kind": payload.kind,
+            "embedding_model": str(getattr(self._embedding_service, "model_name", "default")),
         }
 
         # 1. Fast-path cache check (no lock needed for read)
@@ -185,16 +190,33 @@ class MemoryRecallService:
                     elapsed_ms=elapsed_ms,
                 )
 
-            # 4. Delegate to GraphSearchService
-            result = await self._graph_search.execute(
-                GraphSearchPayload(
-                    query=payload.query,
-                    workspace_id=payload.workspace_id,
-                    user_id=payload.user_id,
-                    node_types=node_types,
-                    limit=payload.k,
+            # 4. Delegate to GraphSearchService under a hard timeout.
+            # On timeout we degrade gracefully — empty recall, no
+            # <memory> block, agent still produces a response.
+            try:
+                result = await asyncio.wait_for(
+                    self._graph_search.execute(
+                        GraphSearchPayload(
+                            query=payload.query,
+                            workspace_id=payload.workspace_id,
+                            user_id=payload.user_id,
+                            node_types=node_types,
+                            limit=payload.k,
+                        )
+                    ),
+                    timeout=_RECALL_HARD_TIMEOUT_S,
                 )
-            )
+            except TimeoutError:
+                elapsed_ms = (time.perf_counter() - t0) * 1000.0
+                record_recall_miss()
+                record_recall_latency_ms(elapsed_ms)
+                logger.warning(
+                    "memory_recall: graph_search timed out after %.0fms "
+                    "workspace=%s — degrading to empty recall",
+                    _RECALL_HARD_TIMEOUT_S * 1000.0,
+                    payload.workspace_id,
+                )
+                return RecallResult(items=[], cache_hit=False, elapsed_ms=elapsed_ms)
 
             # 5. Filter by min_score + optional kind discriminator, then
             # materialize MemoryItem. Legacy rows (no properties.kind) are

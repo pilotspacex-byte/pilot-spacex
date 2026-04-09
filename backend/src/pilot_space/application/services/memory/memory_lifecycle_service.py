@@ -23,6 +23,7 @@ from uuid import UUID
 from sqlalchemy import and_, delete, select, update
 
 from pilot_space.domain.exceptions import ForbiddenError, NotFoundError
+from pilot_space.domain.memory.memory_type import MEMORY_TYPE_TO_NODE_TYPE
 from pilot_space.infrastructure.database.models.graph_node import GraphNodeModel
 from pilot_space.infrastructure.logging import get_logger
 
@@ -49,7 +50,8 @@ class ForgetPayload:
 @dataclass(frozen=True, slots=True)
 class GDPRForgetPayload:
     user_id: UUID
-    workspace_id: UUID | None = None
+    workspace_id: UUID
+    actor_user_id: UUID
 
 
 class MemoryLifecycleService:
@@ -125,26 +127,29 @@ class MemoryLifecycleService:
     # ------------------------------------------------------------------
 
     async def gdpr_forget_user(self, payload: GDPRForgetPayload) -> int:
-        """Hard-delete graph nodes whose ``user_id`` matches.
+        """Hard-delete memory nodes owned by ``user_id`` within a workspace.
 
-        When ``workspace_id`` is provided, deletes are scoped to that
-        workspace only (admin-of-workspace flow). When ``workspace_id``
-        is None, deletes globally (platform-admin / service-role flow).
-
-        Returns the number of nodes deleted.
+        Scoped to (workspace_id, user_id) and restricted to Phase 69 memory
+        node types — a workspace admin cannot purge another workspace's data,
+        and non-memory nodes (issues, notes, etc.) are untouched. Returns the
+        number of nodes deleted.
         """
-        conditions = [GraphNodeModel.user_id == payload.user_id]
-        if payload.workspace_id is not None:
-            conditions.append(GraphNodeModel.workspace_id == payload.workspace_id)
-
+        memory_node_types = {nt.value for nt in MEMORY_TYPE_TO_NODE_TYPE.values()}
         result = await self._session.execute(
-            delete(GraphNodeModel).where(and_(*conditions))
+            delete(GraphNodeModel).where(
+                and_(
+                    GraphNodeModel.user_id == payload.user_id,
+                    GraphNodeModel.workspace_id == payload.workspace_id,
+                    GraphNodeModel.node_type.in_(memory_node_types),
+                )
+            )
         )
         deleted = getattr(result, "rowcount", 0) or 0
         logger.info(
-            "memory_lifecycle: gdpr_forget user=%s workspace=%s deleted=%d",
-            payload.user_id,
+            "memory_lifecycle: gdpr_forget workspace=%s user=%s actor=%s deleted=%d",
             payload.workspace_id,
+            payload.user_id,
+            payload.actor_user_id,
             deleted,
         )
         return deleted
