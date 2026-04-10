@@ -477,8 +477,8 @@ class PermissionHandler:
             ActionClassification for the tool.
 
         Raises:
-            PermissionDeniedError: If the tool is DENY-mode in workspace policy
-                (only when a PermissionService is wired and the tool is denied).
+            ForbiddenError: If the tool is DENY-mode in workspace policy
+                or if the PermissionService is unavailable (fail-closed).
         """
         default_classification = self._get_classification(
             tool_name,
@@ -491,13 +491,22 @@ class PermissionHandler:
                     workspace_id, tool_name
                 )
             except Exception:
-                logger.exception(
+                # SEC-03: Fail-closed — if PermissionService is degraded, deny
+                # the tool rather than falling back to a potentially permissive
+                # default classification. This prevents DENY-mode tools from
+                # executing during transient service failures.
+                logger.warning(
                     "check_input_permissions: PermissionService.resolve failed "
-                    "for workspace=%s tool=%s; using default classification",
+                    "for workspace=%s tool=%s; FAIL-CLOSED: denying tool",
                     workspace_id,
                     tool_name,
+                    exc_info=True,
                 )
-                return default_classification
+                from pilot_space.domain.exceptions import ForbiddenError
+
+                raise ForbiddenError(
+                    f"Tool {tool_name!r} denied: permission service unavailable",
+                ) from None
 
             # Import ToolPermissionMode lazily to avoid circular imports
             # when PermissionService domain types are in a separate package.

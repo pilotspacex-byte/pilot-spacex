@@ -992,38 +992,11 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             sdk_params.get("model", self.DEFAULT_MODEL_TIER.model_id),
             bool(provider_config.base_url),
         )
-        # Phase 69-05: filter DENY-mode tools out of allowed_tools before
-        # handing them to the SDK. The permission_handler also fails closed
-        # at call time, but removing from advertised tool list is the
-        # defence-in-depth first line.
-        raw_allowed_tools = sdk_params.get("allowed_tools", [])
-        filtered_allowed_tools = raw_allowed_tools
-        try:
-            from pilot_space.ai.sdk.permission_handler import filter_denied_tools
-            from pilot_space.container.container import get_container
-            from pilot_space.domain.permissions.tool_permission_mode import (
-                ToolPermissionMode,
-            )
-
-            _perm_svc = get_container().permission_service()
-            _resolved = await _perm_svc.list_all(context.workspace_id)
-            _denied_names = {
-                r.tool_name for r in _resolved if r.mode is ToolPermissionMode.DENY
-            }
-            if _denied_names:
-                filtered_allowed_tools = filter_denied_tools(
-                    raw_allowed_tools, _denied_names
-                )
-                logger.info(
-                    "[SDK/Space] Filtered %d denied tools from allowed_tools",
-                    len(raw_allowed_tools) - len(filtered_allowed_tools),
-                )
-        except Exception:
-            logger.debug(
-                "[SDK/Space] Could not resolve PermissionService for DENY filter; "
-                "passing allowed_tools through unfiltered",
-                exc_info=True,
-            )
+        # NOTE: Phase 69 DENY filter block removed — superseded by the
+        # SEC-03 fail-closed block above (lines 930-976). The Phase 69 block
+        # was fail-open and reset filtered_allowed_tools on exception,
+        # undoing the fail-closed guarantee. A single DENY filter block
+        # (fail-closed) is the correct defense-in-depth pattern.
 
         sdk_options = ClaudeAgentOptions(
             model=_model,
@@ -1413,7 +1386,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                                         queue_client=_turn_queue_client,
                                         workspace_id=context.workspace_id,
                                         actor_user_id=context.user_id,
-                                        session_id=str(session_id_str),
+                                        session_id=query_session_id,
                                         user_message=input_data.message,
                                         assistant_text=_assistant_text_joined,
                                         tools_used=[],

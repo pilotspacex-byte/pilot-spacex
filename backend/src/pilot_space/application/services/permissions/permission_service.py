@@ -274,8 +274,14 @@ class PermissionService:
             reason=reason,
         )
 
-        # Invalidate local cache immediately so this process sees the
-        # new value without waiting for the Redis round-trip.
+        # Invalidate local cache eagerly so this process sees the new value.
+        # NOTE: This fires before the caller commits the transaction. A narrow
+        # race window exists where a concurrent resolver could re-populate the
+        # cache with the stale DB row. This is acceptable because:
+        # (1) The TTL is 60s — stale entry expires quickly.
+        # (2) The Redis invalidation below triggers cross-worker eviction.
+        # (3) Post-commit invalidation would require a callback hook on the
+        #     session, adding complexity for a low-probability window.
         self._cache.invalidate(workspace_id, tool_name)
         await self._publish_invalidation(workspace_id, tool_name)
 

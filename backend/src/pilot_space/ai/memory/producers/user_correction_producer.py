@@ -88,10 +88,16 @@ async def enqueue_user_correction_memory(
         record_producer_dropped(_MEMORY_TYPE, "opt_out")
         return
 
-    if queue_client is None or workspace_id is None or actor_user_id is None:
-        # Wave 1 dispatcher drops payloads without workspace_id/actor_user_id.
-        # Treat missing wiring the same as an enqueue error so the drop shows
-        # up in telemetry rather than silently vanishing.
+    # Treat nil UUID (00000000-...) as "no workspace" — agent context uses
+    # nil UUID sentinel when no workspace is active.
+    _nil = UUID(int=0)
+    if (
+        queue_client is None
+        or workspace_id is None
+        or workspace_id == _nil
+        or actor_user_id is None
+        or actor_user_id == _nil
+    ):
         record_producer_dropped(_MEMORY_TYPE, "enqueue_error")
         return
 

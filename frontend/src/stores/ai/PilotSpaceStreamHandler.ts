@@ -221,6 +221,10 @@ export class PilotSpaceStreamHandler {
     this._blockOrder = [];
     this._pendingQuestionDataList = [];
     this.clearQuestionSafetyTimeout();
+    // SEC: Clear pending memory sources to prevent cross-turn leakage.
+    // If a previous stream terminated without message_stop, stale sources
+    // could be attached to the next assistant message.
+    this.store.consumePendingMemorySources();
 
     // Defensive: clear any leftover pendingQuestion from previous turn.
     // Ensures WaitingIndicator hides when new message stream begins.
