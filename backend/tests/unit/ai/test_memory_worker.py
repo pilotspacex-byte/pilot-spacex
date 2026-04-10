@@ -174,6 +174,7 @@ class TestMemoryWorkerProcessGraphEmbedding:
             "task_type": TASK_GRAPH_EMBEDDING,
             "node_id": _NODE_ID,
             "workspace_id": _WORKSPACE_ID,
+            "actor_user_id": "00000000-0000-0000-0000-000000000001",
         }
         msg.attempts = 0
 

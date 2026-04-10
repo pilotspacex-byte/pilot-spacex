@@ -118,6 +118,7 @@ class TestInvalidPayload:
                 "project_id": str(_PROJECT_ID),
                 "entity_type": "unknown",
                 "entity_id": str(_ISSUE_ID),
+                "actor_user_id": "00000000-0000-0000-0000-000000000001",
             }
         )
         assert result["success"] is False
@@ -131,6 +132,7 @@ class TestHandleIssue:
             "project_id": str(_PROJECT_ID),
             "entity_type": "issue",
             "entity_id": str(_ISSUE_ID),
+            "actor_user_id": "00000000-0000-0000-0000-000000000001",
         }
 
     async def test_issue_not_found_returns_error(self) -> None:
@@ -283,6 +285,7 @@ class TestHandleNote:
             "project_id": str(_PROJECT_ID),
             "entity_type": "note",
             "entity_id": str(_NOTE_ID),
+            "actor_user_id": "00000000-0000-0000-0000-000000000001",
         }
 
     async def test_note_not_found_returns_error(self) -> None:
@@ -431,6 +434,7 @@ class TestHandleProject:
             "project_id": str(_PROJECT_ID),
             "entity_type": "project",
             "entity_id": str(_PROJECT_ID),
+            "actor_user_id": "00000000-0000-0000-0000-000000000001",
         }
 
     async def test_project_not_found_returns_error(self) -> None:
@@ -509,6 +513,7 @@ class TestHandleCycle:
             "project_id": str(_PROJECT_ID),
             "entity_type": "cycle",
             "entity_id": str(_CYCLE_ID),
+            "actor_user_id": "00000000-0000-0000-0000-000000000001",
         }
 
     async def test_cycle_not_found_returns_error(self) -> None:
@@ -663,6 +668,7 @@ class TestBelongsToEdges:
                     "project_id": str(_PROJECT_ID),
                     "entity_type": "issue",
                     "entity_id": str(_ISSUE_ID),
+                    "actor_user_id": "00000000-0000-0000-0000-000000000001",
                 }
             )
 
@@ -712,6 +718,7 @@ class TestBelongsToEdges:
                     "project_id": str(_PROJECT_ID),
                     "entity_type": "issue",
                     "entity_id": str(_ISSUE_ID),
+                    "actor_user_id": "00000000-0000-0000-0000-000000000001",
                 }
             )
 
@@ -768,6 +775,7 @@ class TestBelongsToEdges:
                     "project_id": str(_PROJECT_ID),
                     "entity_type": "project",
                     "entity_id": str(_PROJECT_ID),
+                    "actor_user_id": "00000000-0000-0000-0000-000000000001",
                 }
             )
 
@@ -824,6 +832,7 @@ class TestTransactionOwnership:
                     "project_id": str(_PROJECT_ID),
                     "entity_type": "note",
                     "entity_id": str(_NOTE_ID),
+                    "actor_user_id": "00000000-0000-0000-0000-000000000001",
                 }
             )
 
@@ -867,6 +876,7 @@ class TestTransactionOwnership:
                     "project_id": str(_PROJECT_ID),
                     "entity_type": "issue",
                     "entity_id": str(_ISSUE_ID),
+                    "actor_user_id": "00000000-0000-0000-0000-000000000001",
                 }
             )
 
@@ -910,6 +920,7 @@ class TestTransactionOwnership:
                     "project_id": str(_PROJECT_ID),
                     "entity_type": "issue",
                     "entity_id": str(_ISSUE_ID),
+                    "actor_user_id": "00000000-0000-0000-0000-000000000001",
                 }
             )
 
@@ -933,6 +944,7 @@ class TestInfrastructureErrorPropagation:
                     "project_id": str(_PROJECT_ID),
                     "entity_type": "issue",
                     "entity_id": str(_ISSUE_ID),
+                    "actor_user_id": "00000000-0000-0000-0000-000000000001",
                 }
             )
 
@@ -948,6 +960,7 @@ class TestInfrastructureErrorPropagation:
                     "project_id": str(_PROJECT_ID),
                     "entity_type": "note",
                     "entity_id": str(_NOTE_ID),
+                    "actor_user_id": "00000000-0000-0000-0000-000000000001",
                 }
             )
 

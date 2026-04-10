@@ -67,6 +67,7 @@ def _make_payload(
         "workspace_id": str(workspace_id or _WORKSPACE_ID),
         "project_id": str(project_id or _PROJECT_ID),
         "attachment_id": str(attachment_id or _ATTACHMENT_ID),
+        "actor_user_id": "00000000-0000-0000-0000-000000000001",
     }
 
 

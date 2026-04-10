@@ -96,8 +96,9 @@ async def test_unknown_task_nacked() -> None:
     message.payload = {
         "task_type": "nonexistent_task_xyz",
         "workspace_id": _WORKSPACE_ID,
+        "actor_user_id": "00000000-0000-0000-0000-000000000001",
     }
 
     await worker._process(message)
 
-    queue.nack.assert_called_once()
+    queue.move_to_dead_letter.assert_called_once()
