@@ -160,7 +160,7 @@ class MemoryRecallService:
             "min_score": payload.min_score,
             "user_id": str(payload.user_id) if payload.user_id else None,
             "kind": payload.kind,
-            "embedding_model": str(getattr(self._embedding_service, "model_name", "default")),
+            "embedding_model": str(getattr(self._embedding, "model_name", "default")),
         }
 
         # 1. Fast-path cache check (no lock needed for read)

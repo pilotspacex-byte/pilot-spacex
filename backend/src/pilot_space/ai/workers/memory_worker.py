@@ -52,17 +52,6 @@ TASK_SEND_INVITATION_EMAIL = "send_invitation_email"
 TASK_SUMMARIZE_NOTE = "summarize_note"  # Phase 70-06
 
 # RLS bypass allowlist (PROD-04): task types that are intentionally
-# cross-workspace or system-scoped. MemoryWorker skips set_rls_context
-# for these and relies on the handler to scope queries explicitly.
-# Keep in sync with scripts/audit_enqueue_actor_user_id.py allowlist.
-_RLS_BYPASS_TASKS: frozenset[str] = frozenset(
-    {
-        TASK_GRAPH_EXPIRATION,
-        TASK_ARTIFACT_CLEANUP,
-        TASK_SEND_INVITATION_EMAIL,
-    }
-)
-
 # RLS bypass allowlist (PROD-04): task types that are intentionally
 # cross-workspace or system-scoped. MemoryWorker skips set_rls_context
 # for these and relies on the handler to scope queries explicitly.
