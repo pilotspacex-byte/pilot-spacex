@@ -9,6 +9,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from pilot_space.config import get_settings
+from pilot_space.infrastructure.logging import get_logger
+
+logger = get_logger(__name__)
 
 if TYPE_CHECKING:
     from pilot_space.ai.infrastructure.anthropic_client_pool import AnthropicClientPool
@@ -182,7 +185,31 @@ def create_pilotspace_agent(
     # is only active in request-scoped contexts with a live session.
     cost_tracker = CostTracker(session=None)  # type: ignore[arg-type]
     approval_service = ApprovalService(session=None)  # type: ignore[arg-type]
-    permission_handler = PermissionHandler(approval_service=approval_service)
+
+    # Phase 69-05: wire PermissionService into the handler. Resolved lazily
+    # from the global container to avoid a forward-reference inside the
+    # Container class declaration.
+    permission_service = None
+    try:
+        from pilot_space.container.container import get_container
+
+        permission_service = get_container().permission_service()
+    except Exception:
+        # PermissionService unavailable (e.g. tests without full container).
+        # SEC-03: The handler's check_input_permissions will fail-closed
+        # (raise ForbiddenError) if resolve() is called without a service.
+        # Passing None here is safe — it disables the granular permission
+        # path entirely, falling back to DD-003 category-level controls.
+        logger.warning(
+            "PermissionService unavailable — granular tool permissions disabled. "
+            "DD-003 category-level controls remain active.",
+            exc_info=True,
+        )
+        permission_service = None
+    permission_handler = PermissionHandler(
+        approval_service=approval_service,
+        permission_service=permission_service,
+    )
 
     # Skills are now loaded by PilotSpaceAgent from the space's .claude/skills/ directory
     # (DD-086 migration from siloed SkillRegistry to filesystem-based auto-discovery).

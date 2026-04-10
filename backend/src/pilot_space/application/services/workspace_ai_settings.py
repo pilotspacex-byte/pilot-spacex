@@ -12,6 +12,11 @@ from uuid import UUID
 from sqlalchemy.orm.attributes import flag_modified
 
 from pilot_space.ai.providers.constants import PROVIDER_SERVICE_SLOTS
+from pilot_space.application.services.workspace_ai_settings_toggles import (
+    ProducerToggles,
+    get_producer_toggles,
+    set_producer_toggle,
+)
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
@@ -409,6 +414,35 @@ class WorkspaceAISettingsService:
             ),
             provider_label,
         )
+
+
+    # ------------------------------------------------------------------
+    # Phase 70-06 — memory producer opt-out toggles
+    # ------------------------------------------------------------------
+
+    async def get_producer_toggles(self, workspace_id: UUID) -> ProducerToggles:
+        """Return the four Phase 70 memory producer toggles for a workspace.
+
+        Defaults (3x True, summarizer False) are returned when the
+        workspace has no explicit configuration or on read failure.
+        """
+        return await get_producer_toggles(self._session, workspace_id)
+
+    async def set_producer_toggle(
+        self,
+        workspace_id: UUID,
+        producer: str,
+        enabled: bool,
+    ) -> ProducerToggles:
+        """Persist a single producer toggle and commit.
+
+        Raises ``ValidationError`` for unknown producer names.
+        """
+        toggles = await set_producer_toggle(
+            self._session, workspace_id, producer, enabled
+        )
+        await self._session.commit()
+        return toggles
 
 
 def _get_workspace_features(workspace: Workspace, toggles_cls: type[Any]) -> Any:

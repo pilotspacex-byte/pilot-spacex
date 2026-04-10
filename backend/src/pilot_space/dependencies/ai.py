@@ -427,7 +427,20 @@ async def get_permission_handler_dep(
     from pilot_space.ai.sdk import PermissionHandler
 
     approval_service = ApprovalService(session=session)
-    return PermissionHandler(approval_service=approval_service)
+
+    # Phase 69-05: consult granular PermissionService when available.
+    permission_service = None
+    try:
+        from pilot_space.container.container import get_container
+
+        permission_service = get_container().permission_service()
+    except Exception:
+        permission_service = None
+
+    return PermissionHandler(
+        approval_service=approval_service,
+        permission_service=permission_service,
+    )
 
 
 async def get_session_handler_dep(

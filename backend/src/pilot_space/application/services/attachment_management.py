@@ -287,6 +287,7 @@ class AttachmentManagementService:
         payload = {
             "task_type": TASK_DOCUMENT_INGESTION,
             "workspace_id": str(workspace_id),
+            "actor_user_id": str(attachment.user_id),
             "project_id": str(project_id),
             "attachment_id": str(attachment_id),
             "excluded_chunk_indices": excluded_chunk_indices,

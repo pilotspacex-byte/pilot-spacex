@@ -317,6 +317,7 @@ class TestMemorySaveServicePayload:
     def test_defaults(self) -> None:
         payload = MemorySavePayload(
             workspace_id=_workspace_id(),
+            actor_user_id=uuid.uuid4(),
             content="Test memory",
             source_type=MemorySourceType.USER_FEEDBACK,
         )
@@ -327,6 +328,7 @@ class TestMemorySaveServicePayload:
     def test_pinned_payload(self) -> None:
         payload = MemorySavePayload(
             workspace_id=_workspace_id(),
+            actor_user_id=uuid.uuid4(),
             content="Important memory",
             source_type=MemorySourceType.SKILL_OUTCOME,
             pinned=True,
@@ -337,6 +339,7 @@ class TestMemorySaveServicePayload:
         expires = datetime(2030, 1, 1, tzinfo=UTC)
         payload = MemorySavePayload(
             workspace_id=_workspace_id(),
+            actor_user_id=uuid.uuid4(),
             content="Temporary memory",
             source_type=MemorySourceType.INTENT,
             expires_at=expires,
@@ -358,6 +361,7 @@ class TestMemorySaveServiceExecute:
         result = await service.execute(
             MemorySavePayload(
                 workspace_id=_workspace_id(),
+            actor_user_id=uuid.uuid4(),
                 content="save this memory",
                 source_type=MemorySourceType.USER_FEEDBACK,
             )
@@ -382,6 +386,7 @@ class TestMemorySaveServiceExecute:
         result = await service.execute(
             MemorySavePayload(
                 workspace_id=_workspace_id(),
+            actor_user_id=uuid.uuid4(),
                 content="Python async testing",
                 source_type=MemorySourceType.USER_FEEDBACK,
             )
@@ -405,6 +410,7 @@ class TestMemorySaveServiceExecute:
         result = await service.execute(
             MemorySavePayload(
                 workspace_id=_workspace_id(),
+            actor_user_id=uuid.uuid4(),
                 content="memory content",
                 source_type=MemorySourceType.INTENT,
             )
@@ -427,6 +433,7 @@ class TestMemorySaveServiceExecute:
         await service.execute(
             MemorySavePayload(
                 workspace_id=ws_id,
+            actor_user_id=uuid.uuid4(),
                 content="content",
                 source_type=MemorySourceType.USER_FEEDBACK,
             )
@@ -446,12 +453,13 @@ class TestMemorySaveServiceExecute:
 
 class TestConstitutionIngestServicePayload:
     def test_empty_rules_defaults(self) -> None:
-        payload = ConstitutionIngestPayload(workspace_id=_workspace_id())
+        payload = ConstitutionIngestPayload(workspace_id=_workspace_id(), actor_user_id=uuid.uuid4())
         assert payload.rules == []
 
     def test_with_rules(self) -> None:
         payload = ConstitutionIngestPayload(
             workspace_id=_workspace_id(),
+            actor_user_id=uuid.uuid4(),
             rules=[ConstitutionRuleInput(content="You MUST do this.")],
         )
         assert len(payload.rules) == 1
@@ -481,6 +489,7 @@ class TestConstitutionIngestServiceExecute:
         result = await service.execute(
             ConstitutionIngestPayload(
                 workspace_id=_workspace_id(),
+            actor_user_id=uuid.uuid4(),
                 rules=[],
             )
         )
@@ -505,6 +514,7 @@ class TestConstitutionIngestServiceExecute:
         result = await service.execute(
             ConstitutionIngestPayload(
                 workspace_id=_workspace_id(),
+            actor_user_id=uuid.uuid4(),
                 rules=[ConstitutionRuleInput(content="You MUST cite sources.")],
             )
         )
@@ -532,6 +542,7 @@ class TestConstitutionIngestServiceExecute:
         await service.execute(
             ConstitutionIngestPayload(
                 workspace_id=_workspace_id(),
+            actor_user_id=uuid.uuid4(),
                 rules=[ConstitutionRuleInput(content="New rule.")],
             )
         )
@@ -560,6 +571,7 @@ class TestConstitutionIngestServiceExecute:
         await service.execute(
             ConstitutionIngestPayload(
                 workspace_id=_workspace_id(),
+            actor_user_id=uuid.uuid4(),
                 rules=[
                     ConstitutionRuleInput(
                         content="You MUST always cite sources.",
@@ -593,6 +605,7 @@ class TestConstitutionIngestServiceExecute:
         await service.execute(
             ConstitutionIngestPayload(
                 workspace_id=_workspace_id(),
+            actor_user_id=uuid.uuid4(),
                 rules=[
                     ConstitutionRuleInput(
                         content="You MUST do X.",  # auto-detect: MUST
@@ -619,6 +632,7 @@ class TestConstitutionIngestServiceExecute:
         result = await service.execute(
             ConstitutionIngestPayload(
                 workspace_id=_workspace_id(),
+            actor_user_id=uuid.uuid4(),
                 rules=[ConstitutionRuleInput(content="A rule.")],
             )
         )
@@ -648,6 +662,7 @@ class TestConstitutionIngestServiceExecute:
         await service.execute(
             ConstitutionIngestPayload(
                 workspace_id=_workspace_id(),
+            actor_user_id=uuid.uuid4(),
                 rules=[
                     ConstitutionRuleInput(content="Rule 1."),
                     ConstitutionRuleInput(content="Rule 2."),
@@ -674,6 +689,7 @@ class TestConstitutionIngestServiceExecute:
         await service.execute(
             ConstitutionIngestPayload(
                 workspace_id=_workspace_id(),
+            actor_user_id=uuid.uuid4(),
                 rules=[ConstitutionRuleInput(content="Rule.")],
             )
         )

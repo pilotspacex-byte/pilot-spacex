@@ -28,6 +28,17 @@ ai/
 └── templates/                 # Skills YAML, role templates, rules
 ```
 
+## Memory & Permissions (Phase 69)
+
+Granular per-tool governance plus typed memory recall, both hot-path
+budgeted and DD-003-safe. See **DD-089** for the full decision.
+
+- **Memory recall** — `MemoryRecallService` (`application/services/memory/memory_recall_service.py`) wraps `GraphSearchService` with a 5-type filter (`note_summary`, `issue_decision`, `agent_turn`, `user_correction`, `pr_review_finding`), a 30s `AIResponseCache`, and per-key single-flight. The orchestrator’s `recall_graph_context()` seam (`agents/pilotspace_agent.py`) injects the result into the `<memory>` prompt block built by `prompt/prompt_assembler.py`. SSE emits a `memory_used` event so the chat UI can render the MemoryUsedChip.
+- **Granular permissions** — `PermissionService` (`application/services/permissions/permission_service.py`) is a 5-tier resolver: LRU → DB row → workspace overrides → DD-003 default → `ASK`. Admin mutations go through `PUT /api/v1/workspaces/{id}/ai-permissions` and write an audit log.
+- **DD-003 invariant — defense in depth**: CRITICAL tools cannot reach AUTO at the **service** (`set()` raises), the **handler** (`sdk/permission_handler.py` re-checks at invocation), or the **UI** (`can_set_auto=false`). Removing any one layer is a regression.
+- **Telemetry** — `ai/telemetry/memory_metrics.py` exposes module-level counters: `record_recall_hit/miss`, `record_recall_latency_ms`, `get_hit_rate()`, `get_latency_p95_ms()`, `snapshot()`. Wired into `MemoryRecallService.recall()`.
+- **SLOs (pinned in CI)** — `tests/performance/test_phase69_latency.py` enforces recall p95 < 200ms (cache warm) and resolver p95 < 5ms (cache warm).
+
 ## Critical Files
 
 | Component | File | Purpose |

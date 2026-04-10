@@ -124,6 +124,7 @@ class TestGraphWriteServiceCreateNodesAndEdges:
 
         payload = GraphWritePayload(
             workspace_id=workspace_id,
+            actor_user_id=uuid4(),
             nodes=[
                 NodeInput(node_type=NodeType.ISSUE, label="PS-1", content="a", external_id=ext_a),
                 NodeInput(node_type=NodeType.ISSUE, label="PS-2", content="b", external_id=ext_b),
@@ -156,6 +157,7 @@ class TestGraphWriteServiceCreateNodesAndEdges:
 
         payload = GraphWritePayload(
             workspace_id=workspace_id,
+            actor_user_id=uuid4(),
             nodes=[NodeInput(node_type=NodeType.ISSUE, label="PS-1", content="x")],
         )
         result = await service.execute(payload)
@@ -183,6 +185,7 @@ class TestGraphWriteServiceEmbeddingEnqueue:
 
         payload = GraphWritePayload(
             workspace_id=workspace_id,
+            actor_user_id=uuid4(),
             nodes=[
                 NodeInput(node_type=NodeType.ISSUE, label="PS-1", content="a"),
                 NodeInput(node_type=NodeType.ISSUE, label="PS-2", content="b"),
@@ -216,6 +219,7 @@ class TestGraphWriteServiceEmbeddingEnqueue:
 
         payload = GraphWritePayload(
             workspace_id=workspace_id,
+            actor_user_id=uuid4(),
             nodes=[NodeInput(node_type=NodeType.ISSUE, label="PS-1", content="x")],
         )
         result = await service.execute(payload)
@@ -249,6 +253,7 @@ class TestGraphWriteServiceEdgeResolution:
 
         payload = GraphWritePayload(
             workspace_id=workspace_id,
+            actor_user_id=uuid4(),
             nodes=[
                 NodeInput(
                     node_type=NodeType.ISSUE, label="SRC", content="s", external_id=ext_source
@@ -289,6 +294,7 @@ class TestGraphWriteServiceEdgeResolution:
         unknown_ext = uuid4()
         payload = GraphWritePayload(
             workspace_id=workspace_id,
+            actor_user_id=uuid4(),
             nodes=[NodeInput(node_type=NodeType.ISSUE, label="PS-1", content="x")],
             edges=[
                 EdgeInput(
@@ -324,6 +330,7 @@ class TestGraphWriteServiceEdgeResolution:
 
         payload = GraphWritePayload(
             workspace_id=workspace_id,
+            actor_user_id=uuid4(),
             nodes=[
                 NodeInput(node_type=NodeType.ISSUE, label="A", content="a"),
                 NodeInput(node_type=NodeType.ISSUE, label="B", content="b"),
@@ -366,6 +373,7 @@ class TestGraphWriteServiceReturnValues:
 
         payload = GraphWritePayload(
             workspace_id=workspace_id,
+            actor_user_id=uuid4(),
             nodes=[
                 NodeInput(node_type=NodeType.ISSUE, label="PS-A", content="a"),
                 NodeInput(node_type=NodeType.ISSUE, label="PS-B", content="b"),
@@ -398,6 +406,7 @@ class TestGraphWriteServiceReturnValues:
 
         payload = GraphWritePayload(
             workspace_id=workspace_id,
+            actor_user_id=uuid4(),
             nodes=[
                 NodeInput(node_type=NodeType.ISSUE, label=f"PS-{i}", content=str(i))
                 for i in range(3)
@@ -431,6 +440,7 @@ class TestGraphWriteServiceAutoCommit:
 
         payload = GraphWritePayload(
             workspace_id=workspace_id,
+            actor_user_id=uuid4(),
             nodes=[NodeInput(node_type=NodeType.ISSUE, label="PS-1", content="x")],
         )
         await service.execute(payload)
@@ -452,6 +462,7 @@ class TestGraphWriteServiceAutoCommit:
 
         payload = GraphWritePayload(
             workspace_id=workspace_id,
+            actor_user_id=uuid4(),
             nodes=[NodeInput(node_type=NodeType.ISSUE, label="PS-1", content="x")],
         )
         await service.execute(payload)
@@ -484,6 +495,7 @@ class TestGraphWriteServiceAutoCommit:
 
         payload = GraphWritePayload(
             workspace_id=workspace_id,
+            actor_user_id=uuid4(),
             nodes=[NodeInput(node_type=NodeType.ISSUE, label="PS-1", content="x")],
         )
         await service.execute(payload)
@@ -535,6 +547,7 @@ class TestGraphWriteServiceCrossBatchEdgeResolution:
         )
         payload = GraphWritePayload(
             workspace_id=workspace_id,
+            actor_user_id=uuid4(),
             nodes=[NodeInput(node_type=NodeType.ISSUE, label="A", content="a")],
             edges=[
                 EdgeInput(

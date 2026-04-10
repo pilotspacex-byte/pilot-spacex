@@ -10,6 +10,7 @@ Reference: docs/DESIGN_DECISIONS.md#dd-003
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
@@ -23,6 +24,26 @@ if TYPE_CHECKING:
     from pilot_space.ai.infrastructure.approval import ApprovalService
 
 logger = get_logger(__name__)
+
+
+def filter_denied_tools(
+    allowed_tools: list[str],
+    denied_tools: Iterable[str],
+) -> list[str]:
+    """Remove denied tools from the allowed tools list.
+
+    SEC-03: This is the core DENY filter function. It removes any tool
+    whose name appears in ``denied_tools`` from the ``allowed_tools`` list.
+
+    Args:
+        allowed_tools: The current list of tools the agent is allowed to use.
+        denied_tools: An iterable of tool names that should be blocked.
+
+    Returns:
+        A new list containing only tools NOT in the denied set.
+    """
+    denied_set = set(denied_tools)
+    return [t for t in allowed_tools if t not in denied_set]
 
 
 class ActionClassification(StrEnum):
@@ -237,15 +258,21 @@ class PermissionHandler:
         self,
         approval_service: ApprovalService,
         workspace_settings: dict[str, Any] | None = None,
+        permission_service: Any | None = None,
     ):
         """Initialize handler.
 
         Args:
             approval_service: ApprovalService for persistence
             workspace_settings: Optional workspace-specific overrides
+            permission_service: Optional PermissionService for workspace-level
+                tool permission resolution (DENY/AUTO/ASK). When wired,
+                check_input_permissions() will consult it. When None, only the
+                in-memory DD-003 classification table is used.
         """
         self._approval_service = approval_service
         self._workspace_settings = workspace_settings or {}
+        self._permission_service = permission_service
 
     def _get_classification(
         self,
@@ -424,3 +451,100 @@ class PermissionHandler:
             resolved_by=reviewed_by,
             resolution_note=reason,
         )
+
+    async def check_input_permissions(
+        self,
+        workspace_id: UUID,
+        tool_name: str,
+    ) -> ActionClassification:
+        """Lightweight permission check -- no side effects, no approval creation.
+
+        SEC-13: Inspired by Claude Code's checkPermissions(input) pattern.
+        Returns the effective classification for the given tool in the given
+        workspace, considering both the in-memory DD-003 table and the
+        granular PermissionService (if wired).
+
+        Use this to:
+        - Pre-filter tool lists before presenting to users
+        - Show permission indicators in the UI
+        - Gate destructive operations before expensive processing
+
+        Args:
+            workspace_id: UUID of the workspace to check against.
+            tool_name: Name of the tool to check.
+
+        Returns:
+            ActionClassification for the tool.
+
+        Raises:
+            ForbiddenError: If the tool is DENY-mode in workspace policy
+                or if the PermissionService is unavailable (fail-closed).
+        """
+        default_classification = self._get_classification(
+            tool_name,
+            self._workspace_settings.get("approval_overrides"),
+        )
+
+        if self._permission_service is not None:
+            try:
+                mode = await self._permission_service.resolve(
+                    workspace_id, tool_name
+                )
+            except Exception:
+                # SEC-03: Fail-closed — if PermissionService is degraded, deny
+                # the tool rather than falling back to a potentially permissive
+                # default classification. This prevents DENY-mode tools from
+                # executing during transient service failures.
+                logger.warning(
+                    "check_input_permissions: PermissionService.resolve failed "
+                    "for workspace=%s tool=%s; FAIL-CLOSED: denying tool",
+                    workspace_id,
+                    tool_name,
+                    exc_info=True,
+                )
+                from pilot_space.domain.exceptions import ForbiddenError
+
+                raise ForbiddenError(
+                    f"Tool {tool_name!r} denied: permission service unavailable",
+                ) from None
+
+            # Import ToolPermissionMode lazily to avoid circular imports
+            # when PermissionService domain types are in a separate package.
+            mode_str = str(mode).lower() if mode is not None else None
+
+            if mode_str == "deny":
+                from pilot_space.domain.exceptions import ForbiddenError
+
+                raise ForbiddenError(
+                    f"Tool {tool_name!r} denied by workspace policy",
+                )
+            if mode_str == "auto":
+                if default_classification == ActionClassification.CRITICAL_REQUIRE_APPROVAL:
+                    return ActionClassification.CRITICAL_REQUIRE_APPROVAL
+                return ActionClassification.AUTO_EXECUTE
+            if mode_str == "ask":
+                if default_classification == ActionClassification.CRITICAL_REQUIRE_APPROVAL:
+                    return ActionClassification.CRITICAL_REQUIRE_APPROVAL
+                return ActionClassification.DEFAULT_REQUIRE_APPROVAL
+
+        return default_classification
+
+    @staticmethod
+    def is_destructive(tool_name: str) -> bool:
+        """Check if a tool is classified as destructive (CRITICAL).
+
+        SEC-13: Inspired by Claude Code's isDestructive(input) pattern.
+        Pure function -- no DB access, no side effects. Uses the in-memory
+        DD-003 classification table only.
+
+        Args:
+            tool_name: Name of the tool to check.
+
+        Returns:
+            True if the tool requires CRITICAL approval (destructive action).
+        """
+        classification = PermissionHandler.ACTION_CLASSIFICATIONS.get(
+            tool_name,
+            ActionClassification.DEFAULT_REQUIRE_APPROVAL,
+        )
+        return classification == ActionClassification.CRITICAL_REQUIRE_APPROVAL

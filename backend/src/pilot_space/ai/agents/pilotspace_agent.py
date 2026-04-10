@@ -173,13 +173,19 @@ async def _background_graph_extraction(
         # Phase 2: Write phase — open session only now that we have data to persist.
         # set_rls_context is required: graph tables are RLS-protected and inserts
         # will be denied without the app.current_user_id session variable.
+        if user_id is None:
+            logger.warning(
+                "[SDK/BackgroundGraph] Skipping KG write — no user_id in scope workspace=%s",
+                workspace_id,
+            )
+            return
         async with get_db_session() as bg_session:
-            if user_id is not None:
-                await set_rls_context(bg_session, user_id, workspace_id)
+            await set_rls_context(bg_session, user_id, workspace_id)
             graph_write_svc = build_graph_write_service_for_session(bg_session, graph_queue_client)
             await graph_write_svc.execute(
                 GraphWritePayload(
                     workspace_id=workspace_id,
+                    actor_user_id=user_id,
                     nodes=result.nodes,
                     edges=result.edges,
                     user_id=user_id,
@@ -781,6 +787,25 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         streaming_input = estimate_tokens(input_data) > 30_000
 
         _openai_key_for_recall = await get_workspace_embedding_key(db_session, context.workspace_id)
+
+        # Phase 69-05: Resolve MemoryRecallService lazily from the container
+        # (same pattern as permission_service in Task 01). The service is
+        # request-scoped and wraps GraphSearchService with a hot cache +
+        # single-flight, so concurrent identical recalls collapse to one
+        # embed + DB round-trip. Graceful degradation: on any resolution
+        # failure we fall through to the legacy graph_search_service path.
+        _memory_recall_service: Any | None = None
+        try:
+            from pilot_space.container.container import get_container
+
+            _memory_recall_service = get_container().memory_recall_service()
+        except Exception:
+            logger.debug(
+                "[SDK/Space] Could not resolve MemoryRecallService; using legacy "
+                "graph_search_service recall path",
+                exc_info=True,
+            )
+
         graph_context = await recall_graph_context(
             workspace_id=context.workspace_id,
             user_id=context.user_id,
@@ -788,7 +813,50 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             graph_search_service=build_graph_search_service_for_session(  # fresh per-req
                 db_session, openai_api_key=_openai_key_for_recall
             ),
+            memory_recall_service=_memory_recall_service,
         )
+
+        # Phase 69-05: Emit a `memory_used` SSE event BEFORE the assistant
+        # text starts streaming when recall returned items. We push directly
+        # onto tool_event_queue (already plumbed to the stream loop) so the
+        # event is yielded alongside tool-use events with no extra plumbing.
+        # Empty-result case: no event — avoid polluting the UI. Emission
+        # site chosen here (consumer) rather than inside recall_graph_context
+        # because the queue is already in scope and the helper is reused by
+        # non-streaming callers that do not have a queue.
+        if graph_context:
+            try:
+                from pilot_space.api.v1.streaming import format_sse_event
+
+                _mem_payload: dict[str, Any] = {
+                    "count": len(graph_context),
+                    "types": sorted(
+                        {
+                            str(e.get("source_type") or e.get("node_type") or "unknown")
+                            for e in graph_context
+                        }
+                    ),
+                    "sources": [
+                        {
+                            "type": str(
+                                e.get("source_type") or e.get("node_type") or "unknown"
+                            ),
+                            "id": str(
+                                e.get("source_id") or e.get("node_id") or e.get("label") or ""
+                            ),
+                            "score": round(float(e.get("score", 0.0) or 0.0), 3),
+                        }
+                        for e in graph_context
+                    ],
+                }
+                await tool_event_queue.put(
+                    format_sse_event("memory_used", _mem_payload)
+                )
+            except Exception:
+                logger.debug(
+                    "[SDK/Space] Failed to emit memory_used SSE event",
+                    exc_info=True,
+                )
 
         assembled = await assemble_system_prompt(
             PromptLayerConfig(
@@ -859,6 +927,54 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
 
         can_use_tool_cb = create_can_use_tool_callback(tool_event_queue, context.user_id)
 
+        # ------------------------------------------------------------------
+        # SEC-03: DENY filter — fail-closed
+        # ------------------------------------------------------------------
+        # Resolve workspace-level DENY list from PermissionHandler (which may
+        # consult a PermissionService if one is wired).  On ANY exception the
+        # filter defaults to an EMPTY tool list (fail-closed) rather than
+        # passing the full unfiltered set through (fail-open).
+        # ------------------------------------------------------------------
+        raw_allowed_tools: list[str] = sdk_params.get("allowed_tools", [])
+        filtered_allowed_tools: list[str] = []  # SEC-03: fail-closed default
+
+        try:
+            from pilot_space.ai.sdk.permission_handler import filter_denied_tools
+
+            # Collect tools classified as CRITICAL that also appear in workspace
+            # deny overrides.  When a full PermissionService is available this
+            # will be replaced with a list_all() call; for now we derive the
+            # deny set from workspace_settings approval_overrides that map to
+            # "deny".
+            _ws_settings = getattr(self._permission_handler, "_workspace_settings", {}) or {}
+            _overrides: dict[str, str] = _ws_settings.get("approval_overrides") or {}
+            _denied_names = [
+                name for name, mode in _overrides.items() if str(mode).lower() == "deny"
+            ]
+            if _denied_names:
+                filtered_allowed_tools = filter_denied_tools(raw_allowed_tools, _denied_names)
+                logger.info(
+                    "[SDK/Space] DENY filter removed %d tool(s) for workspace %s: %s",
+                    len(raw_allowed_tools) - len(filtered_allowed_tools),
+                    context.workspace_id,
+                    _denied_names,
+                )
+            else:
+                filtered_allowed_tools = raw_allowed_tools
+        except Exception:
+            # SEC-03: FAIL-CLOSED — if we cannot resolve permissions, deny
+            # ALL tools rather than allowing potentially denied tools through.
+            # This matches the principle of least privilege: when the permission
+            # system is degraded, restrict rather than permit.
+            logger.warning(
+                "[SDK/Space] PermissionService failed for DENY filter; "
+                "FAIL-CLOSED: filtering ALL tools. Workspace %s will have "
+                "no tool access until PermissionService recovers.",
+                context.workspace_id,
+                exc_info=True,
+            )
+            filtered_allowed_tools = []
+
         _r = getattr(self, "_resolved_model", None)  # AIPR-04 model override
         # Model priority: AIPR-04 override > workspace provider config > SDK default
         _model = (
@@ -876,11 +992,17 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             sdk_params.get("model", self.DEFAULT_MODEL_TIER.model_id),
             bool(provider_config.base_url),
         )
+        # NOTE: Phase 69 DENY filter block removed — superseded by the
+        # SEC-03 fail-closed block above (lines 930-976). The Phase 69 block
+        # was fail-open and reset filtered_allowed_tools on exception,
+        # undoing the fail-closed guarantee. A single DENY filter block
+        # (fail-closed) is the correct defense-in-depth pattern.
+
         sdk_options = ClaudeAgentOptions(
             model=_model,
             cwd=sdk_params.get("cwd"),
             setting_sources=sdk_params.get("setting_sources", ["project"]),
-            allowed_tools=sdk_params.get("allowed_tools", []),
+            allowed_tools=filtered_allowed_tools,
             mcp_servers=mcp_servers,
             sandbox=sdk_params.get("sandbox"),
             permission_mode=sdk_params.get("permission_mode", "default"),
@@ -1206,6 +1328,83 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                                 # GC cannot discard the task mid-execution.
                                 self._background_tasks.add(_bg_task)
                                 _bg_task.add_done_callback(self._background_tasks.discard)
+
+                        # PROD-01 (Phase 70 Wave 2): agent_turn memory producer.
+                        # Fire-and-forget, non-fatal. Opt-out flag is threaded
+                        # through `enabled` by Wave 3 (plan 70-06) — hard-coded
+                        # True here for now.
+                        try:
+                            _turn_queue_client = self._graph_queue_client
+                            if (
+                                context.workspace_id
+                                and context.user_id
+                                and _turn_queue_client is not None
+                            ):
+                                _assistant_text_parts = [
+                                    block.get("text", "")
+                                    for block in content_blocks.values()
+                                    if block.get("type") == "text" and block.get("text")
+                                ]
+                                _assistant_text_joined = "\n".join(
+                                    p for p in _assistant_text_parts if p
+                                )
+                                from pilot_space.ai.memory.producers.agent_turn_producer import (
+                                    enqueue_agent_turn_memory,
+                                )
+
+                                # Phase 70-06 (Task 3): read the workspace
+                                # opt-out flag BEFORE scheduling the
+                                # background task. We must not do the DB
+                                # lookup inside the create_task closure
+                                # because the request session may be
+                                # closed by the time it runs.
+                                _agent_turn_enabled = True
+                                try:
+                                    from pilot_space.application.services.workspace_ai_settings_toggles import (
+                                        get_producer_toggles,
+                                    )
+
+                                    if db_session is not None:
+                                        _toggles = await get_producer_toggles(
+                                            db_session, context.workspace_id
+                                        )
+                                        _agent_turn_enabled = _toggles.agent_turn
+                                except Exception:
+                                    logger.exception(
+                                        "agent_turn producer: settings read failed "
+                                        "(workspace=%s) — defaulting to enabled",
+                                        context.workspace_id,
+                                    )
+
+                                _ttft_val = locals().get("ttft")
+                                _ttft_ms = (
+                                    round(_ttft_val * 1000, 1) if _ttft_val else None
+                                )
+                                _duration_val = locals().get("duration_ms")
+                                _turn_task = asyncio.create_task(
+                                    enqueue_agent_turn_memory(
+                                        queue_client=_turn_queue_client,
+                                        workspace_id=context.workspace_id,
+                                        actor_user_id=context.user_id,
+                                        session_id=query_session_id,
+                                        user_message=input_data.message,
+                                        assistant_text=_assistant_text_joined,
+                                        tools_used=[],
+                                        metadata={
+                                            "ttft_ms": _ttft_ms,
+                                            "duration_ms": _duration_val,
+                                        },
+                                        enabled=_agent_turn_enabled,
+                                    )
+                                )
+                                self._background_tasks.add(_turn_task)
+                                _turn_task.add_done_callback(
+                                    self._background_tasks.discard
+                                )
+                        except Exception:
+                            logger.exception(
+                                "agent_turn producer enqueue failed (non-fatal)"
+                            )
 
                     await client.disconnect()
                 clear_context()

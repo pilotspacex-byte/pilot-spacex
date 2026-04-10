@@ -233,16 +233,24 @@ def test_format_graph_context_formats_nodes_correctly() -> None:
 
     result = format_graph_context(nodes)
 
-    assert "## Workspace Knowledge Graph Context" in result
-    assert "- [skill_outcome] **PR review completed**: Reviewed PR #42" in result
-    assert "- [requirement] **Auth requirement**: Use Supabase Auth" in result
+    # Phase 69-05: renders as <memory> XML block with per-item provenance
+    # attributes (type, id, score). Content is HTML-escaped.
+    assert result.startswith("<memory>")
+    assert result.rstrip().endswith("</memory>")
+    assert 'type="skill_outcome"' in result
+    assert 'type="requirement"' in result
+    assert "Reviewed PR #42" in result
+    assert "Use Supabase Auth" in result
+    assert 'score="0.95"' in result
+    assert 'score="0.80"' in result
 
 
 def test_format_graph_context_handles_missing_fields() -> None:
     """format_graph_context uses defaults when dict fields are missing."""
     nodes: list[dict[str, Any]] = [{"score": 0.5}]
     result = format_graph_context(nodes)
-    assert "- [unknown] ****: " in result
+    assert 'type="unknown"' in result
+    assert 'score="0.50"' in result
 
 
 # ---------------------------------------------------------------------------
@@ -266,7 +274,8 @@ def test_build_session_section_uses_graph_context_when_available() -> None:
     )
     parts = _build_session_section(config)
     combined = "\n".join(parts)
-    assert "Knowledge Graph Context" in combined
+    assert "<memory>" in combined
+    assert "task finished" in combined
     assert "old memory" not in combined
 
 
@@ -279,7 +288,7 @@ def test_build_session_section_falls_back_to_memory_entries() -> None:
     parts = _build_session_section(config)
     combined = "\n".join(parts)
     assert "legacy memory" in combined
-    assert "Knowledge Graph Context" not in combined
+    assert "<memory>" not in combined
 
 
 def test_build_session_section_empty_when_no_context() -> None:

@@ -65,6 +65,7 @@ class ConstitutionIngestPayload:
     """
 
     workspace_id: UUID
+    actor_user_id: UUID
     rules: list[ConstitutionRuleInput] = field(default_factory=list)
 
 
@@ -165,6 +166,7 @@ class ConstitutionIngestService:
         enqueued = await self._enqueue_indexing(
             rule_ids=created_ids,
             workspace_id=payload.workspace_id,
+            actor_user_id=payload.actor_user_id,
             version=new_version,
         )
 
@@ -185,6 +187,7 @@ class ConstitutionIngestService:
         self,
         rule_ids: list[UUID],
         workspace_id: UUID,
+        actor_user_id: UUID,
         version: int,
     ) -> bool:
         """Enqueue vector indexing jobs for constitution rules (J-4).
@@ -192,6 +195,7 @@ class ConstitutionIngestService:
         Args:
             rule_ids: List of ConstitutionRule UUIDs to index.
             workspace_id: Workspace context.
+            actor_user_id: Acting user id for RLS context.
             version: New version being indexed.
 
         Returns:
@@ -203,6 +207,7 @@ class ConstitutionIngestService:
                     "task_type": _CONSTITUTION_INDEXING_TASK_TYPE,
                     "entry_id": str(rule_id),
                     "workspace_id": str(workspace_id),
+                    "actor_user_id": str(actor_user_id),
                     "table": _CONSTITUTION_TABLE,
                     "indexed_version": version,
                     "enqueued_at": datetime.now(tz=UTC).isoformat(),

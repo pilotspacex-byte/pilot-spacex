@@ -86,6 +86,15 @@ from pilot_space.application.services.memory.constitution_service import (
 from pilot_space.application.services.memory.knowledge_graph_query_service import (
     KnowledgeGraphQueryService,
 )
+from pilot_space.application.services.memory.memory_lifecycle_service import (
+    MemoryLifecycleService,
+)
+from pilot_space.application.services.memory.memory_list_service import (
+    MemoryListService,
+)
+from pilot_space.application.services.memory.memory_recall_service import (
+    MemoryRecallService,
+)
 from pilot_space.application.services.memory.memory_save_service import (
     MemorySaveService,
 )
@@ -113,6 +122,8 @@ from pilot_space.application.services.onboarding import (
     GetOnboardingService,
     UpdateOnboardingService,
 )
+from pilot_space.application.services.permissions.permission_cache import PermissionCache
+from pilot_space.application.services.permissions.permission_service import PermissionService
 from pilot_space.application.services.plugin_lifecycle import PluginLifecycleService
 from pilot_space.application.services.pm_block_insight_service import PMBlockInsightService
 from pilot_space.application.services.project_detail import ProjectDetailService
@@ -195,6 +206,37 @@ from pilot_space.infrastructure.database.repositories.workspace_member_repositor
 )
 
 
+def _build_memory_recall_service(
+    session: object,
+    redis_client: object,
+    llm_gateway: object,
+) -> MemoryRecallService:
+    """Factory for MemoryRecallService that assembles its dependency chain.
+
+    Kept as a free function rather than a web of top-level providers so
+    the GraphSearchService / EmbeddingService / AIResponseCache triple
+    doesn't leak into the container surface until a route actually needs
+    it. Phase 69 Wave 3 will wire this into the agent recall seam.
+    """
+    from pilot_space.ai.infrastructure.cache import AIResponseCache
+    from pilot_space.application.services.embedding_service import (
+        EmbeddingConfig,
+        EmbeddingService,
+    )
+    from pilot_space.application.services.memory.graph_search_service import (
+        GraphSearchService,
+    )
+    from pilot_space.infrastructure.database.repositories.knowledge_graph_repository import (
+        KnowledgeGraphRepository,
+    )
+
+    repo = KnowledgeGraphRepository(session)  # type: ignore[arg-type]
+    embedding = EmbeddingService(EmbeddingConfig(), llm_gateway=llm_gateway)  # type: ignore[arg-type]
+    graph_search = GraphSearchService(repo, embedding_service=embedding)
+    cache = AIResponseCache(redis_client, ttl_seconds=30) if redis_client is not None else None  # type: ignore[arg-type]
+    return MemoryRecallService(graph_search=graph_search, embedding=embedding, cache=cache)
+
+
 class Container(SkillContainer, PluginContainer):
     """Main application DI container.
 
@@ -231,11 +273,15 @@ class Container(SkillContainer, PluginContainer):
             "pilot_space.application.services.version.digest_service",
             "pilot_space.ai.jobs.digest_job",
             "pilot_space.application.services.embedding_service",
+            "pilot_space.application.services.permissions.permission_service",
             "pilot_space.api.v1.routers.workspace_members",
             "pilot_space.api.v1.routers.workspace_invitations",
             "pilot_space.api.v1.routers.project_members",
             "pilot_space.api.v1.routers.my_projects",
             "pilot_space.api.v1.routers.invitations_public",
+            # Phase 69 — AI memory services
+            "pilot_space.application.services.memory.memory_recall_service",
+            "pilot_space.application.services.memory.memory_lifecycle_service",
         ],
     )
 
@@ -979,6 +1025,30 @@ class Container(SkillContainer, PluginContainer):
         queue=InfraContainer.queue_client,
     )
 
+    # --- Phase 69: MemoryRecallService + MemoryLifecycleService ---
+    # Both services are request-scoped because they wrap a session-bound
+    # repository. They use factory functions (_build_*) to assemble the
+    # dependency chain (GraphSearchService / GraphWriteService / etc.) without
+    # promoting those to top-level providers yet.
+    memory_recall_service = providers.Factory(
+        _build_memory_recall_service,
+        session=providers.Callable(get_current_session),
+        redis_client=InfraContainer.redis_client,
+        llm_gateway=llm_gateway,
+    )
+
+    memory_lifecycle_service = providers.Factory(
+        MemoryLifecycleService,
+        session=providers.Callable(get_current_session),
+    )
+
+    memory_list_service = providers.Factory(
+        MemoryListService,
+        session=providers.Callable(get_current_session),
+        recall_service=memory_recall_service,
+        lifecycle_service=memory_lifecycle_service,
+    )
+
     # Knowledge Graph Query Service
     knowledge_graph_query_service = providers.Factory(
         KnowledgeGraphQueryService,
@@ -1056,6 +1126,16 @@ class Container(SkillContainer, PluginContainer):
         AIConfigurationService,
         session=providers.Callable(get_current_session),
         workspace_repository=InfraContainer.workspace_repository,
+    )
+
+    # Phase 69 — Granular AI Tool Permissions (69-03)
+    # Singleton cache + singleton service; the service reads the
+    # request-scoped AsyncSession via get_current_session() at call time.
+    permission_cache = providers.Singleton(PermissionCache)
+    permission_service = providers.Singleton(
+        PermissionService,
+        cache=permission_cache,
+        redis_client=InfraContainer.redis_client,
     )
 
 

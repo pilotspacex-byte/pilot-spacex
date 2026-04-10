@@ -5,6 +5,7 @@ import { lazy, Suspense } from 'react';
 import { observer } from 'mobx-react-lite';
 import {
   BarChart3,
+  BrainCircuit,
   Building2,
   ClipboardList,
   CreditCard,
@@ -67,6 +68,9 @@ const SsoSettingsPage = lazy(() =>
 const SkillsSettingsPage = lazy(() =>
   import('./pages/skills-settings-page').then((m) => ({ default: m.SkillsSettingsPage }))
 );
+const MemoryBrowsePage = lazy(() =>
+  import('./pages/memory-browse-page').then((m) => ({ default: m.MemoryBrowsePage }))
+);
 const IntegrationsSettingsPage = lazy(
   () => import('@/app/(workspace)/[workspaceSlug]/settings/integrations/page')
 );
@@ -119,6 +123,7 @@ const settingsNavSections: NavSection[] = [
       { id: 'sso', label: 'SSO', icon: Shield },
       { id: 'encryption', label: 'Encryption', icon: KeyRound },
       { id: 'ai-governance', label: 'AI Governance', icon: ShieldCheck },
+      { id: 'memory', label: 'Memory', icon: BrainCircuit },
       { id: 'audit', label: 'Audit', icon: ClipboardList },
       { id: 'roles', label: 'Custom Roles', icon: Users },
       { id: 'usage', label: 'Usage', icon: BarChart3 },
@@ -145,6 +150,7 @@ const SECTION_COMPONENTS: Record<
   audit: AuditSettingsPage,
   encryption: EncryptionSettingsPage,
   'ai-governance': AIGovernanceSettingsPage,
+  memory: MemoryBrowsePage,
   usage: UsageSettingsPage,
   sso: SsoSettingsPage,
   skills: SkillsSettingsPage,

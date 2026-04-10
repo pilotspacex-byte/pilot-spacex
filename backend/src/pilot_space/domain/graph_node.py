@@ -39,6 +39,10 @@ class NodeType(StrEnum):
     USER_PREFERENCE = "user_preference"
     DOCUMENT = "document"
     DOCUMENT_CHUNK = "document_chunk"
+    # Phase 69 — memory substrate (Decision Point 1)
+    AGENT_TURN = "agent_turn"
+    USER_CORRECTION = "user_correction"
+    PR_REVIEW_FINDING = "pr_review_finding"
 
 
 _SUMMARY_LENGTH = 120

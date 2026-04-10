@@ -15,6 +15,7 @@ Layer order:
 
 from __future__ import annotations
 
+import html
 import logging
 import re
 from typing import Any
@@ -300,21 +301,44 @@ def format_memory_entries(memory_entries: list[dict[str, Any]]) -> str:
 
 
 def format_graph_context(graph_context: list[dict[str, Any]]) -> str:
-    """Format knowledge graph nodes as a system prompt section.
+    """Format knowledge graph nodes as a ``<memory>`` XML block.
+
+    Phase 69-05: changed from markdown heading to an XML-tagged block so
+    provider-side prompt parsers can reliably pick out recalled memories
+    and so we can attach per-item provenance (``type``, ``id``, ``score``)
+    as attributes. Empty input returns an empty string so the assembler
+    does not emit an empty ``<memory/>`` block that would waste tokens and
+    pollute the UI.
 
     Args:
-        graph_context: List of scored node dicts from recall_graph_context.
+        graph_context: List of scored node dicts from ``recall_graph_context``.
+            Expected keys: ``source_type`` (falls back to ``node_type``),
+            ``source_id`` (falls back to ``node_id``), ``score``, ``content``.
 
     Returns:
-        Formatted markdown section, or empty string when graph_context is empty.
+        ``<memory>`` XML block, or empty string when ``graph_context`` is empty.
     """
     if not graph_context:
         return ""
-    lines = ["## Workspace Knowledge Graph Context\n"]
+    lines = ["<memory>"]
     for entry in graph_context:
-        node_type = entry.get("node_type", "unknown")
-        label = entry.get("label", "")
-        content = entry.get("content", "")
-        lines.append(f"- [{node_type}] **{label}**: {content}")
-    lines.append("")
+        source_type = str(
+            entry.get("source_type") or entry.get("node_type") or "unknown"
+        )
+        source_id = str(
+            entry.get("source_id") or entry.get("node_id") or entry.get("label") or ""
+        )
+        try:
+            score = float(entry.get("score", 0.0))
+        except (TypeError, ValueError):
+            score = 0.0
+        content = str(entry.get("content", ""))
+        lines.append(
+            f'  <item type="{html.escape(source_type, quote=True)}" '
+            f'id="{html.escape(source_id, quote=True)}" '
+            f'score="{score:.2f}">'
+            f"{html.escape(content)}"
+            f"</item>"
+        )
+    lines.append("</memory>")
     return "\n".join(lines)

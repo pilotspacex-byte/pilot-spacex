@@ -14,6 +14,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import and_, delete, select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pilot_space.application.services.embedding_service import (
@@ -35,6 +36,7 @@ from pilot_space.application.services.note.markdown_chunker import (
 from pilot_space.domain.graph_edge import EdgeType, GraphEdge
 from pilot_space.domain.graph_node import NodeType
 from pilot_space.domain.graph_query import ScoredNode
+from pilot_space.domain.memory.memory_type import MEMORY_TYPE_TO_NODE_TYPE, MemoryType
 from pilot_space.infrastructure.database.models.cycle import Cycle as CycleModel
 from pilot_space.infrastructure.database.models.graph_edge import GraphEdgeModel
 from pilot_space.infrastructure.database.models.graph_node import GraphNodeModel
@@ -44,6 +46,7 @@ from pilot_space.infrastructure.database.models.project import Project as Projec
 from pilot_space.infrastructure.database.repositories.knowledge_graph_repository import (
     KnowledgeGraphRepository,
 )
+from pilot_space.infrastructure.queue.models import QueueName
 from pilot_space.infrastructure.queue.supabase_queue import SupabaseQueueClient
 
 __all__ = ["TASK_KG_POPULATE", "KgPopulateHandler"]
@@ -56,6 +59,12 @@ _SIMILARITY_THRESHOLD = 0.75
 _MAX_SIMILAR_EDGES = 5
 _MIN_CHUNK_CHARS = 50  # merge heading sections shorter than this
 
+# Phase 70-06: delay before the summarizer fires for a note after the raw
+# chunks land. The delay is a debounce window — concurrent updates to the
+# same note inside the window are collapsed via the pre-enqueue pgmq dedup
+# check below.
+_SUMMARIZE_DELAY_SECONDS = 300
+
 
 @dataclass(frozen=True, slots=True)
 class _KgPopulatePayload:
@@ -63,6 +72,7 @@ class _KgPopulatePayload:
     project_id: UUID
     entity_type: str  # "issue" | "note" | "project" | "cycle"
     entity_id: UUID
+    actor_user_id: UUID
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> _KgPopulatePayload:
@@ -71,6 +81,7 @@ class _KgPopulatePayload:
             project_id=UUID(d["project_id"]),
             entity_type=d["entity_type"],
             entity_id=UUID(d["entity_id"]),
+            actor_user_id=UUID(d["actor_user_id"]),
         )
 
 
@@ -112,13 +123,34 @@ class KgPopulateHandler:
             pass
         self._embedding = self._fallback_embedding
 
-    async def handle(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """Dispatch to _handle_issue or _handle_note based on entity_type.
+    async def handle(self, payload: dict[str, Any]) -> dict[str, Any]:  # noqa: PLR0911
+        """Dispatch based on payload shape.
+
+        Phase 69 extension: if ``payload['memory_type']`` is set to one of
+        ``agent_turn``, ``user_correction``, or ``pr_review_finding``, the
+        handler routes to ``_handle_memory_type`` which creates a single
+        graph node with the corresponding ``NodeType``. Existing note /
+        issue / project / cycle ingestion paths are unchanged.
 
         Validation errors (bad payload, unknown entity_type) return
         ``{"success": False}`` so the worker ACKs them. Infrastructure
         errors propagate as exceptions for worker retry / dead-letter.
         """
+        # Phase 69 discriminator — handle new memory types first.
+        memory_type_raw = payload.get("memory_type")
+        if memory_type_raw:
+            try:
+                memory_type = MemoryType(memory_type_raw)
+            except ValueError:
+                logger.warning("KgPopulateHandler: unknown memory_type %r", memory_type_raw)
+                return {"success": False, "error": f"unknown memory_type: {memory_type_raw}"}
+            if memory_type in (
+                MemoryType.AGENT_TURN,
+                MemoryType.USER_CORRECTION,
+                MemoryType.PR_REVIEW_FINDING,
+            ):
+                return await self._handle_memory_type(memory_type, payload)
+
         try:
             p = _KgPopulatePayload.from_dict(payload)
         except (KeyError, ValueError) as exc:
@@ -138,6 +170,135 @@ class KgPopulateHandler:
             return await self._handle_cycle(p)
         logger.warning("KgPopulateHandler: unknown entity_type %r", p.entity_type)
         return {"success": False, "error": f"unknown entity_type: {p.entity_type}"}
+
+    async def _handle_memory_type(
+        self,
+        memory_type: MemoryType,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Create a single graph node for a Phase 69 memory type.
+
+        Expected payload keys:
+            memory_type: one of 'agent_turn' | 'user_correction' | 'pr_review_finding'
+            workspace_id: UUID string
+            content: text content to embed + store
+            metadata: optional dict of provenance fields
+            label: optional short display label
+            external_id: optional FK to originating entity
+            user_id: optional user scope
+        """
+        try:
+            workspace_id = UUID(payload["workspace_id"])
+        except (KeyError, ValueError) as exc:
+            logger.warning("KgPopulateHandler: invalid memory payload %r — %s", payload, exc)
+            return {"success": False, "error": f"invalid payload: {exc}"}
+
+        content = str(payload.get("content") or "").strip()
+        if not content:
+            return {"success": False, "error": "content is required"}
+
+        metadata = payload.get("metadata") or {}
+        if not isinstance(metadata, dict):
+            metadata = {}
+        label = str(payload.get("label") or content[:120])
+        external_id_raw = payload.get("external_id")
+        external_id = UUID(external_id_raw) if external_id_raw else None
+        user_id_raw = payload.get("user_id")
+        user_id = UUID(user_id_raw) if user_id_raw else None
+        actor_user_id_raw = payload.get("actor_user_id")
+        if not actor_user_id_raw:
+            return {"success": False, "error": "actor_user_id is required"}
+        actor_user_id = UUID(actor_user_id_raw)
+
+        node_type = MEMORY_TYPE_TO_NODE_TYPE[memory_type]
+
+        # Resolve workspace BYOK embedding key before we let GraphWriteService
+        # enqueue embeddings for the new node.
+        await self._resolve_workspace_embedding(workspace_id)
+
+        write_svc = GraphWriteService(
+            knowledge_graph_repository=self._repo,
+            queue=self._queue,
+            session=self._session,
+            auto_commit=False,
+        )
+        try:
+            result = await write_svc.execute(
+                GraphWritePayload(
+                    workspace_id=workspace_id,
+                    actor_user_id=actor_user_id,
+                    nodes=[
+                        NodeInput(
+                            node_type=node_type,
+                            label=label[:120],
+                            content=content[:2000],
+                            external_id=external_id,
+                            user_id=user_id,
+                            properties={**metadata, "memory_type": memory_type.value},
+                        )
+                    ],
+                )
+            )
+        except IntegrityError as exc:
+            # Partial unique indexes shipped in migrations 106 / 107 scope
+            # dedup per memory type:
+            #   * uq_graph_nodes_agent_turn_cache      (migration 106)
+            #       (workspace_id, session_id, turn_index)
+            #   * uq_graph_nodes_pr_review_finding     (migration 107)
+            #       (workspace_id, repo, pr_number, file_path, line_number)
+            # Replay hits one of these — rollback, ACK, and move on. Only
+            # treat as duplicate when the failing constraint matches;
+            # otherwise re-raise so FK/CHECK violations propagate.
+            _KNOWN_DEDUP_INDEXES = frozenset({
+                "uq_graph_nodes_agent_turn_cache",
+                "uq_graph_nodes_pr_review_finding",
+            })
+            # Prefer the DB driver's parsed constraint name (psycopg2/asyncpg
+            # expose it on the original exception). Fall back to message
+            # substring only when the driver doesn't provide the name.
+            constraint_name: str | None = None
+            orig = exc.orig
+            if orig is not None:
+                # psycopg2: orig.diag.constraint_name
+                diag = getattr(orig, "diag", None)
+                if diag is not None:
+                    constraint_name = getattr(diag, "constraint_name", None)
+                # asyncpg: orig.constraint_name (no diag wrapper)
+                if constraint_name is None:
+                    constraint_name = getattr(orig, "constraint_name", None)
+            # Last resort: match on error message (covers edge-case drivers)
+            if constraint_name is None:
+                msg = str(orig) if orig is not None else str(exc)
+                for name in _KNOWN_DEDUP_INDEXES:
+                    if name in msg:
+                        constraint_name = name
+                        break
+
+            if constraint_name and constraint_name in _KNOWN_DEDUP_INDEXES:
+                await self._session.rollback()
+                logger.info(
+                    "KgPopulateHandler: duplicate %s replay (workspace=%s) — ACK",
+                    memory_type.value,
+                    workspace_id,
+                )
+                return {
+                    "success": True,
+                    "memory_type": memory_type.value,
+                    "duplicate": True,
+                    "node_ids": [],
+                }
+            raise
+
+        logger.info(
+            "KgPopulateHandler: memory_type=%s → %d node(s)",
+            memory_type.value,
+            len(result.node_ids),
+        )
+        return {
+            "success": True,
+            "memory_type": memory_type.value,
+            "node_ids": [str(n) for n in result.node_ids],
+        }
 
     async def _handle_issue(self, p: _KgPopulatePayload) -> dict[str, Any]:
         issue = await self._session.get(IssueModel, p.entity_id)
@@ -162,6 +323,7 @@ class KgPopulateHandler:
         result = await write_svc.execute(
             GraphWritePayload(
                 workspace_id=issue.workspace_id,
+                actor_user_id=p.actor_user_id,
                 nodes=[
                     NodeInput(
                         node_type=NodeType.ISSUE,
@@ -203,6 +365,8 @@ class KgPopulateHandler:
                             "chunk_index": chunk.chunk_index,
                             "heading": chunk.heading,
                             "parent_issue_id": str(p.entity_id),
+                            # Phase 70-06: raw-content discriminator
+                            "kind": "raw",
                         },
                     )
                     for chunk in chunks
@@ -210,6 +374,7 @@ class KgPopulateHandler:
                 chunk_result = await write_svc.execute(
                     GraphWritePayload(
                         workspace_id=issue.workspace_id,
+                        actor_user_id=p.actor_user_id,
                         nodes=chunk_nodes,
                     )
                 )
@@ -299,6 +464,7 @@ class KgPopulateHandler:
         parent_result = await write_svc.execute(
             GraphWritePayload(
                 workspace_id=note.workspace_id,
+                actor_user_id=p.actor_user_id,
                 nodes=[
                     NodeInput(
                         node_type=NodeType.NOTE,
@@ -344,6 +510,8 @@ class KgPopulateHandler:
                         "heading_level": chunk.heading_level,
                         "parent_note_id": str(p.entity_id),
                         "project_id": str(note.project_id),
+                        # Phase 70-06: raw-content discriminator
+                        "kind": "raw",
                     },
                 )
                 for chunk in chunks
@@ -352,6 +520,7 @@ class KgPopulateHandler:
             chunk_result = await write_svc.execute(
                 GraphWritePayload(
                     workspace_id=note.workspace_id,
+                    actor_user_id=p.actor_user_id,
                     nodes=chunk_nodes,
                 )
             )
@@ -394,12 +563,91 @@ class KgPopulateHandler:
             edges_created,
             belongs_to,
         )
+
+        # Phase 70-06: schedule a delayed summarize_note job. Non-fatal —
+        # failure does not affect the note_chunk write result. Gated on
+        # the workspace opt-in toggle (default OFF).
+        await self._maybe_enqueue_summarize(
+            workspace_id=note.workspace_id,
+            actor_user_id=p.actor_user_id,
+            note_id=p.entity_id,
+        )
+
         return {
             "success": True,
             "node_ids": [str(n) for n in all_node_ids],
             "chunks": len(chunks),
             "edges": edges_created,
         }
+
+    async def _maybe_enqueue_summarize(
+        self,
+        *,
+        workspace_id: UUID,
+        actor_user_id: UUID,
+        note_id: UUID,
+    ) -> None:
+        """Schedule a delayed summarize_note job if the workspace opts in.
+
+        Dedup: skip if an unconsumed ``summarize_note`` message for the
+        same ``note_id`` is already queued (pgmq query). On any error
+        (settings read, pgmq query, enqueue) the call is a no-op — the
+        summarizer is a background best-effort producer and must never
+        fail the primary note write path.
+        """
+        if self._queue is None:
+            return
+        try:
+            from pilot_space.application.services.workspace_ai_settings_toggles import (
+                get_producer_toggles,
+            )
+
+            toggles = await get_producer_toggles(self._session, workspace_id)
+            if not toggles.summarizer:
+                return
+        except Exception:
+            logger.exception(
+                "KgPopulateHandler: summarize opt-in read failed (workspace=%s) — skip",
+                workspace_id,
+            )
+            return
+
+        # Dedup against pgmq.q_ai_normal. SQLite / test envs lack the
+        # pgmq schema — contextlib.suppress keeps those paths silent so
+        # unit tests can exercise the enqueue without a real queue.
+        with contextlib.suppress(Exception):
+            dup_stmt = text(
+                """
+                SELECT 1 FROM pgmq.q_ai_normal
+                WHERE (message->>'task_type') = 'summarize_note'
+                  AND (message->>'note_id') = :note_id
+                LIMIT 1
+                """
+            )
+            result = await self._session.execute(dup_stmt, {"note_id": str(note_id)})
+            if result.first() is not None:
+                logger.debug(
+                    "KgPopulateHandler: summarize_note dedup hit for note %s", note_id
+                )
+                return
+
+        try:
+            await self._queue.enqueue(
+                QueueName.AI_NORMAL,
+                {
+                    "task_type": "summarize_note",
+                    "workspace_id": str(workspace_id),
+                    "actor_user_id": str(actor_user_id),
+                    "note_id": str(note_id),
+                },
+                delay_seconds=_SUMMARIZE_DELAY_SECONDS,
+            )
+        except Exception:
+            logger.exception(
+                "KgPopulateHandler: summarize_note enqueue failed (workspace=%s note=%s)",
+                workspace_id,
+                note_id,
+            )
 
     async def _handle_project(self, p: _KgPopulatePayload) -> dict[str, Any]:
         project = await self._session.get(ProjectModel, p.entity_id)
@@ -419,6 +667,7 @@ class KgPopulateHandler:
         result = await write_svc.execute(
             GraphWritePayload(
                 workspace_id=project.workspace_id,
+                actor_user_id=p.actor_user_id,
                 nodes=[
                     NodeInput(
                         node_type=NodeType.PROJECT,
@@ -488,6 +737,7 @@ class KgPopulateHandler:
         result = await write_svc.execute(
             GraphWritePayload(
                 workspace_id=cycle.workspace_id,
+                actor_user_id=p.actor_user_id,
                 nodes=[
                     NodeInput(
                         node_type=NodeType.CYCLE,

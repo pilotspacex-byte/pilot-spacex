@@ -51,6 +51,8 @@ TASK_TYPE_MODEL_MAP: Final[dict[TaskType, str]] = {
     TaskType.NOTIFICATION_PRIORITY: "anthropic/claude-3-5-haiku-20241022",
     TaskType.ASSIGNEE_RECOMMENDATION: "anthropic/claude-3-5-haiku-20241022",
     TaskType.COMMIT_LINKING: "anthropic/claude-3-5-haiku-20241022",
+    # Phase 70-06: background note summarization — Haiku (cheap tier).
+    TaskType.MEMORY_SUMMARIZATION: "anthropic/claude-3-5-haiku-20241022",
     # Embeddings -> OpenAI text-embedding-3-large
     TaskType.EMBEDDINGS: "openai/text-embedding-3-large",
     TaskType.SEMANTIC_SEARCH: "openai/text-embedding-3-large",

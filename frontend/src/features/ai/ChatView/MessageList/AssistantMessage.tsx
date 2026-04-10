@@ -18,6 +18,7 @@ import { ReasoningGroup } from './ReasoningGroup';
 import { StructuredResultCard } from './StructuredResultCard';
 import { MarkdownContent } from './MarkdownContent';
 import { CitationList } from './CitationList';
+import { MemoryUsedChip } from './MemoryUsedChip';
 import { QuestionBlock, ResolvedSummary } from './QuestionBlock';
 import { SkillCreatorCard } from './SkillCreatorCard';
 import { SkillTestResultCard } from './SkillTestResultCard';
@@ -216,6 +217,10 @@ export const AssistantMessage = memo<AssistantMessageProps>(({ message, classNam
             code={(message.structuredResult.data.code as string) ?? ''}
             skillName={(message.structuredResult.data.skillName as string) ?? undefined}
           />
+        )}
+
+        {message.memorySources && message.memorySources.length > 0 && (
+          <MemoryUsedChip sources={message.memorySources} />
         )}
 
         {message.citations && message.citations.length > 0 && (

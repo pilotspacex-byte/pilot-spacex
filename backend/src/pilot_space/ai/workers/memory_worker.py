@@ -24,8 +24,10 @@ import asyncio
 import json
 import time
 from typing import TYPE_CHECKING, Any
+from uuid import UUID
 
 from pilot_space.application.services.embedding_service import EmbeddingConfig, EmbeddingService
+from pilot_space.infrastructure.database.rls import set_rls_context
 from pilot_space.infrastructure.logging import get_logger
 from pilot_space.infrastructure.queue.models import QueueName
 
@@ -47,6 +49,43 @@ TASK_GRAPH_EXPIRATION = "graph_expiration"
 TASK_DOCUMENT_INGESTION = "document_ingestion"
 TASK_ARTIFACT_CLEANUP = "artifact_cleanup"
 TASK_SEND_INVITATION_EMAIL = "send_invitation_email"
+TASK_SUMMARIZE_NOTE = "summarize_note"  # Phase 70-06
+
+# RLS bypass allowlist (PROD-04): task types that are intentionally
+# cross-workspace or system-scoped. MemoryWorker skips set_rls_context
+# for these and relies on the handler to scope queries explicitly.
+# Keep in sync with scripts/audit_enqueue_actor_user_id.py allowlist.
+_RLS_BYPASS_TASKS: frozenset[str] = frozenset(
+    {
+        TASK_GRAPH_EXPIRATION,
+        TASK_ARTIFACT_CLEANUP,
+        TASK_SEND_INVITATION_EMAIL,
+    }
+)
+
+# RLS bypass allowlist (PROD-04): task types that are intentionally
+# cross-workspace or system-scoped. MemoryWorker skips set_rls_context
+# for these and relies on the handler to scope queries explicitly.
+# Keep in sync with scripts/audit_enqueue_actor_user_id.py allowlist.
+#
+# Security rationale per task type:
+# - TASK_GRAPH_EXPIRATION: System-wide sweep deleting expired nodes across
+#   all workspaces. Runs on a daily timer, not user-triggered. Handler
+#   filters by expiration timestamp, not workspace_id.
+# - TASK_ARTIFACT_CLEANUP: System-wide sweep removing orphaned storage
+#   objects. Hourly timer, not user-triggered. Handler uses storage API
+#   with its own auth, not RLS.
+# - TASK_SEND_INVITATION_EMAIL: Triggered by invitation flow. Email
+#   sending has no DB writes that need workspace RLS — it reads the
+#   invitation record (already validated at creation time) and calls
+#   the email provider.
+_RLS_BYPASS_TASKS: frozenset[str] = frozenset(
+    {
+        TASK_GRAPH_EXPIRATION,
+        TASK_ARTIFACT_CLEANUP,
+        TASK_SEND_INVITATION_EMAIL,
+    }
+)
 
 # _BATCH_SIZE MUST remain 1: _process() handles only messages[0].
 # Increasing this without updating the loop would silently drop messages 1..N.
@@ -59,6 +98,10 @@ _MAX_NACK_ATTEMPTS = 2
 _EXPIRATION_INTERVAL_S = 24 * 3600
 # Enqueue artifact_cleanup once per hour per worker process.
 _ARTIFACT_CLEANUP_INTERVAL_S = 3600
+# Re-embed graph nodes with NULL embeddings once per hour.
+_EMBEDDING_BACKFILL_INTERVAL_S = 3600
+# Max nodes to re-embed per backfill sweep (avoid flooding the queue).
+_EMBEDDING_BACKFILL_BATCH = 50
 
 
 class MemoryWorker:
@@ -88,12 +131,19 @@ class MemoryWorker:
         ollama_base_url: str = "http://localhost:11434",
         anthropic_api_key: str | None = None,
         storage_client: SupabaseStorageClient | None = None,
+        llm_gateway: object | None = None,
+        redis_client: object | None = None,
     ) -> None:
         self.queue = queue
         self._session_factory = session_factory
         self._google_api_key = google_api_key
         self._anthropic_api_key = anthropic_api_key
         self._storage_client = storage_client
+        # Phase 70-06: LLMGateway + Redis are optional; only the
+        # summarize_note handler uses them. When unset, summarize_note
+        # still runs but short-circuits on the LLM call.
+        self._llm_gateway = llm_gateway
+        self._redis_client = redis_client
         self._embedding_service = EmbeddingService(
             EmbeddingConfig(openai_api_key=openai_api_key, ollama_base_url=ollama_base_url)
         )
@@ -103,6 +153,7 @@ class MemoryWorker:
         # Resets on worker restart, which is acceptable — daily cleanup is best-effort.
         self._last_expiration_enqueue: float = float("-inf")
         self._last_artifact_cleanup_enqueue: float = float("-inf")
+        self._last_embedding_backfill: float = float("-inf")
 
     async def start(self) -> None:
         """Poll loop: dequeue → process → ack/nack."""
@@ -120,6 +171,7 @@ class MemoryWorker:
                 else:
                     await self._maybe_enqueue_expiration()
                     await self._maybe_enqueue_artifact_cleanup()
+                    await self._maybe_backfill_embeddings()
                     await asyncio.sleep(_SLEEP_EMPTY_S)
             except asyncio.CancelledError:
                 logger.info("MemoryWorker cancelled")
@@ -140,7 +192,7 @@ class MemoryWorker:
         try:
             await self.queue.enqueue(
                 QueueName.AI_NORMAL,
-                {"task_type": TASK_GRAPH_EXPIRATION},
+                {"task_type": "graph_expiration"},
             )
             self._last_expiration_enqueue = now
             logger.info("MemoryWorker: enqueued graph_expiration task")
@@ -155,12 +207,91 @@ class MemoryWorker:
         try:
             await self.queue.enqueue(
                 QueueName.AI_NORMAL,
-                {"task_type": TASK_ARTIFACT_CLEANUP},
+                {"task_type": "artifact_cleanup"},
             )
             self._last_artifact_cleanup_enqueue = now
             logger.info("MemoryWorker: enqueued artifact_cleanup task")
         except Exception:
             logger.exception("MemoryWorker: failed to enqueue artifact_cleanup")
+
+    async def _maybe_backfill_embeddings(self) -> None:
+        """Re-enqueue graph_embedding tasks for nodes with NULL embeddings.
+
+        Runs on first idle cycle after startup, then hourly. Catches nodes
+        that failed embedding because the provider was down (e.g., Ollama
+        not running). When the provider comes back, these nodes get embedded
+        automatically — no manual scripts needed.
+
+        Flow: check provider health → find NULL-embedding nodes → enqueue.
+        If the provider is still down, skip silently (no point re-enqueuing
+        tasks that will fail again immediately).
+        """
+        now = time.monotonic()
+        if now - self._last_embedding_backfill < _EMBEDDING_BACKFILL_INTERVAL_S:
+            return
+        self._last_embedding_backfill = now
+
+        try:
+            # Quick health check: can we embed right now?
+            probe = await self._embedding_service.embed("health check")
+            if probe is None:
+                logger.debug(
+                    "MemoryWorker: embedding provider unavailable, skipping backfill"
+                )
+                # Reset timer so we retry sooner (5 min) instead of waiting a full hour
+                self._last_embedding_backfill = now - _EMBEDDING_BACKFILL_INTERVAL_S + 300
+                return
+        except Exception:
+            logger.debug("MemoryWorker: embedding health check failed, skipping backfill")
+            self._last_embedding_backfill = now - _EMBEDDING_BACKFILL_INTERVAL_S + 300
+            return
+
+        try:
+            from sqlalchemy import text
+
+            # SEC-08: Backfill is intentionally cross-workspace (system sweep).
+            # Runs under the worker's service_role connection — no set_rls_context needed.
+            # Individual graph_embedding tasks enqueued below DO set RLS via _process().
+            async with self._session_factory() as session:
+                rows = (
+                    await session.execute(
+                        text(
+                            "SELECT id, workspace_id FROM graph_nodes "
+                            "WHERE embedding IS NULL "
+                            "AND is_deleted = false "
+                            "AND coalesce(content, label, '') != '' "
+                            "ORDER BY created_at DESC "
+                            "LIMIT :batch_limit"
+                        ).bindparams(batch_limit=_EMBEDDING_BACKFILL_BATCH)
+                    )
+                ).fetchall()
+
+            if not rows:
+                return
+
+            enqueued = 0
+            for row in rows:
+                try:
+                    await self.queue.enqueue(
+                        QueueName.AI_NORMAL,
+                        {
+                            "task_type": TASK_GRAPH_EMBEDDING,
+                            "node_id": str(row[0]),
+                            "workspace_id": str(row[1]),
+                        },
+                    )
+                    enqueued += 1
+                except Exception:
+                    break  # Queue issue — stop flooding
+
+            if enqueued > 0:
+                logger.info(
+                    "MemoryWorker: backfill enqueued %d graph_embedding tasks "
+                    "for nodes with missing embeddings",
+                    enqueued,
+                )
+        except Exception:
+            logger.exception("MemoryWorker: embedding backfill sweep failed")
 
     async def _process(self, message: object) -> None:
         """Process a single queue message by routing to the correct handler.
@@ -182,9 +313,14 @@ class MemoryWorker:
             TASK_DOCUMENT_INGESTION,
             TASK_ARTIFACT_CLEANUP,
             TASK_SEND_INVITATION_EMAIL,
+            TASK_SUMMARIZE_NOTE,
         ):
-            logger.debug("MemoryWorker: skipping unknown task_type %s", task_type)
-            await self.queue.nack(
+            logger.warning(
+                "MemoryWorker: unknown task_type %s (msg %s) — moving to dead letter",
+                task_type,
+                msg_id,
+            )
+            await self.queue.move_to_dead_letter(
                 QueueName.AI_NORMAL,
                 msg_id,
                 error=f"Unknown task_type: {task_type}",
@@ -200,6 +336,32 @@ class MemoryWorker:
 
         try:
             async with self._session_factory() as session:
+                if task_type not in _RLS_BYPASS_TASKS:
+                    workspace_id_raw = payload.get("workspace_id")
+                    actor_user_id_raw = payload.get("actor_user_id")
+                    if not workspace_id_raw or not actor_user_id_raw:
+                        logger.error(
+                            "memory_worker.rls_context.missing_identity",
+                            extra={
+                                "task_type": task_type,
+                                "has_workspace": bool(workspace_id_raw),
+                                "has_actor": bool(actor_user_id_raw),
+                            },
+                        )
+                        raise ValueError(  # noqa: TRY301
+                            f"MemoryWorker {task_type}: payload missing "
+                            "workspace_id/actor_user_id (RLS fail-closed)"
+                        )
+                    await set_rls_context(
+                        session,
+                        user_id=UUID(str(actor_user_id_raw)),
+                        workspace_id=UUID(str(workspace_id_raw)),
+                    )
+                else:
+                    logger.debug(
+                        "memory_worker.rls_context.bypass",
+                        extra={"task_type": task_type},
+                    )
                 result = await self._dispatch(task_type, payload, session)
                 await session.commit()
                 await self.queue.ack(QueueName.AI_NORMAL, msg_id)
@@ -314,6 +476,19 @@ class MemoryWorker:
                 return {"task_type": task_type, "deleted_count": 0, "skipped": True}
             count = await run_artifact_cleanup(session, self._storage_client)
             return {"task_type": task_type, "deleted_count": count}
+
+        if task_type == TASK_SUMMARIZE_NOTE:
+            from pilot_space.infrastructure.queue.handlers.summarize_note_handler import (
+                SummarizeNoteHandler,
+            )
+
+            handler = SummarizeNoteHandler(  # type: ignore[assignment]
+                session=session,
+                llm_gateway=self._llm_gateway,  # type: ignore[arg-type]
+                queue=self.queue,
+                redis_client=self._redis_client,
+            )
+            return await handler.handle(payload)
 
         if task_type == TASK_SEND_INVITATION_EMAIL:
             from pilot_space.infrastructure.queue.handlers.invitation_email_handler import (

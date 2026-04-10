@@ -102,6 +102,12 @@ export interface ChatMessage {
     schemaType: string;
     data: Record<string, unknown>;
   };
+  /** Phase 69: Long-term memory sources used by the agent for this message. */
+  memorySources?: Array<{
+    id: string;
+    type: string;
+    score: number;
+  }>;
   /** Citation references from source documents (T58) */
   citations?: Array<{
     sourceType: string;

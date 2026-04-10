@@ -463,7 +463,7 @@ class PermissionAwareHookExecutor:
         agent_name = self._agent_name
         event_queue = self._event_queue
 
-        async def callback(
+        async def callback(  # noqa: PLR0911 — distinct SDK return shapes
             input_data: dict[str, Any],
             tool_use_id: str | None,
             context: Any,
@@ -488,8 +488,37 @@ class PermissionAwareHookExecutor:
                 agent_name=agent_name,
             )
 
+            # Import here to avoid import cycles at module load time
+            from pilot_space.application.services.permissions.exceptions import (
+                PermissionDeniedError,
+            )
+
             try:
                 result = await permission_hook.should_execute(tool_context)
+            except PermissionDeniedError as exc:
+                # Phase 69: tool blocked by workspace policy (mode=deny).
+                # Emit SSE event so the UI can surface a toast, then return
+                # the SDK deny dict (fail-closed).
+                logger.info(
+                    "Tool '%s' denied by workspace policy: %s",
+                    tool_name,
+                    exc,
+                )
+                if event_queue is not None:
+                    await event_queue.put(
+                        {
+                            "type": "tool_denied_by_policy",
+                            "tool_name": tool_name,
+                            "reason": str(exc),
+                        },
+                    )
+                return {
+                    "hookSpecificOutput": {
+                        "hookEventName": hook_event_name,
+                        "permissionDecision": "deny",
+                        "permissionDecisionReason": str(exc),
+                    },
+                }
             except Exception:
                 logger.exception(
                     "Permission check failed for tool '%s'",

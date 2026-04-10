@@ -500,6 +500,7 @@ class UpdateIssueService:
                         "entity_type": "issue",
                         "entity_id": str(issue.id),
                         "workspace_id": str(issue.workspace_id),
+                        "actor_user_id": str(payload.actor_id),
                         "project_id": str(issue.project_id),
                     },
                 )

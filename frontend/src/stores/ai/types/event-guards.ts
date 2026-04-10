@@ -24,6 +24,7 @@ import type {
   ErrorEvent,
   CitationEvent,
   MemoryUpdateEvent,
+  MemoryUsedEvent,
   ToolInputDeltaEvent,
   FocusBlockEvent,
   IntentDetectedEvent,
@@ -200,6 +201,10 @@ export function isCitationEvent(event: SSEEvent): event is CitationEvent {
 
 export function isMemoryUpdateEvent(event: SSEEvent): event is MemoryUpdateEvent {
   return event.type === 'memory_update';
+}
+
+export function isMemoryUsedEvent(event: SSEEvent): event is MemoryUsedEvent {
+  return event.type === 'memory_used';
 }
 
 export function isToolInputDeltaEvent(event: SSEEvent): event is ToolInputDeltaEvent {

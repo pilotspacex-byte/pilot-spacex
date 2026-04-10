@@ -70,6 +70,9 @@ class TaskType(Enum):
     ASSIGNEE_RECOMMENDATION = "assignee_recommendation"
     COMMIT_LINKING = "commit_linking"
 
+    # Memory / summarization (Phase 70-06 — cheap tier, background)
+    MEMORY_SUMMARIZATION = "memory_summarization"
+
     # Embeddings (OpenAI)
     EMBEDDINGS = "embeddings"
     SEMANTIC_SEARCH = "semantic_search"
@@ -290,6 +293,16 @@ class ProviderSelector:
             provider=Provider.ANTHROPIC.value,
             model=ANTHROPIC_HAIKU,
             reason="Parse commit references quickly",
+            fallback_provider=Provider.ANTHROPIC.value,
+            fallback_model=ANTHROPIC_SONNET,
+        ),
+        # Phase 70-06: background note summarization — cheap tier (Haiku).
+        # Runs off the ai_normal queue, never user-facing, so latency does
+        # not matter but cost does.
+        TaskType.MEMORY_SUMMARIZATION: ProviderConfig(
+            provider=Provider.ANTHROPIC.value,
+            model=ANTHROPIC_HAIKU,
+            reason="Background memory summarization — cheap tier (cost-optimized)",
             fallback_provider=Provider.ANTHROPIC.value,
             fallback_model=ANTHROPIC_SONNET,
         ),

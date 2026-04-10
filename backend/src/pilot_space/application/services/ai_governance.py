@@ -194,6 +194,7 @@ class GovernanceRollbackService:
 
         payload = UpdateNotePayload(
             note_id=resource_id,
+            actor_id=_SYSTEM_ACTOR_ID,
             title=before_state.get("title"),
             content=before_state.get("content"),
             summary=before_state.get("summary"),

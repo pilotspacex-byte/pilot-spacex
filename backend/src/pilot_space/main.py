@@ -26,6 +26,8 @@ from pilot_space.api.v1.routers import (
     ai_drive_router,
     ai_extraction_router,
     ai_governance_router,
+    ai_memory_telemetry_router,
+    ai_permissions_router,
     ai_pr_review_router,
     ai_router,
     ai_sessions_router,
@@ -95,6 +97,7 @@ from pilot_space.api.v1.routers import (
     workspace_tasks_router,
     workspaces_router,
 )
+from pilot_space.api.v1.routers.my_projects import router as my_projects_router
 from pilot_space.api.v1.routers.skill_templates import (
     router as skill_templates_router,
 )
@@ -322,6 +325,7 @@ app.include_router(auth_router, prefix=API_V1_PREFIX)
 app.include_router(auth_sso_router, prefix=API_V1_PREFIX)
 app.include_router(custom_roles_router, prefix=API_V1_PREFIX)
 app.include_router(workspaces_router, prefix=API_V1_PREFIX)
+app.include_router(my_projects_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(projects_router, prefix=API_V1_PREFIX)
 app.include_router(issues_router, prefix=API_V1_PREFIX)
 app.include_router(issue_implement_router, prefix=API_V1_PREFIX)
@@ -336,6 +340,14 @@ if ai_router is not None:  # type: ignore[reportUnnecessaryComparison]
 if ai_annotations_router is not None:  # type: ignore[reportUnnecessaryComparison]
     app.include_router(ai_annotations_router, prefix=API_V1_PREFIX)
 app.include_router(ai_approvals_router, prefix=f"{API_V1_PREFIX}/ai")
+app.include_router(
+    ai_permissions_router,
+    prefix=f"{API_V1_PREFIX}/workspaces/{{workspace_id}}/ai/permissions",
+)
+app.include_router(
+    ai_memory_telemetry_router,
+    prefix=f"{API_V1_PREFIX}/workspaces/{{workspace_id}}/ai/memory/telemetry",
+)
 app.include_router(ai_attachments_router, prefix=f"{API_V1_PREFIX}/ai")
 app.include_router(transcription_router, prefix=f"{API_V1_PREFIX}/ai")
 app.include_router(transcription_ws_router, prefix=f"{API_V1_PREFIX}/ai")

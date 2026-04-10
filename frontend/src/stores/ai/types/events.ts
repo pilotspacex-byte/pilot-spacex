@@ -32,6 +32,7 @@ export type SSEEventType =
   | 'tool_audit'
   | 'citation'
   | 'memory_update'
+  | 'memory_used'
   | 'tool_input_delta'
   | 'focus_block'
   | 'error'
@@ -576,6 +577,26 @@ export interface CitationEvent extends SSEEvent {
   };
 }
 
+/**
+ * Phase 69: Memory recall event — emitted before assistant text when long-term
+ * memory recall returned items used to ground the response. Carries source
+ * provenance for the inline `MemoryUsedChip` UI.
+ */
+export interface MemoryUsedSource {
+  id: string;
+  type: string;
+  score: number;
+}
+
+export interface MemoryUsedEvent extends SSEEvent {
+  type: 'memory_used';
+  data: {
+    /** Optional message correlation. */
+    messageId?: string;
+    sources: MemoryUsedSource[];
+  };
+}
+
 /** T57: Memory update event from cross-session memory tool. */
 export interface MemoryUpdateEvent extends SSEEvent {
   type: 'memory_update';
@@ -721,6 +742,7 @@ export {
   isErrorEvent,
   isCitationEvent,
   isMemoryUpdateEvent,
+  isMemoryUsedEvent,
   isToolInputDeltaEvent,
   isFocusBlockEvent,
   isIntentDetectedEvent,

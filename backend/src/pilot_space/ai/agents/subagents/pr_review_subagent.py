@@ -13,6 +13,7 @@ Design Decision: DD-006 (Unified AI PR Review)
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from dataclasses import dataclass
@@ -36,6 +37,8 @@ if TYPE_CHECKING:
     from pilot_space.ai.infrastructure.key_storage import SecureKeyStorage
     from pilot_space.ai.infrastructure.resilience import ResilientExecutor
     from pilot_space.ai.providers.provider_selector import ProviderSelector
+    from pilot_space.api.v1.schemas.pr_review import ReviewComment
+    from pilot_space.infrastructure.queue.supabase_queue import SupabaseQueueClient
 
 
 @dataclass
@@ -159,6 +162,7 @@ class PRReviewSubagent(StreamingSDKBaseAgent[PRReviewInput, PRReviewOutput]):
         cost_tracker: CostTracker,
         resilient_executor: ResilientExecutor,
         key_storage: SecureKeyStorage | None = None,
+        queue_client: SupabaseQueueClient | None = None,
     ) -> None:
         super().__init__(
             provider_selector=provider_selector,
@@ -166,6 +170,81 @@ class PRReviewSubagent(StreamingSDKBaseAgent[PRReviewInput, PRReviewOutput]):
             resilient_executor=resilient_executor,
         )
         self._key_storage = key_storage
+        # PROD-03: queue client for the pr_review_finding memory producer.
+        # Optional — if not wired, ``emit_review_findings`` becomes a no-op
+        # (counted as ``dropped{enqueue_error}``) and the subagent's primary
+        # review flow is unaffected.
+        self._queue_client = queue_client
+
+    def emit_review_findings(
+        self,
+        *,
+        context: AgentContext,
+        repo: str,
+        pr_number: int,
+        comments: list[ReviewComment],
+        enabled: bool = True,
+    ) -> asyncio.Task[None] | None:
+        """Schedule the ``pr_review_finding`` memory producer.
+
+        PROD-03 seam. Fire-and-forget: returns the background task so the
+        caller (and tests) can optionally drain it, but the subagent's own
+        streaming flow never awaits it. All failures are swallowed inside
+        the producer and logged as telemetry counters.
+
+        Args:
+            context: Agent execution context (provides workspace + user).
+            repo: Repository in ``owner/name`` format.
+            pr_number: Pull request number.
+            comments: Review comments to flatten into memory jobs.
+            enabled: Wave 3 opt-out flag (default ``True``). Wave 3 (plan
+                70-06) threads the real ``workspace_ai_settings`` flag.
+
+        Returns:
+            The scheduled ``asyncio.Task`` on success, or ``None`` if the
+            scheduling itself failed (defensive — should never happen).
+        """
+        try:
+            from pilot_space.ai.memory.producers.pr_review_finding_producer import (
+                enqueue_pr_review_findings,
+            )
+
+            async def _gated_enqueue() -> None:
+                """Phase 70-06: resolve the workspace opt-out flag at
+                call time, then delegate to the producer. Runs in the
+                background task so the sync emit_review_findings entry
+                point stays non-blocking."""
+                resolved_enabled = enabled
+                try:
+                    from pilot_space.application.services.workspace_ai_settings_toggles import (
+                        get_producer_toggles,
+                    )
+                    from pilot_space.infrastructure.database import get_db_session
+
+                    async with get_db_session() as _s:
+                        _toggles = await get_producer_toggles(_s, context.workspace_id)
+                    resolved_enabled = enabled and _toggles.pr_review_finding
+                except Exception:
+                    _logger.exception(
+                        "pr_review_finding producer: settings read failed "
+                        "(workspace=%s) — falling back to enabled=%s",
+                        context.workspace_id,
+                        enabled,
+                    )
+                await enqueue_pr_review_findings(
+                    queue_client=self._queue_client,
+                    workspace_id=context.workspace_id,
+                    actor_user_id=context.user_id,
+                    repo=repo,
+                    pr_number=pr_number,
+                    comments=comments,
+                    enabled=resolved_enabled,
+                )
+
+            return asyncio.create_task(_gated_enqueue())
+        except Exception:
+            _logger.exception("pr_review_finding_producer_schedule_failed")
+            return None
 
     def get_system_prompt(self) -> str:
         """Get system prompt for PR review.

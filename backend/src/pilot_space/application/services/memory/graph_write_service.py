@@ -108,6 +108,7 @@ class GraphWritePayload:
 
     workspace_id: UUID
     nodes: list[NodeInput]
+    actor_user_id: UUID
     edges: list[EdgeInput] = field(default_factory=list)
     user_id: UUID | None = None
     issue_id: UUID | None = None
@@ -142,6 +143,7 @@ class GraphWriteService:
         service = GraphWriteService(knowledge_graph_repository, queue_client, session)
         result = await service.execute(GraphWritePayload(
             workspace_id=workspace_id,
+            actor_user_id=user_id,
             nodes=[NodeInput(node_type=NodeType.ISSUE, label="PS-1", content="...")],
         ))
     """
@@ -242,7 +244,7 @@ class GraphWriteService:
         # doesn't leave nodes without embeddings (C-2 fix)
         node_ids = [n.id for n in persisted_nodes]
         embedding_enqueued = (
-            await self._enqueue_embedding_jobs(node_ids, payload.workspace_id)
+            await self._enqueue_embedding_jobs(node_ids, payload.workspace_id, payload.actor_user_id)
             if self._queue is not None
             else False
         )
@@ -417,7 +419,9 @@ class GraphWriteService:
                     )
         return auto_edges
 
-    async def _enqueue_embedding_jobs(self, node_ids: list[UUID], workspace_id: UUID) -> bool:
+    async def _enqueue_embedding_jobs(
+        self, node_ids: list[UUID], workspace_id: UUID, actor_user_id: UUID
+    ) -> bool:
         """Enqueue graph_embedding jobs for all persisted nodes in parallel.
 
         Concurrency is bounded by a semaphore (max 10 in-flight) to prevent
@@ -426,6 +430,7 @@ class GraphWriteService:
         Args:
             node_ids: Node UUIDs to embed.
             workspace_id: Workspace for context.
+            actor_user_id: Acting user id for RLS context.
 
         Returns:
             True if all jobs enqueued successfully, False if any failed.
@@ -439,6 +444,7 @@ class GraphWriteService:
                     "task_type": _GRAPH_EMBEDDING_TASK_TYPE,
                     "node_id": str(node_id),
                     "workspace_id": str(workspace_id),
+                    "actor_user_id": str(actor_user_id),
                     "enqueued_at": enqueued_at,
                 }
                 try:

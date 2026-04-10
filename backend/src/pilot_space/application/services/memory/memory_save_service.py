@@ -48,6 +48,7 @@ class MemorySavePayload:
     workspace_id: UUID
     content: str
     source_type: MemorySourceType
+    actor_user_id: UUID
     source_id: UUID | None = None
     pinned: bool = False
     expires_at: datetime | None = None
@@ -135,7 +136,7 @@ class MemorySaveService:
         entry_id = created.id  # type: ignore[assignment]
 
         # Enqueue embedding generation (J-3) — fire and forget
-        enqueued = await self._enqueue_embedding(entry_id, payload.workspace_id)
+        enqueued = await self._enqueue_embedding(entry_id, payload.workspace_id, payload.actor_user_id)
 
         logger.info(
             "MemorySaveService: persisted entry %s for workspace %s (embedding_enqueued=%s)",
@@ -150,12 +151,15 @@ class MemorySaveService:
             embedding_enqueued=enqueued,
         )
 
-    async def _enqueue_embedding(self, entry_id: UUID, workspace_id: UUID) -> bool:
+    async def _enqueue_embedding(
+        self, entry_id: UUID, workspace_id: UUID, actor_user_id: UUID
+    ) -> bool:
         """Enqueue memory embedding job to ai_normal queue.
 
         Args:
             entry_id: MemoryEntry UUID to embed.
             workspace_id: Workspace for context.
+            actor_user_id: Acting user id for RLS context.
 
         Returns:
             True if enqueued successfully, False on failure.
@@ -164,6 +168,7 @@ class MemorySaveService:
             "task_type": _MEMORY_EMBEDDING_TASK_TYPE,
             "entry_id": str(entry_id),
             "workspace_id": str(workspace_id),
+            "actor_user_id": str(actor_user_id),
             "table": _MEMORY_TABLE,
             "enqueued_at": datetime.now(tz=UTC).isoformat(),
         }

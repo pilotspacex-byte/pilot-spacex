@@ -121,6 +121,9 @@ export class PilotSpaceStore {
   /** Pending citations buffered during streaming (T64 — consumed by message_stop) */
   private _pendingCitations: ChatMessage['citations'] = [];
 
+  /** Phase 69: Pending memory sources buffered from `memory_used` SSE event. */
+  private _pendingMemorySources: ChatMessage['memorySources'] = [];
+
   /** Last memory update from cross-session memory tool (T73) */
   lastMemoryUpdate: MemoryUpdateEvent['data'] | null = null;
 
@@ -435,6 +438,21 @@ export class PilotSpaceStore {
     const citations = this._pendingCitations;
     this._pendingCitations = [];
     return citations;
+  }
+
+  /** Phase 69: Append memory sources from a `memory_used` SSE event. */
+  addPendingMemorySources(
+    sources: NonNullable<ChatMessage['memorySources']>
+  ): void {
+    this._pendingMemorySources = [...(this._pendingMemorySources ?? []), ...sources];
+  }
+
+  /** Consume and clear all pending memory sources (called on message_stop). */
+  consumePendingMemorySources(): ChatMessage['memorySources'] | undefined {
+    if (!this._pendingMemorySources || this._pendingMemorySources.length === 0) return undefined;
+    const sources = this._pendingMemorySources;
+    this._pendingMemorySources = [];
+    return sources;
   }
 
   // Actions - Pending AI Block IDs (tool_use → auto-scroll)

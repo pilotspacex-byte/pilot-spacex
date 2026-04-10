@@ -75,6 +75,15 @@ from pilot_space.application.services.mcp_tool_execution import MCPToolExecution
 from pilot_space.application.services.memory.knowledge_graph_query_service import (
     KnowledgeGraphQueryService,
 )
+from pilot_space.application.services.memory.memory_lifecycle_service import (
+    MemoryLifecycleService,
+)
+from pilot_space.application.services.memory.memory_list_service import (
+    MemoryListService,
+)
+from pilot_space.application.services.memory.memory_recall_service import (
+    MemoryRecallService,
+)
 from pilot_space.application.services.note import (
     CreateNoteFromChatService,
     CreateNoteService,
@@ -96,6 +105,7 @@ from pilot_space.application.services.onboarding import (
     GetOnboardingService,
     UpdateOnboardingService,
 )
+from pilot_space.application.services.permissions.permission_service import PermissionService
 from pilot_space.application.services.plugin_lifecycle import PluginLifecycleService
 from pilot_space.application.services.pm_block_insight_service import PMBlockInsightService
 from pilot_space.application.services.project_detail import ProjectDetailService
@@ -981,6 +991,41 @@ OcrConfigurationServiceDep = Annotated[
 ]
 
 
+# ===== Phase 69 Memory Services =====
+
+
+@inject
+def _get_memory_recall_service(
+    svc: MemoryRecallService = Depends(Provide[Container.memory_recall_service]),
+) -> MemoryRecallService:
+    return svc
+
+
+MemoryRecallServiceDep = Annotated[MemoryRecallService, Depends(_get_memory_recall_service)]
+
+
+@inject
+def _get_memory_lifecycle_service(
+    svc: MemoryLifecycleService = Depends(Provide[Container.memory_lifecycle_service]),
+) -> MemoryLifecycleService:
+    return svc
+
+
+MemoryLifecycleServiceDep = Annotated[
+    MemoryLifecycleService, Depends(_get_memory_lifecycle_service)
+]
+
+
+@inject
+def _get_memory_list_service(
+    svc: MemoryListService = Depends(Provide[Container.memory_list_service]),
+) -> MemoryListService:
+    return svc
+
+
+MemoryListServiceDep = Annotated[MemoryListService, Depends(_get_memory_list_service)]
+
+
 __all__ = [  # noqa: RUF022
     "ActionButtonServiceDep",
     "ActivityRepositoryDep",
@@ -1073,6 +1118,10 @@ __all__ = [  # noqa: RUF022
     "OcrConfigurationServiceDep",
     "PluginLifecycleServiceDep",
     "ArtifactContentServiceDep",
+    "PermissionServiceDep",
+    "MemoryRecallServiceDep",
+    "MemoryLifecycleServiceDep",
+    "MemoryListServiceDep",
 ]
 
 
@@ -1263,3 +1312,16 @@ def _get_artifact_content_service(
 ArtifactContentServiceDep = Annotated[
     ArtifactContentService, Depends(_get_artifact_content_service)
 ]
+
+
+# ===== Permission Service Dependencies (Phase 69 — 69-03) =====
+
+
+@inject
+def _get_permission_service(
+    svc: PermissionService = Depends(Provide[Container.permission_service]),
+) -> PermissionService:
+    return svc
+
+
+PermissionServiceDep = Annotated[PermissionService, Depends(_get_permission_service)]

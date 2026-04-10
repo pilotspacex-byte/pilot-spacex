@@ -95,6 +95,7 @@ from pilot_space.infrastructure.database.models.onboarding import WorkspaceOnboa
 from pilot_space.infrastructure.database.models.pilot_api_key import PilotAPIKey
 from pilot_space.infrastructure.database.models.pm_block_insight import PMBlockInsight
 from pilot_space.infrastructure.database.models.project import Project
+from pilot_space.infrastructure.database.models.project_member import ProjectMember
 from pilot_space.infrastructure.database.models.skill_action_button import (
     BindingType,
     SkillActionButton,
@@ -115,6 +116,9 @@ from pilot_space.infrastructure.database.models.template import Template
 from pilot_space.infrastructure.database.models.threaded_discussion import (
     DiscussionStatus,
     ThreadedDiscussion,
+)
+from pilot_space.infrastructure.database.models.tool_permission_audit_log import (
+    ToolPermissionAuditLog,
 )
 from pilot_space.infrastructure.database.models.transcript_cache import TranscriptCache
 from pilot_space.infrastructure.database.models.user import User
@@ -155,6 +159,9 @@ from pilot_space.infrastructure.database.models.workspace_member import (
 from pilot_space.infrastructure.database.models.workspace_plugin import WorkspacePlugin
 from pilot_space.infrastructure.database.models.workspace_role_skill import WorkspaceRoleSkill
 from pilot_space.infrastructure.database.models.workspace_session import WorkspaceSession
+from pilot_space.infrastructure.database.models.workspace_tool_permission import (
+    WorkspaceToolPermission,
+)
 
 __all__ = [
     "DEFAULT_STATES",
@@ -228,6 +235,7 @@ __all__ = [
     "PMBlockInsight",
     "PilotAPIKey",
     "Project",
+    "ProjectMember",
     "RoleTemplate",
     "SkillActionButton",
     "SkillApprovalRole",
@@ -244,6 +252,7 @@ __all__ = [
     "ThreadedDiscussion",
     "TimestampMixin",
     "ToolCallStatus",
+    "ToolPermissionAuditLog",
     "TranscriptCache",
     "User",
     "UserRoleSkill",
@@ -266,5 +275,6 @@ __all__ = [
     "WorkspaceScopedMixin",
     "WorkspaceScopedModel",
     "WorkspaceSession",
+    "WorkspaceToolPermission",
     "issue_labels",
 ]

@@ -378,6 +378,7 @@ async def update_workspace_note(
     # Execute service — pass UNSET for icon_emoji when omitted to distinguish from explicit null
     payload = UpdateNotePayload(
         note_id=note_id,
+        actor_id=current_user_id,
         title=update_data.get("title"),
         content=content_dict,
         summary=update_data.get("summary"),

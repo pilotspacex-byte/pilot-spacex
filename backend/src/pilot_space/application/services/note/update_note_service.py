@@ -226,6 +226,7 @@ class UpdateNoteService:
                         "entity_type": "note",
                         "entity_id": str(updated_note.id),
                         "workspace_id": str(updated_note.workspace_id),
+                        "actor_user_id": str(payload.actor_id or updated_note.owner_id),
                         "project_id": str(updated_note.project_id),
                     },
                 )

@@ -77,6 +77,7 @@ class _DocumentIngestionPayload:
     workspace_id: UUID
     project_id: UUID
     attachment_id: UUID
+    actor_user_id: UUID
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> _DocumentIngestionPayload:
@@ -84,6 +85,7 @@ class _DocumentIngestionPayload:
             workspace_id=UUID(d["workspace_id"]),
             project_id=UUID(d["project_id"]),
             attachment_id=UUID(d["attachment_id"]),
+            actor_user_id=UUID(d["actor_user_id"]),
         )
 
 
@@ -229,6 +231,7 @@ class DocumentIngestionHandler:
         parent_result = await write_svc.execute(
             GraphWritePayload(
                 workspace_id=p.workspace_id,
+                actor_user_id=p.actor_user_id,
                 nodes=[
                     NodeInput(
                         node_type=NodeType.DOCUMENT,
@@ -296,6 +299,7 @@ class DocumentIngestionHandler:
             chunk_result = await write_svc.execute(
                 GraphWritePayload(
                     workspace_id=p.workspace_id,
+                    actor_user_id=p.actor_user_id,
                     nodes=chunk_nodes,
                 )
             )

@@ -184,7 +184,7 @@ async def create_project(
         },
     )
 
-    await detail_service.enqueue_kg_populate(project)
+    await detail_service.enqueue_kg_populate(project, current_user.user_id)
 
     total_count, open_count = await detail_service.get_issue_counts(project.id)
     return _build_detail_response(project, total_count, open_count)
@@ -234,7 +234,7 @@ async def update_project(
 
         kg_relevant_fields = {"name", "description"}
         if kg_relevant_fields & set(update_data.keys()):
-            await detail_service.enqueue_kg_populate(project)
+            await detail_service.enqueue_kg_populate(project, current_user.user_id)
 
     logger.info("Project updated", extra={"project_id": str(project_id)})
 
