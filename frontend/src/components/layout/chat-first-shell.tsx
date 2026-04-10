@@ -2,12 +2,17 @@
 
 import { useEffect } from 'react';
 import { observer } from 'mobx-react-lite';
+import { AnimatePresence, motion } from 'motion/react';
+import { Menu } from 'lucide-react';
 import { useUIStore } from '@/stores';
+import { useResponsive } from '@/hooks/useMediaQuery';
 import { ConversationSidebar } from './conversation-sidebar';
 import { ArtifactPanel } from './artifact-panel';
 import { CommandPalette } from '@/components/search/CommandPalette';
 import { useCommandPaletteShortcut } from '@/hooks/useCommandPaletteShortcut';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@/components/ui/resizable';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import type { ReactNode } from 'react';
 
 interface ChatFirstShellProps {
@@ -18,6 +23,7 @@ export const ChatFirstShell = observer(function ChatFirstShell({
   children,
 }: ChatFirstShellProps) {
   const uiStore = useUIStore();
+  const { isMobile, isTablet } = useResponsive();
 
   useEffect(() => {
     uiStore.hydrate();
@@ -25,7 +31,15 @@ export const ChatFirstShell = observer(function ChatFirstShell({
 
   useCommandPaletteShortcut();
 
+  // Auto-collapse sidebar on mobile/tablet
+  useEffect(() => {
+    if (isMobile || isTablet) {
+      uiStore.setSidebarCollapsed(true);
+    }
+  }, [isMobile, isTablet, uiStore]);
+
   const showArtifactPanel = uiStore.layoutMode !== 'chat-first';
+  const sidebarCollapsed = uiStore.sidebarCollapsed;
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">
@@ -38,7 +52,53 @@ export const ChatFirstShell = observer(function ChatFirstShell({
         Skip to main content
       </a>
 
-      <ConversationSidebar />
+      {/* Mobile sidebar overlay */}
+      <AnimatePresence>
+        {isMobile && !sidebarCollapsed && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 bg-black/50"
+            onClick={() => uiStore.setSidebarCollapsed(true)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Sidebar — fixed on mobile, flex on desktop */}
+      <div className={cn(isMobile && !sidebarCollapsed && 'fixed left-0 top-0 z-50 h-full')}>
+        <ConversationSidebar />
+      </div>
+
+      {/* Sidebar expand button when collapsed (desktop only) */}
+      {sidebarCollapsed && !isMobile && (
+        <div className="flex shrink-0 items-start pt-2 pl-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => uiStore.setSidebarCollapsed(false)}
+            aria-label="Open sidebar"
+          >
+            <Menu className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
+      {/* Mobile menu button */}
+      {isMobile && sidebarCollapsed && (
+        <div className="fixed top-2 left-2 z-30">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 bg-background/80 backdrop-blur-sm"
+            onClick={() => uiStore.setSidebarCollapsed(false)}
+            aria-label="Open sidebar"
+          >
+            <Menu className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
 
       {showArtifactPanel ? (
         <ResizablePanelGroup orientation="horizontal" className="flex-1">
