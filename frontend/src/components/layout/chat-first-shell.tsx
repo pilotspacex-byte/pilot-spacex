@@ -25,6 +25,7 @@ export const ChatFirstShell = observer(function ChatFirstShell({
 }: ChatFirstShellProps) {
   const uiStore = useUIStore();
   const { isMobile, isTablet } = useResponsive();
+  const isSmallScreen = isMobile || isTablet;
 
   // When the current route maps to an artifact, render children in the artifact panel
   const isRouteArtifact = useRouteArtifact(true);
@@ -37,19 +38,13 @@ export const ChatFirstShell = observer(function ChatFirstShell({
 
   // Auto-collapse sidebar on mobile/tablet
   useEffect(() => {
-    if (isMobile || isTablet) {
+    if (isSmallScreen) {
       uiStore.setSidebarCollapsed(true);
     }
-  }, [isMobile, isTablet, uiStore]);
+  }, [isSmallScreen, uiStore]);
 
-  const showArtifactPanel = uiStore.layoutMode !== 'chat-first';
+  const showArtifactPanel = uiStore.layoutMode !== 'chat-first' && !isSmallScreen;
   const sidebarCollapsed = uiStore.sidebarCollapsed;
-
-  // Determine where to render children:
-  // - If current route is an artifact (notes, issues, etc.), render in artifact panel
-  // - Otherwise (homepage), render in the chat/main column
-  const chatColumnContent = isRouteArtifact ? null : children;
-  const artifactContent = isRouteArtifact ? children : null;
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">
@@ -75,7 +70,7 @@ export const ChatFirstShell = observer(function ChatFirstShell({
         )}
       </AnimatePresence>
 
-      {/* Sidebar */}
+      {/* Sidebar — overlay on mobile, inline on desktop */}
       <div className={cn(isMobile && !sidebarCollapsed && 'fixed left-0 top-0 z-50 h-full')}>
         <ConversationSidebar />
       </div>
@@ -110,7 +105,14 @@ export const ChatFirstShell = observer(function ChatFirstShell({
         </div>
       )}
 
-      {showArtifactPanel ? (
+      {/* Main content area */}
+      {isSmallScreen ? (
+        // Mobile/tablet: full-screen, no split panel
+        <main id="main-content" className="flex-1 overflow-auto">
+          {children}
+        </main>
+      ) : showArtifactPanel ? (
+        // Desktop with artifact panel: split view
         <ResizablePanelGroup orientation="horizontal" className="flex-1">
           <ResizablePanel
             id="chat-column"
@@ -119,7 +121,7 @@ export const ChatFirstShell = observer(function ChatFirstShell({
             className="min-w-0"
           >
             <main id="main-content" className="h-full overflow-auto">
-              {chatColumnContent}
+              {isRouteArtifact ? null : children}
             </main>
           </ResizablePanel>
 
@@ -132,13 +134,14 @@ export const ChatFirstShell = observer(function ChatFirstShell({
             className="min-w-0"
           >
             <ArtifactPanel>
-              {artifactContent}
+              {isRouteArtifact ? children : null}
             </ArtifactPanel>
           </ResizablePanel>
         </ResizablePanelGroup>
       ) : (
+        // Desktop without artifact: full-width main content
         <main id="main-content" className="flex-1 overflow-auto">
-          {chatColumnContent ?? children}
+          {children}
         </main>
       )}
     </div>
