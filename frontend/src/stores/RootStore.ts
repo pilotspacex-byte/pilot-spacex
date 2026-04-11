@@ -14,6 +14,7 @@ import { RoleSkillStore } from './RoleSkillStore';
 import { TaskStore } from '@/stores/TaskStore';
 import { IssueViewStore } from './features/issues/IssueViewStore';
 import { ArtifactStore } from './features/artifacts/ArtifactStore';
+import { ArtifactPanelStore } from './ArtifactPanelStore';
 import { FileStore } from '@/features/code/stores/FileStore';
 import { GitStore } from '@/features/code/stores/GitStore';
 import { workspacesApi } from '@/services/api/workspaces';
@@ -32,6 +33,7 @@ export class RootStore {
   tasks: TaskStore;
   issueView: IssueViewStore;
   artifacts: ArtifactStore;
+  artifactPanel: ArtifactPanelStore;
   files: FileStore;
   git: GitStore;
 
@@ -49,6 +51,7 @@ export class RootStore {
     this.tasks = new TaskStore();
     this.issueView = new IssueViewStore();
     this.artifacts = new ArtifactStore();
+    this.artifactPanel = new ArtifactPanelStore();
     this.files = new FileStore();
     this.git = new GitStore();
 
@@ -70,6 +73,7 @@ export class RootStore {
     this.tasks.reset();
     this.issueView.reset();
     this.artifacts.reset();
+    this.artifactPanel.reset();
     this.files.reset();
     this.git.reset();
   }
@@ -149,6 +153,11 @@ export function useIssueViewStore(): IssueViewStore {
 /** Hook to access the ArtifactStore from context. */
 export function useArtifactStore(): ArtifactStore {
   return useStores().artifacts;
+}
+
+/** Hook to access the ArtifactPanelStore from context. */
+export function useArtifactPanelStore(): ArtifactPanelStore {
+  return useStores().artifactPanel;
 }
 
 /** Hook to access the FileStore from context. */

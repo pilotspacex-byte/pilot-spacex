@@ -143,6 +143,7 @@ export interface WorkspaceFeatureToggles {
   skills: boolean;
   costs: boolean;
   approvals: boolean;
+  layout_v2: boolean;
 }
 
 export const DEFAULT_FEATURE_TOGGLES: WorkspaceFeatureToggles = {
@@ -155,4 +156,5 @@ export const DEFAULT_FEATURE_TOGGLES: WorkspaceFeatureToggles = {
   skills: true,
   costs: true,
   approvals: true,
+  layout_v2: false,
 };

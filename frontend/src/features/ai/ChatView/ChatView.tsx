@@ -79,6 +79,9 @@ interface ChatViewProps {
   noteHeadings?: HeadingItem[];
   /** Callback when user selects a section via # menu — sets note context to section blocks */
   onSelectSection?: (heading: HeadingItem) => void;
+  /** When true, don't auto-resume/clear conversations on context changes.
+   *  Used by ChatFirstShell's persistent ChatView which lives across page navigations. */
+  persistentMode?: boolean;
   className?: string;
 }
 
@@ -96,6 +99,7 @@ const ChatViewInternal = observer<ChatViewProps>(
     prefillValue,
     noteHeadings,
     onSelectSection,
+    persistentMode,
     className,
   }) => {
     const [inputValue, setInputValue] = useState('');
@@ -182,15 +186,17 @@ const ChatViewInternal = observer<ChatViewProps>(
     }, [initialPrompt, store]);
 
     // Pre-fill the input field from prefillValue prop (e.g., ?prefill=/skill-creator).
-    // Re-applies when prefillValue changes to a new truthy string, but won't
-    // overwrite user edits for the same prefill value.
+    // Only applies when input is empty to avoid overwriting user's in-progress text.
     const lastPrefillRef = useRef<string | null>(null);
     useEffect(() => {
       if (prefillValue && prefillValue !== lastPrefillRef.current) {
         lastPrefillRef.current = prefillValue;
-        setInputValue(prefillValue);
+        // Only prefill if user hasn't typed anything
+        if (!inputValue.trim()) {
+          setInputValue(prefillValue);
+        }
       }
-    }, [prefillValue]);
+    }, [prefillValue, inputValue]);
 
     // Track which note context has been loaded to avoid redundant fetches
     const loadedContextRef = useRef<string | null>(null);
@@ -213,7 +219,10 @@ const ChatViewInternal = observer<ChatViewProps>(
 
     // Auto-resume most recent session for context on mount/context change.
     // Falls back to fresh conversation if no matching session exists.
+    // Skipped in persistentMode (ChatFirstShell's persistent ChatView).
     useEffect(() => {
+      if (persistentMode) return;
+
       const noteId = store.noteContext?.noteId;
 
       // Skip if context hasn't changed
@@ -267,7 +276,7 @@ const ChatViewInternal = observer<ChatViewProps>(
       };
 
       autoResumeSession();
-    }, [store.noteContext?.noteId, sessionListStore, store]);
+    }, [store.noteContext?.noteId, sessionListStore, store, persistentMode]);
 
     // Convert TaskState to AgentTask for TaskPanel with progress data.
     // Uses MobX computed agentTaskList to avoid useMemo([store.tasks]) re-creating
@@ -390,9 +399,19 @@ const ChatViewInternal = observer<ChatViewProps>(
       [store, approvalStore]
     );
 
-    const handleSuggestedPrompt = useCallback((prompt: string) => {
-      setInputValue(prompt);
-    }, []);
+    const handleSuggestedPrompt = useCallback(
+      async (prompt: string) => {
+        // Auto-send suggested prompts immediately (Claude.ai pattern)
+        try {
+          await store.sendMessage(prompt);
+        } catch (error) {
+          // Fallback: prefill input so user can retry manually
+          setInputValue(prompt);
+          store.error = error instanceof Error ? error.message : 'Failed to send message';
+        }
+      },
+      [store]
+    );
 
     const handleNewSession = useCallback(() => {
       store.clear();

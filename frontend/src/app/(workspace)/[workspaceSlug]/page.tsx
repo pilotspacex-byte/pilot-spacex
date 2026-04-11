@@ -3,6 +3,7 @@
 import { use } from 'react';
 import { observer } from 'mobx-react-lite';
 import { useWorkspace } from '@/components/workspace-guard';
+import { useWorkspaceStore } from '@/stores';
 import { OnboardingChecklist } from '@/features/onboarding';
 import { HomepageHub } from '@/features/homepage';
 
@@ -10,21 +11,24 @@ interface WorkspaceHomePageProps {
   params: Promise<{ workspaceSlug: string }>;
 }
 
+/**
+ * Workspace homepage.
+ *
+ * When layout_v2 is OFF: renders the traditional HomepageHub (DailyBrief + ChatView).
+ * When layout_v2 is ON: renders nothing — ChatFirstShell owns the persistent ChatView
+ * in the chat column and shows ChatEmptyState as its empty slot.
+ */
 const WorkspaceHomePage = observer(function WorkspaceHomePage({ params }: WorkspaceHomePageProps) {
   const { workspaceSlug } = use(params);
   const { workspace } = useWorkspace();
-  // workspace.id is always a UUID — WorkspaceGuard resolves it from the API
-  // before rendering children. This avoids the BUG-01 race condition where
-  // workspaceStore.currentWorkspace?.id could be null on the first render,
-  // causing the slug string to be passed to OnboardingChecklist instead.
+  const workspaceStore = useWorkspaceStore();
+  const useV2Layout = workspaceStore.isFeatureEnabled('layout_v2');
 
   return (
     <div className="flex h-full flex-col">
-      {/* Onboarding Modal (renders as Dialog, no layout space) */}
       <OnboardingChecklist workspaceId={workspace.id} workspaceSlug={workspaceSlug} />
 
-      {/* Homepage Hub — 2-panel layout: DailyBrief + ChatView */}
-      <HomepageHub workspaceSlug={workspaceSlug} />
+      {!useV2Layout && <HomepageHub workspaceSlug={workspaceSlug} />}
     </div>
   );
 });

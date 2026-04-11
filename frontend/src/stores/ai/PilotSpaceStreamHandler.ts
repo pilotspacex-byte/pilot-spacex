@@ -710,6 +710,13 @@ export class PilotSpaceStreamHandler {
 
   /** Extract a human-friendly error message from potentially nested API error JSON. */
   private parseErrorMessage(errorCode: string, rawMessage: string): string {
+    // Detect missing API key (BYOK not configured) — guide user to settings
+    const statusMatch = rawMessage.match(/API Error:\s*(\d+)/i);
+    const httpStatus = statusMatch?.[1] ? parseInt(statusMatch[1], 10) : 0;
+    if (httpStatus === 401 || httpStatus === 403 || /unauthorized|forbidden|not.?configured/i.test(rawMessage)) {
+      return 'AI features require an API key. Go to Settings \u2192 AI Providers to configure your key.';
+    }
+
     // Try to extract nested JSON error (e.g. "API Error: 429 {\"type\":\"error\",...}")
     const jsonMatch = rawMessage.match(/\{[\s\S]*\}/);
     if (jsonMatch) {

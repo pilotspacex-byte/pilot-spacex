@@ -5,7 +5,7 @@
  * @route /[workspaceSlug]/chat
  */
 import { useEffect } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { observer } from 'mobx-react-lite';
 import { ChatView } from '@/features/ai/ChatView';
 import { getAIStore } from '@/stores/ai/AIStore';
@@ -22,6 +22,15 @@ export default observer(function ChatPage() {
   const slug = params.workspaceSlug;
   const searchParams = useSearchParams();
   const prefill = searchParams.get('prefill') ?? undefined;
+  const router = useRouter();
+
+  // Redirect to workspace root when layout_v2 is active (chat IS the homepage)
+  const useV2Layout = workspaceStore.isFeatureEnabled('layout_v2');
+  useEffect(() => {
+    if (useV2Layout && slug) {
+      router.replace(`/${slug}`);
+    }
+  }, [useV2Layout, slug, router]);
 
   // Ensure workspaces are loaded so slug→UUID resolution works
   useEffect(() => {

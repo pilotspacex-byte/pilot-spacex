@@ -15,6 +15,7 @@ export {
   useAIStore,
   useTaskStore,
   useArtifactStore,
+  useArtifactPanelStore,
 } from './RootStore';
 
 // Auth Store
@@ -49,6 +50,8 @@ export { IssueStore, issueStore } from './features/issues/IssueStore';
 export { IssueViewStore, issueViewStore } from './features/issues/IssueViewStore';
 export { TaskStore } from './TaskStore';
 export { ArtifactStore } from './features/artifacts/ArtifactStore';
+export { ArtifactPanelStore } from './ArtifactPanelStore';
+export type { ArtifactTab, LayoutMode } from './ArtifactPanelStore';
 
 // AI Stores
 export {

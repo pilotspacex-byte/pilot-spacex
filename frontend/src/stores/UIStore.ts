@@ -2,6 +2,7 @@
 
 import { makeAutoObservable, observable, reaction, computed, type IReactionDisposer } from 'mobx';
 import { generateUUID } from '@/lib/utils';
+import type { LayoutMode } from './ArtifactPanelStore';
 
 export type Theme = 'light' | 'dark' | 'system';
 
@@ -30,6 +31,9 @@ interface PersistedUIState {
   marginPanelWidth: number;
   theme: Theme;
   expandedNodes: string[];
+  layoutMode?: LayoutMode;
+  artifactPanelSize?: number;
+  chatColumnSize?: number;
 }
 
 export class UIStore {
@@ -41,6 +45,9 @@ export class UIStore {
   searchModalOpen = false;
   isFocusMode = false;
   hydrated = false;
+  layoutMode: LayoutMode = 'chat-first';
+  artifactPanelSize = 60;
+  chatColumnSize = 40;
 
   modals: Map<string, ModalState> = new Map();
   toasts: Toast[] = [];
@@ -103,6 +110,9 @@ export class UIStore {
         this.sidebarWidth = state.sidebarWidth ?? 260;
         this.marginPanelWidth = state.marginPanelWidth ?? 200;
         this.theme = state.theme ?? 'system';
+        this.layoutMode = state.layoutMode ?? 'chat-first';
+        this.artifactPanelSize = state.artifactPanelSize ?? 60;
+        this.chatColumnSize = state.chatColumnSize ?? 40;
         // Restore expanded nodes from persisted string array
         if (Array.isArray(state.expandedNodes)) {
           this.expandedNodes = new Set<string>(state.expandedNodes);
@@ -120,6 +130,9 @@ export class UIStore {
         sidebarWidth: this.sidebarWidth,
         marginPanelWidth: this.marginPanelWidth,
         theme: this.theme,
+        layoutMode: this.layoutMode,
+        artifactPanelSize: this.artifactPanelSize,
+        chatColumnSize: this.chatColumnSize,
         // Serialize Set as array for JSON storage
         expandedNodes: Array.from(this.expandedNodes),
       }),
@@ -224,6 +237,22 @@ export class UIStore {
     this.isFocusMode = !this.isFocusMode;
   }
 
+  // ---------------------------------------------------------------------------
+  // Layout mode (chat-first redesign)
+  // ---------------------------------------------------------------------------
+
+  setLayoutMode(mode: LayoutMode): void {
+    this.layoutMode = mode;
+  }
+
+  setArtifactPanelSize(size: number): void {
+    this.artifactPanelSize = Math.max(30, Math.min(85, size));
+  }
+
+  setChatColumnSize(size: number): void {
+    this.chatColumnSize = Math.max(15, Math.min(70, size));
+  }
+
   openModal(id: string, data?: unknown): void {
     this.modals.set(id, { isOpen: true, data });
   }
@@ -314,6 +343,9 @@ export class UIStore {
     this.theme = 'system';
     this.commandPaletteOpen = false;
     this.searchModalOpen = false;
+    this.layoutMode = 'chat-first';
+    this.artifactPanelSize = 60;
+    this.chatColumnSize = 40;
     this.modals.clear();
     this.clearAllToasts();
   }

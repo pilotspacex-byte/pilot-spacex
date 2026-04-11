@@ -65,7 +65,7 @@ interface IssuePagePilotSpaceAPI {
   sendMessage: (content: string) => Promise<void>;
   isStreaming: boolean;
   clearConversation: () => void;
-  setIssueContext: (ctx: { issueId: string } | null) => void;
+  setIssueContext: (ctx: { issueId: string; issueTitle?: string; issueStatus?: string } | null) => void;
   setWorkspaceId: (id: string | null) => void;
   setActiveSkill: (skill: string) => void;
   approveRequest: (id: string) => Promise<void>;
@@ -299,11 +299,15 @@ const IssueDetailPage = observer(function IssueDetailPage() {
   // depend on these being set.
   useEffect(() => {
     pilotSpace.setWorkspaceId(workspaceId);
-    pilotSpace.setIssueContext({ issueId });
+    pilotSpace.setIssueContext({
+      issueId,
+      issueTitle: issue?.name,
+      issueStatus: issue?.state?.name,
+    });
     return () => {
       pilotSpace.setIssueContext(null);
     };
-  }, [workspaceId, issueId, pilotSpace]);
+  }, [workspaceId, issueId, issue?.name, issue?.state?.name, pilotSpace]);
 
   // -- Refetch issue when AI agent applies an update, then remount editor --
   useEffect(() => {
