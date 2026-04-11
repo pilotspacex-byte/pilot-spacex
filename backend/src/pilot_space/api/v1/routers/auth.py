@@ -14,7 +14,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from pydantic import BaseModel, Field
+from pydantic import Field
 from sqlalchemy import select
 
 from pilot_space.api.v1.dependencies import AuthServiceDep
@@ -31,6 +31,7 @@ from pilot_space.api.v1.schemas.auth import (
     UserProfileUpdateRequest,
     WorkspaceMembershipInfo,
 )
+from pilot_space.api.v1.schemas.base import BaseSchema
 from pilot_space.application.services.auth import (
     UNSET,
     GetLoginUrlPayload,
@@ -53,7 +54,7 @@ from pilot_space.infrastructure.supabase_client import get_supabase_client
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-class CompleteSignupRequest(BaseModel):
+class CompleteSignupRequest(BaseSchema):
     """Request body for POST /auth/complete-signup."""
 
     invitation_id: UUID

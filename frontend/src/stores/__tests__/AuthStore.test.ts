@@ -154,7 +154,7 @@ describe('AuthStore — Supabase mode (default)', () => {
     expect(store.error).toBe('Invalid credentials');
   });
 
-  it('signup with verificationRequired returns true without setting user', async () => {
+  it('signup with verificationRequired returns verification_required without setting user', async () => {
     mockSignup.mockResolvedValueOnce({
       user: null,
       tokens: null,
@@ -165,9 +165,9 @@ describe('AuthStore — Supabase mode (default)', () => {
     const store = new AuthStore();
     await vi.waitFor(() => expect(store.isLoading).toBe(false));
 
-    const success = await store.signup('new@example.com', 'password');
+    const result = await store.signup('new@example.com', 'password');
 
-    expect(success).toBe(true);
+    expect(result).toBe('verification_required');
     expect(store.user).toBeNull(); // no user yet — needs email verification
   });
 

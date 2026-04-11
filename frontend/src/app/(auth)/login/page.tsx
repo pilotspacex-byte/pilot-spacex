@@ -5,7 +5,7 @@ import { observer } from 'mobx-react-lite';
 import { motion } from 'motion/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Compass, Github, Mail, Loader2, Eye, EyeOff, KeyRound, AlertTriangle } from 'lucide-react';
+import { Compass, Github, Mail, Loader2, Eye, EyeOff, KeyRound, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -46,6 +46,7 @@ const LoginPage = observer(function LoginPage() {
   const [name, setName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [verificationSent, setVerificationSent] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [ssoLoading, setSsoLoading] = useState(false);
 
@@ -105,15 +106,20 @@ const LoginPage = observer(function LoginPage() {
       return;
     }
 
-    let success: boolean;
     if (mode === 'signup') {
-      success = await authStore.signup(email, password, isAuthCoreMode ? undefined : name);
+      const result = await authStore.signup(email, password, isAuthCoreMode ? undefined : name);
+      if (result === 'verification_required') {
+        setVerificationSent(true);
+        return;
+      }
+      if (result) {
+        router.push(redirectTo || '/');
+      }
     } else {
-      success = await authStore.login(email, password);
-    }
-
-    if (success) {
-      router.push(redirectTo || '/');
+      const success = await authStore.login(email, password);
+      if (success) {
+        router.push(redirectTo || '/');
+      }
     }
   };
 
@@ -150,6 +156,38 @@ const LoginPage = observer(function LoginPage() {
   // When sso_required=true, only render the SSO button (hide email/password form)
   const showEmailForm = !ssoRequired;
   const showSsoButton = hasSso && mode === 'login';
+
+  if (verificationSent) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+      >
+        <Card className="shadow-warm-lg">
+          <CardHeader className="text-center">
+            <CheckCircle2 className="mx-auto mb-4 h-12 w-12 text-green-500" />
+            <CardTitle className="text-2xl">Check your email</CardTitle>
+            <CardDescription>
+              We&apos;ve sent a verification link to <strong>{email}</strong>.
+              Click the link to activate your account.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-center">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setVerificationSent(false);
+                setMode('login');
+              }}
+            >
+              Back to sign in
+            </Button>
+          </CardContent>
+        </Card>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div

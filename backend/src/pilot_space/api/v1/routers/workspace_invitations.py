@@ -143,7 +143,8 @@ async def add_workspace_member(
 
     # Send Supabase magic-link invite for new (never registered) users.
     # Only send once — skip if already sent (retry safety).
-    if invitation.supabase_invite_sent_at is None:
+    email_sent = invitation.supabase_invite_sent_at is not None
+    if not email_sent:
         try:
             settings = get_settings()
             supabase_client = await get_supabase_client()
@@ -164,8 +165,9 @@ async def add_workspace_member(
             )
             invitation.supabase_invite_sent_at = datetime.now(UTC)
             await session.flush()
+            email_sent = True
         except Exception:
-            logger.warning(
+            logger.exception(
                 "supabase_invite_failed",
                 invitation_id=str(invitation.id),
                 email=invitation.email,
@@ -176,6 +178,7 @@ async def add_workspace_member(
         email=invitation.email,
         role=invitation.role.value,
         status=invitation.status.value,
+        email_sent=email_sent,
         invited_by=invitation.invited_by,
         suggested_sdlc_role=invitation.suggested_sdlc_role,
         expires_at=invitation.expires_at,

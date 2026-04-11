@@ -833,6 +833,7 @@ class Container(SkillContainer, PluginContainer):
         WorkspaceInvitationService,
         workspace_repo=InfraContainer.workspace_repository,
         invitation_repo=InfraContainer.invitation_repository,
+        user_repo=InfraContainer.user_repository,
     )
 
     # Auth Service

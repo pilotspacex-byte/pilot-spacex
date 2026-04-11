@@ -289,7 +289,11 @@ export class AuthStore {
     }
   }
 
-  async signup(email: string, password: string, name?: string): Promise<boolean> {
+  /**
+   * @returns 'success' on immediate login, 'verification_required' when email
+   *          confirmation is needed, or false on failure.
+   */
+  async signup(email: string, password: string, name?: string): Promise<boolean | 'verification_required'> {
     this.isLoading = true;
     this.error = null;
 
@@ -301,8 +305,7 @@ export class AuthStore {
         runInAction(() => {
           this.isLoading = false;
         });
-        // Caller should show "check your email" message
-        return true;
+        return 'verification_required';
       }
 
       runInAction(() => {

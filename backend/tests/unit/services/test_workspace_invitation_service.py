@@ -413,7 +413,7 @@ class TestAcceptInvitationEmailMismatch:
             user_email="other@example.com",
         )
 
-        with pytest.raises(ConflictError, match="different email"):
+        with pytest.raises(WorkspaceInvitationConflictError, match="different email"):
             await svc.accept_invitation(
                 AcceptInvitationPayload(invitation_id=inv_id, user_id=_make_uuid())
             )

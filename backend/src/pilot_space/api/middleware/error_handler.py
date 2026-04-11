@@ -364,23 +364,10 @@ async def workspace_member_error_handler(
     return await generic_exception_handler(request, exc)
 
 
-async def workspace_invitation_error_handler(
-    request: Request,
-    exc: Exception,
-) -> JSONResponse:
-    """Handle WorkspaceInvitationError with RFC 7807 Problem Details response."""
-    from pilot_space.application.services.workspace_invitation import (
-        WorkspaceInvitationError,
-    )
 
-    if isinstance(exc, WorkspaceInvitationError):
-        return create_problem_response(
-            status_code=exc.http_status,
-            detail=exc.message,
-            instance=str(request.url.path),
-            extensions={"error_code": exc.error_code},
-        )
-    return await generic_exception_handler(request, exc)
+# NOTE: workspace_invitation_error_handler removed — WorkspaceInvitationError
+# now extends AppError (Fix 6), so app_error_handler handles it with proper
+# details, sanitization, and logging.
 
 
 async def mcp_server_error_handler(
@@ -422,9 +409,6 @@ def register_exception_handlers(app: Any) -> None:
     from pilot_space.application.services.feature_toggle import FeatureToggleError
     from pilot_space.application.services.mcp.exceptions import McpServerError
     from pilot_space.application.services.transcription import TranscriptionError
-    from pilot_space.application.services.workspace_invitation import (
-        WorkspaceInvitationError,
-    )
     from pilot_space.application.services.workspace_member import WorkspaceMemberError
     from pilot_space.domain.exceptions import AppError
 
@@ -436,6 +420,6 @@ def register_exception_handlers(app: Any) -> None:
     app.add_exception_handler(FeatureToggleError, feature_toggle_error_handler)
     app.add_exception_handler(McpServerError, mcp_server_error_handler)
     app.add_exception_handler(WorkspaceMemberError, workspace_member_error_handler)
-    app.add_exception_handler(WorkspaceInvitationError, workspace_invitation_error_handler)
+    # WorkspaceInvitationError now extends AppError — handled by app_error_handler
     app.add_exception_handler(AppError, app_error_handler)
     app.add_exception_handler(Exception, generic_exception_handler)

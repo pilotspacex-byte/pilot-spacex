@@ -179,6 +179,7 @@ class InvitationResponse(BaseSchema):
     suggested_sdlc_role: str | None = Field(
         default=None, description="Owner's suggested SDLC role hint"
     )
+    email_sent: bool = Field(default=True, description="Whether the invitation email was delivered")
     expires_at: datetime = Field(description="Invitation expiry timestamp")
     created_at: datetime = Field(description="Invitation creation timestamp")
 

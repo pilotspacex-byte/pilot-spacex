@@ -15,10 +15,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from uuid import UUID
 
-from pilot_space.domain.exceptions import NotFoundError
+from pilot_space.domain.exceptions import AppError, NotFoundError
 from pilot_space.infrastructure.database.models.workspace_invitation import (
     InvitationStatus,
 )
@@ -46,24 +46,15 @@ logger = get_logger(__name__)
 # ===== Custom Exceptions =====
 
 
-class WorkspaceInvitationError(Exception):
-    """Base for all workspace-invitation domain errors."""
+class WorkspaceInvitationError(AppError):
+    """Base for all workspace-invitation domain errors.
+
+    Extends AppError so the global app_error_handler catches these
+    automatically and produces RFC 7807 responses.
+    """
 
     error_code: str = "workspace_invitation_error"
     http_status: int = 400
-
-    def __init__(
-        self,
-        message: str,
-        *,
-        error_code: str | None = None,
-        details: dict[str, Any] | None = None,
-    ) -> None:
-        super().__init__(message)
-        self.message = message
-        if error_code:
-            self.error_code = error_code
-        self.details = details or {}
 
 
 class WorkspaceNotFoundError(WorkspaceInvitationError):
@@ -342,6 +333,14 @@ class WorkspaceInvitationService:
             effective = "expired" if invitation.is_expired else invitation.status.value
             raise ConflictError(f"Invitation is {effective} and cannot receive a magic link")
 
+        # Validate email matches the invitation to prevent sending magic links
+        # to arbitrary addresses (spam abuse / invitation takeover).
+        if payload.email.casefold() != invitation.email.casefold():
+            raise ConflictError(
+                "Email does not match the invitation. "
+                "Please use the email address the invitation was sent to."
+            )
+
         # Rate limiting — fail-open (rate_limiter None means no limit configured)
         if self.rate_limiter is not None:
             allowed = await self.rate_limiter.check_and_increment(payload.email)
@@ -466,15 +465,19 @@ class WorkspaceInvitationService:
 
         # Email mismatch validation (US2 — T013)
         # Ensures the authenticated user's email matches the invited email.
-        if self.user_repo is not None:
-            from pilot_space.domain.exceptions import ConflictError
+        # user_repo is required for this check — fail-loud if missing.
+        if self.user_repo is None:
+            raise RuntimeError(
+                "user_repo is required for accept_invitation (email validation). "
+                "Ensure WorkspaceInvitationService is constructed with user_repo."
+            )
 
-            user = await self.user_repo.get_by_id_scalar(payload.user_id)
-            if user is not None and user.email.lower() != invitation.email.lower():
-                raise ConflictError(
-                    "This invitation was sent to a different email address. "
-                    "Please sign in with the invited email or request a new invitation."
-                )
+        user = await self.user_repo.get_by_id_scalar(payload.user_id)
+        if user is not None and user.email.casefold() != invitation.email.casefold():
+            raise WorkspaceInvitationConflictError(
+                "This invitation was sent to a different email address. "
+                "Please sign in with the invited email or request a new invitation."
+            )
 
         workspace_id = invitation.workspace_id
 
@@ -516,11 +519,9 @@ class WorkspaceInvitationService:
             msg = "Workspace not found"
             raise WorkspaceNotFoundError(msg)
 
-        # Determine if user needs to complete their profile (provide full_name)
-        requires_profile_completion = False
-        if self.user_repo is not None:
-            user = await self.user_repo.get_by_id_scalar(payload.user_id)
-            requires_profile_completion = user is not None and not user.full_name
+        # Determine if user needs to complete their profile (provide full_name).
+        # user was already fetched during email validation above.
+        requires_profile_completion = user is not None and not user.full_name
 
         logger.info(
             "invitation_accepted",
