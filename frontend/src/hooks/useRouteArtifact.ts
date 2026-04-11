@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
-import { useArtifactPanelStore } from '@/stores';
+import { useArtifactPanelStore, useUIStore } from '@/stores';
 import type { ArtifactTab } from '@/stores/ArtifactPanelStore';
 
 interface RouteArtifactMapping {
@@ -54,15 +54,15 @@ function parseRouteToArtifact(pathname: string): RouteArtifactMapping | null {
 }
 
 /**
- * Hook that syncs the current route to the ArtifactPanelStore.
- * When navigating to a sub-route (notes, issues, etc.), it auto-opens
- * the corresponding artifact tab.
- *
- * Only active when layout_v2 feature flag is on.
+ * Hook that syncs the current route to the ArtifactPanelStore and UIStore.
+ * When navigating to a sub-route (notes, issues, etc.), it opens the
+ * corresponding artifact tab AND transitions layoutMode to 'chat-artifact'.
+ * When navigating back to homepage, transitions to 'chat-first'.
  */
 export function useRouteArtifact(enabled: boolean): boolean {
   const pathname = usePathname();
   const artifactPanel = useArtifactPanelStore();
+  const uiStore = useUIStore();
   const lastPathRef = useRef<string>('');
 
   useEffect(() => {
@@ -80,8 +80,17 @@ export function useRouteArtifact(enabled: boolean): boolean {
         entityId: mapping.entityId,
         title: mapping.title,
       });
+      // Transition to split view so the artifact panel mounts
+      if (uiStore.layoutMode === 'chat-first') {
+        uiStore.setLayoutMode('chat-artifact');
+      }
+    } else {
+      // Navigated to homepage or non-artifact route — collapse artifact panel
+      if (uiStore.layoutMode !== 'chat-first') {
+        uiStore.setLayoutMode('chat-first');
+      }
     }
-  }, [pathname, enabled, artifactPanel]);
+  }, [pathname, enabled, artifactPanel, uiStore]);
 
   // Return whether the current route maps to an artifact
   return enabled && parseRouteToArtifact(pathname) !== null;
