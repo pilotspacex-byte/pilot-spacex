@@ -25,11 +25,21 @@ import {
   MoreHorizontal,
   AlertCircle,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { SprintDAGPreview } from '@/features/issues/components/sprint-dag-preview';
+import { useBatchRunPreview, useCreateBatchRun } from '@/features/issues/hooks/use-batch-run';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -195,6 +205,7 @@ const CycleDetailPage = observer(function CycleDetailPage() {
   const [activeTab, setActiveTab] = React.useState<TabValue>('board');
   const [isRolloverModalOpen, setIsRolloverModalOpen] = React.useState(false);
   const [showSwimlanes, setShowSwimlanes] = React.useState(false);
+  const [isImplementDialogOpen, setIsImplementDialogOpen] = React.useState(false);
 
   // Queries
   const {
@@ -257,6 +268,28 @@ const CycleDetailPage = observer(function CycleDetailPage() {
       setIsRolloverModalOpen(false);
     },
   });
+
+  // Batch implementation
+  const { data: previewData, isLoading: isLoadingPreview } = useBatchRunPreview(
+    workspaceSlug,
+    isImplementDialogOpen ? cycleId : null
+  );
+  const createBatchRun = useCreateBatchRun(workspaceSlug);
+
+  const handleImplementSprint = React.useCallback(() => {
+    createBatchRun.mutate(
+      { cycleId },
+      {
+        onSuccess: () => {
+          setIsImplementDialogOpen(false);
+          toast.success('Sprint implementation started');
+        },
+        onError: () => {
+          toast.error('Could not start implementation. Check your AI provider configuration and try again.');
+        },
+      }
+    );
+  }, [createBatchRun, cycleId]);
 
   // Derived data
   const issues = issuesData?.items ?? [];
@@ -357,6 +390,16 @@ const CycleDetailPage = observer(function CycleDetailPage() {
 
           {cycle.status === 'active' && (
             <>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => setIsImplementDialogOpen(true)}
+                className="min-h-[44px]"
+              >
+                <Play className="size-4 mr-2" aria-hidden="true" />
+                Implement Sprint
+              </Button>
+
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -583,6 +626,45 @@ const CycleDetailPage = observer(function CycleDetailPage() {
           />
         </TabsContent>
       </Tabs>
+
+      {/* Sprint Implementation Dialog */}
+      <Dialog open={isImplementDialogOpen} onOpenChange={setIsImplementDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Sprint Implementation Plan</DialogTitle>
+            <DialogDescription>
+              Review the execution order before starting autonomous implementation.
+            </DialogDescription>
+          </DialogHeader>
+
+          {isLoadingPreview ? (
+            <div className="space-y-3 py-4">
+              <Skeleton className="h-6 w-48" />
+              <Skeleton className="h-4 w-64" />
+              <Skeleton className="h-48 w-full" />
+            </div>
+          ) : previewData ? (
+            <SprintDAGPreview
+              issues={previewData.issues.map((issue) => ({
+                id: issue.id,
+                identifier: issue.identifier,
+                title: issue.title,
+                executionOrder: issue.executionOrder,
+                dependsOn: issue.dependsOn,
+              }))}
+              parallelTracks={previewData.parallelTracks}
+              hasCycle={previewData.hasCycle}
+              cycleIssues={previewData.cycleIssues}
+              onStart={handleImplementSprint}
+              isStarting={createBatchRun.isPending}
+            />
+          ) : (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              No issues in this sprint. Add issues to a sprint before implementing.
+            </p>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Rollover Modal */}
       <CycleRolloverModal
