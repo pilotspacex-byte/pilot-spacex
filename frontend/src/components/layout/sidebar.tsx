@@ -30,6 +30,7 @@ import {
   CheckCircle2,
   Network,
   BookOpen,
+  BarChart3,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useUIStore, useNotificationStore, useAuthStore, useWorkspaceStore } from '@/stores';
@@ -92,6 +93,7 @@ const navigationSections: NavSection[] = [
       { name: 'Home', path: '', icon: Home, testId: 'nav-home' },
       { name: 'Notes', path: 'notes', icon: FileText, testId: 'nav-notes', featureKey: 'notes' },
       { name: 'Issues', path: 'issues', icon: LayoutGrid, testId: 'nav-issues', featureKey: 'issues' },
+      { name: 'Dashboard', path: 'dashboard', icon: BarChart3, testId: 'nav-dashboard', badgeKey: 'dashboardAttention' },
       { name: 'Projects', path: 'projects', icon: FolderKanban, testId: 'nav-projects', featureKey: 'projects' },
       { name: 'Members', path: 'members', icon: Users, testId: 'nav-members', featureKey: 'members' },
       { name: 'Knowledge', path: 'knowledge', icon: Network, testId: 'nav-knowledge', featureKey: 'knowledge' },
@@ -338,8 +340,13 @@ export const Sidebar = observer(function Sidebar() {
   const pendingApprovalCount = usePendingApprovalCount(isAdminOrOwner ? workspaceId : '');
 
   // Map badgeKey → dynamic badge value
+  // dashboardAttention defaults to 0 — the sidebar badge is a stretch goal.
+  // Wiring a live attention count would require an additional API call per page load (N+1 risk).
+  // The dashboard page itself shows the full attention feed. Future enhancement: subscribe to
+  // a lightweight attention-count SSE or deduplicate with the dashboard query.
   const badgeValues: Record<string, number> = {
     pendingApprovals: pendingApprovalCount,
+    dashboardAttention: 0,
   };
 
   // Workspace projects for sidebar tree sections
