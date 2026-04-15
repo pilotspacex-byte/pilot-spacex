@@ -1,6 +1,6 @@
 """In-process SDK custom tools for PilotSpace issue CRUD operations.
 
-Creates an SDK MCP server with 4 issue CRUD tools (IS-001 to IS-004).
+Creates an SDK MCP server with 5 issue tools (IS-001 to IS-004 + batch generate).
 Tool handlers push SSE events to a shared asyncio.Queue that the PilotSpaceAgent
 stream method interleaves with SDK messages.
 
@@ -12,11 +12,13 @@ Architecture:
   Frontend stores → issue updates + API calls
 
 Reference: spec 010-enhanced-mcp-tools Phase 3 (T010-T012)
+         Phase 75 — CIP-01, CIP-02, CIP-05 (chat-to-issue pipeline)
 """
 
 from __future__ import annotations
 
 import json
+import re
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
@@ -46,12 +48,13 @@ logger = get_logger(__name__)
 # MCP server name — used in allowed_tools as mcp__pilot-issues__{tool_name}
 SERVER_NAME = "pilot-issues"
 
-# Tool names for CRUD operations
+# Tool names for CRUD operations + batch generation
 TOOL_NAMES = [
     f"mcp__{SERVER_NAME}__get_issue",
     f"mcp__{SERVER_NAME}__search_issues",
     f"mcp__{SERVER_NAME}__create_issue",
     f"mcp__{SERVER_NAME}__update_issue",
+    f"mcp__{SERVER_NAME}__generate_issues_from_description",
 ]
 
 
@@ -93,6 +96,126 @@ def _operation_payload(
             }
         ]
     }
+
+
+def _format_batch_sse(event_type: str, data: dict[str, Any]) -> str:
+    """Format a batch-specific SSE event string.
+
+    Mirrors EventPublisher._format_sse() but as a module-level function
+    for use within the issue_server module (Phase 75 CIP-01).
+    """
+    return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
+
+
+async def _call_llm_for_issues(
+    description: str,
+    project_id: str,
+    tool_context: ToolContext,
+) -> list[dict[str, Any]]:
+    """Use LLM to generate structured issue proposals from a natural language description.
+
+    Sends a structured prompt and parses the JSON response into a list of
+    proposed issues with title, description, acceptance_criteria, and priority.
+
+    Args:
+        description: The PM's natural language description of work.
+        project_id: Project UUID string.
+        tool_context: Tool context with workspace info.
+
+    Returns:
+        List of proposed issue dicts (title, description, acceptance_criteria, priority).
+    """
+    import anthropic
+
+    prompt = f"""You are a software project manager helping to break down work into structured issues.
+
+Given this description of work:
+---
+{description}
+---
+
+Generate a list of implementation-ready issues for project {project_id}.
+
+IMPORTANT: Return ONLY a valid JSON array. No markdown, no code fences, no explanation.
+
+Each issue must have:
+- "title": string (concise, action-oriented)
+- "description": string (markdown, explains what and why)
+- "acceptance_criteria": array of objects with "criterion" (string) and "met" (boolean, always false)
+- "priority": one of "none", "low", "medium", "high", "urgent"
+
+Example format:
+[
+  {{
+    "title": "Set up authentication",
+    "description": "Implement JWT-based auth with refresh tokens.",
+    "acceptance_criteria": [
+      {{"criterion": "User can log in with email/password", "met": false}},
+      {{"criterion": "Access token expires in 15 minutes", "met": false}}
+    ],
+    "priority": "high"
+  }}
+]
+
+Generate as many issues as needed to fully cover the described work (typically 2-5 issues).
+Return ONLY the JSON array:"""
+
+    # Use anthropic client directly for structured generation
+    # The workspace key is already configured at agent initialization time.
+    client = anthropic.AsyncAnthropic()
+
+    try:
+        response = await client.messages.create(
+            model="claude-3-5-haiku-20241022",
+            max_tokens=2048,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw_text = response.content[0].text.strip()
+
+        # Strip any markdown code fences if present
+        raw_text = re.sub(r"^```(?:json)?\s*", "", raw_text)
+        raw_text = re.sub(r"\s*```$", "", raw_text)
+
+        issues: list[dict[str, Any]] = json.loads(raw_text)
+        if not isinstance(issues, list):
+            logger.warning("[IssueGenerate] LLM returned non-list: %s", type(issues))
+            return []
+
+        # Normalize and validate each issue
+        normalized: list[dict[str, Any]] = []
+        for item in issues:
+            if not isinstance(item, dict):
+                continue
+            title = str(item.get("title", "")).strip()
+            if not title:
+                continue
+            ac_raw = item.get("acceptance_criteria", [])
+            acceptance_criteria: list[dict[str, Any]] = []
+            if isinstance(ac_raw, list):
+                for ac in ac_raw:
+                    if isinstance(ac, dict) and "criterion" in ac:
+                        acceptance_criteria.append(
+                            {
+                                "criterion": str(ac["criterion"]),
+                                "met": bool(ac.get("met", False)),
+                            }
+                        )
+            priority = str(item.get("priority", "medium")).lower()
+            if priority not in ("none", "low", "medium", "high", "urgent"):
+                priority = "medium"
+            normalized.append(
+                {
+                    "title": title,
+                    "description": str(item.get("description", "")),
+                    "acceptance_criteria": acceptance_criteria,
+                    "priority": priority,
+                }
+            )
+        return normalized
+
+    except Exception as exc:
+        logger.error("[IssueGenerate] LLM call failed: %s", exc, exc_info=True)
+        return []
 
 
 def create_issue_tools_server(
@@ -779,6 +902,92 @@ def create_issue_tools_server(
             f"Issue {args['issue_id']} updated: {', '.join(changes) or 'no changes'}."
         )
 
+    @tool(
+        "generate_issues_from_description",
+        (
+            "Generate structured issue proposals from a natural language description. "
+            "Returns a batch of proposed issues with titles, descriptions, acceptance "
+            "criteria, and priorities for the PM to review before creation."
+        ),
+        {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string",
+                    "description": "The PM's natural language description of work to be done",
+                },
+                "project_id": {
+                    "type": "string",
+                    "description": "Project UUID to create issues in",
+                },
+            },
+            "required": ["description", "project_id"],
+        },
+    )
+    async def generate_issues_from_description(args: dict[str, Any]) -> dict[str, Any]:
+        logger.info(
+            "mcp_tool_invoked",
+            tool="generate_issues_from_description",
+            description_len=len(str(args.get("description", ""))),
+        )
+
+        if not tool_context:
+            return _text_result("Error: Tool context not available")
+
+        raw_project_id = args.get("project_id", "")
+        description = str(args.get("description", "")).strip()
+
+        if not description:
+            return _text_result("Error: description is required")
+        if not raw_project_id:
+            return _text_result("Error: project_id is required")
+
+        # Resolve project UUID (accept both UUID string and identifier)
+        try:
+            project_uuid = UUID(raw_project_id)
+        except ValueError:
+            try:
+                project_uuid = await resolve_entity_id_strict(
+                    "project", raw_project_id, tool_context
+                )
+            except EntityResolutionError as e:
+                return _text_result(f"Error: {e}")
+
+        # Generate structured issues via LLM
+        proposed_issues = await _call_llm_for_issues(
+            description=description,
+            project_id=str(project_uuid),
+            tool_context=tool_context,
+        )
+
+        if not proposed_issues:
+            return _text_result(
+                "Could not generate issues from the provided description. "
+                "Please provide more detail about the work to be done."
+            )
+
+        # Extract source_note_id from tool context (null when chatting from homepage)
+        source_note_id: str | None = tool_context.extra.get("note_id")
+
+        # Emit issue_batch_proposal SSE event so frontend can display proposals
+        await publisher.publish(
+            _format_batch_sse(
+                "issue_batch_proposal",
+                {
+                    "messageId": getattr(tool_context, "message_id", ""),
+                    "issues": proposed_issues,
+                    "sourceNoteId": source_note_id,
+                    "projectId": str(project_uuid),
+                },
+            )
+        )
+
+        logger.info(
+            "[IssueGenerate] generate_issues_from_description: proposed %d issues",
+            len(proposed_issues),
+        )
+        return _text_result(f"Proposed {len(proposed_issues)} issues for your review.")
+
     return create_sdk_mcp_server(
         name=SERVER_NAME,
         version="1.0.0",
@@ -787,5 +996,6 @@ def create_issue_tools_server(
             search_issues,
             create_issue,
             update_issue,
+            generate_issues_from_description,
         ],
     )
