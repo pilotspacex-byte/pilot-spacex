@@ -89,8 +89,38 @@ class ServiceUnavailableError(AppError):
     http_status = 503
 
 
+class BatchRunError(AppError):
+    """Batch run operation failed (400).
+
+    Base class for all batch run domain errors.
+    """
+
+    error_code = "batch_run_error"
+    http_status = 400
+
+
+class BatchRunCycleDetectedError(BatchRunError):
+    """Circular dependency detected in batch run DAG (422).
+
+    Raised when Kahn's topological sort detects a cycle in the
+    issue dependency graph, preventing a valid execution order.
+    """
+
+    error_code = "batch_run_cycle_detected"
+    http_status = 422
+
+
+class BatchRunNotFoundError(NotFoundError):
+    """Batch run not found (404)."""
+
+    error_code = "batch_run_not_found"
+
+
 __all__ = [
     "AppError",
+    "BatchRunCycleDetectedError",
+    "BatchRunError",
+    "BatchRunNotFoundError",
     "ConflictError",
     "ForbiddenError",
     "NotFoundError",
