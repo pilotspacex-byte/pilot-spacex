@@ -23,7 +23,9 @@ import { QuestionBlock, ResolvedSummary } from './QuestionBlock';
 import { SkillCreatorCard } from './SkillCreatorCard';
 import { SkillTestResultCard } from './SkillTestResultCard';
 import { SkillMermaidCard } from './SkillMermaidCard';
-import type { SkillPreviewEvent, TestResultEvent } from '@/stores/ai/types/events';
+import { BatchPreviewCard } from './BatchPreviewCard';
+import type { SkillPreviewEvent, TestResultEvent, IssueBatchProposalEvent } from '@/stores/ai/types/events';
+import { issuesApi } from '@/services/api/issues';
 
 /** Schema types handled by inline skill cards — excluded from StructuredResultCard */
 const SKILL_SCHEMA_TYPES = new Set(['skill_preview', 'test_result', 'mermaid_graph']);
@@ -217,6 +219,11 @@ export const AssistantMessage = memo<AssistantMessageProps>(({ message, classNam
             code={(message.structuredResult.data.code as string) ?? ''}
             skillName={(message.structuredResult.data.skillName as string) ?? undefined}
           />
+        )}
+
+        {/* Phase 75: Batch issue proposal — rendered from batchProposal field on ChatMessage */}
+        {message.batchProposal && (
+          <BatchPreviewCardInline data={message.batchProposal} />
         )}
 
         {message.memorySources && message.memorySources.length > 0 && (
@@ -571,3 +578,53 @@ const SkillTestResultCardInline = memo<{
 });
 
 SkillTestResultCardInline.displayName = 'SkillTestResultCardInline';
+
+/**
+ * BatchPreviewCardInline — wraps BatchPreviewCard with PilotSpaceStore callbacks.
+ *
+ * Implements the DD-003 approval gate: "Create All" does NOT call the batch API directly.
+ * Instead it calls store.requestApproval(), which queues a local ApprovalRequest so the
+ * existing DestructiveApprovalModal asks for PM confirmation. Only after confirmation does
+ * the onApproved callback fire and call issuesApi.createBatch().
+ *
+ * CRITICAL: Must NOT be wrapped in observer() — React.memo only (CLAUDE.md TipTap rule).
+ */
+const BatchPreviewCardInline = memo<{
+  data: IssueBatchProposalEvent['data'];
+}>(function BatchPreviewCardInline({ data }) {
+  const rootStore = useStore();
+  const store = rootStore.aiStore.pilotSpace;
+  const workspaceStore = rootStore.workspaceStore;
+
+  const handleCreateAll = useCallback(
+    async (issues: IssueBatchProposalEvent['data']['issues']) => {
+      const workspaceSlug = workspaceStore.currentWorkspace?.slug;
+      if (!workspaceSlug) return;
+
+      // DD-003: Trigger approval flow — no direct API call.
+      // The onApproved callback only fires after PM clicks "Approve" in DestructiveApprovalModal.
+      store.requestApproval({
+        action: 'create_batch_issues',
+        description: `Create ${issues.length} issue${issues.length !== 1 ? 's' : ''}`,
+        onApproved: async () => {
+          await issuesApi.createBatch(workspaceSlug, {
+            issues,
+            sourceNoteId: data.sourceNoteId,
+            projectId: data.projectId,
+          });
+        },
+      });
+    },
+    [store, workspaceStore, data.sourceNoteId, data.projectId]
+  );
+
+  return (
+    <BatchPreviewCard
+      issues={data.issues}
+      onCreateAll={handleCreateAll}
+      projectName={rootStore.aiStore.pilotSpace.projectContext?.name}
+    />
+  );
+});
+
+BatchPreviewCardInline.displayName = 'BatchPreviewCardInline';

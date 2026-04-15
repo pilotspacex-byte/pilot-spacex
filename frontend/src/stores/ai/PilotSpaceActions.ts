@@ -207,6 +207,28 @@ export class PilotSpaceActions {
       return;
     }
 
+    // Phase 75: Local approval gate (requestId starts with 'local_') — execute callback directly.
+    // These are frontend-initiated approvals (e.g. batch issue create) that bypass the backend SSE
+    // approval flow. The callback was registered via store.requestApproval().
+    if (requestId.startsWith('local_')) {
+      try {
+        const executed = await this.store.executeLocalApprovalCallback(requestId);
+        if (executed) {
+          runInAction(() => {
+            this.store.pendingApprovals = this.store.pendingApprovals.filter(
+              (r) => r.requestId !== requestId
+            );
+          });
+          return;
+        }
+      } catch (err) {
+        runInAction(() => {
+          this.store.error = err instanceof Error ? err.message : 'Failed to execute action';
+        });
+        return;
+      }
+    }
+
     try {
       // Send approval to backend via API
       const authHeaders = await this.streamHandler.getAuthHeaders();

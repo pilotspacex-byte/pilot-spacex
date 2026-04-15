@@ -95,6 +95,20 @@ export interface AssigneeRecommendationsResponse {
   recommendations: AssigneeRecommendation[];
 }
 
+// Phase 75: Batch issue creation response
+export interface BatchCreateIssueResponse {
+  /** Number of issues successfully created */
+  created_count: number;
+  /** Created issue summaries */
+  created_issues: Array<{
+    id: string;
+    identifier: string;
+    title: string;
+  }>;
+  /** Number of issues that failed to create (partial failure) */
+  failed_count: number;
+}
+
 export const issuesApi = {
   list(
     workspaceId: string,
@@ -286,6 +300,25 @@ export const issuesApi = {
   ): Promise<void> {
     return apiClient.post<void>(
       `/workspaces/${workspaceId}/issues/${issueId}/ai/suggestion-decision`,
+      data
+    );
+  },
+
+  /**
+   * Phase 75: Batch create issues from AI-proposed batch after PM approval (DD-003).
+   * Called ONLY after user explicitly confirms via the approval gate.
+   * POST /api/v1/{workspaceSlug}/issues/batch
+   */
+  createBatch(
+    workspaceSlug: string,
+    data: {
+      issues: import('@/stores/ai/types/events').ProposedIssue[];
+      sourceNoteId: string | null;
+      projectId: string;
+    }
+  ): Promise<BatchCreateIssueResponse> {
+    return apiClient.post<BatchCreateIssueResponse>(
+      `/workspaces/${workspaceSlug}/issues/batch`,
       data
     );
   },
