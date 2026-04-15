@@ -36,6 +36,7 @@ from pilot_space.api.v1.routers import (
     audit_router,
     auth_router,
     auth_sso_router,
+    batch_runs_router,
     block_ownership_router,
     custom_roles_router,
     cycles_router,
@@ -176,6 +177,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # T-030: Start notification worker for persisting queued notifications
     notification_worker_task: asyncio.Task[None] | None = None
     notification_worker = None
+    # Phase 76: Start batch implementation worker for sprint batch execution
+    batch_impl_worker_task: asyncio.Task[None] | None = None
+    batch_impl_worker = None
     queue_client = container.queue_client()
     if queue_client and redis_client:
         from pilot_space.infrastructure.queue.models import QueueName
@@ -189,6 +193,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             await queue_client.create_queue(QueueName.AI_NORMAL)
             await queue_client.create_queue(QueueName.NOTIFICATIONS)
             await queue_client.create_queue(QueueName.DEAD_LETTER)
+            await queue_client.create_queue(QueueName.BATCH_IMPL)
         except (QueueConnectionError, QueueOperationError):
             logger.warning("Queue unavailable — workers will not start (degraded mode)")
             queue_client = None
@@ -225,6 +230,30 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             session_factory=session_factory,
         )
         notification_worker_task = asyncio.create_task(notification_worker.start())
+
+        # Phase 76: BatchImplWorker for sprint batch implementation
+        import shutil
+
+        if not shutil.which("pilot"):
+            logger.warning(
+                "pilot CLI not found in PATH -- BatchImplWorker will fail. "
+                "Run: uv pip install -e cli/"
+            )
+
+        _raw_redis = redis_client.client
+        if _raw_redis is not None:
+            from pilot_space.ai.workers.batch_impl_worker import BatchImplWorker
+
+            batch_impl_worker = BatchImplWorker(
+                queue=queue_client,
+                session_factory=session_factory,
+                redis_client=_raw_redis,
+            )
+            batch_impl_worker_task = asyncio.create_task(batch_impl_worker.start())
+        else:
+            logger.warning(
+                "batch_impl_worker_not_started: raw Redis client unavailable"
+            )
 
     # Start question adapter cleanup task (FR-015: 5-min timeout enforcement)
     from pilot_space.ai.sdk.question_adapter import get_question_adapter
@@ -269,6 +298,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.info("notification_worker_stopped")
     if notification_worker_task:
         notification_worker_task.cancel()
+    # Phase 76: Graceful shutdown of batch implementation worker
+    if batch_impl_worker:
+        await batch_impl_worker.stop()
+        logger.info("batch_impl_worker_stopped")
+    if batch_impl_worker_task:
+        batch_impl_worker_task.cancel()
     if redis_client is not None:
         await redis_client.disconnect()
         logger.info("redis_disconnected")
@@ -373,6 +408,7 @@ app.include_router(workspace_encryption_router, prefix=f"{API_V1_PREFIX}/workspa
 app.include_router(workspace_feature_toggles_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_quota_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_cycles_router, prefix=f"{API_V1_PREFIX}/workspaces")
+app.include_router(batch_runs_router, prefix=API_V1_PREFIX)
 app.include_router(workspace_issues_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(related_issues_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_role_skills_router, prefix=f"{API_V1_PREFIX}/workspaces")

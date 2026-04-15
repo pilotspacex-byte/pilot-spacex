@@ -18,6 +18,7 @@ from fastapi import APIRouter, HTTPException, Path, Query, Response, status
 from sqlalchemy import select
 
 from pilot_space.api.v1.dependencies import (
+    BatchCreateIssuesServiceDep,
     CreateIssueServiceDep,
     DeleteIssueServiceDep,
     GetIssueServiceDep,
@@ -35,6 +36,9 @@ from pilot_space.api.v1.routers.workspace_quota import (
 )
 from pilot_space.api.v1.schemas.base import DeleteResponse, PaginatedResponse
 from pilot_space.api.v1.schemas.issue import (
+    BatchCreateIssueRequest,
+    BatchCreateIssueResponse,
+    BatchCreateIssueResult,
     IssueBriefResponse,
     IssueLinkSchema,
     IssueResponse,
@@ -630,6 +634,96 @@ async def delete_workspace_issue(
     )
 
     return DeleteResponse(id=result.issue_id, message="Issue deleted successfully")
+
+
+# ============================================================================
+# Batch Issue Creation (Phase 75 — CIP-01, CIP-02, CIP-05)
+# ============================================================================
+
+
+@router.post(
+    "/{workspace_id}/issues/batch",
+    response_model=BatchCreateIssueResponse,
+    status_code=status.HTTP_201_CREATED,
+    tags=["workspace-issues"],
+    summary="Batch create issues from AI proposals",
+    description="""
+Create multiple issues in a single request. Designed for the chat-to-issue pipeline
+where a PM describes work in natural language and the AI generates structured proposals.
+
+Each issue in the request may include:
+- `acceptanceCriteria`: structured list of `{criterion, met}` objects (CIP-05)
+- `sourceNoteId`: UUID of the note that originated this batch (CIP-02)
+
+Partial failures are handled gracefully — if one issue fails, the others are still
+created and the response includes per-issue success/failure details.
+""",
+    responses={
+        201: {"description": "Batch created (may include partial failures)"},
+        422: {"description": "Validation error (e.g., empty issues array)"},
+    },
+)
+async def batch_create_issues(
+    workspace_id: WorkspaceIdOrSlug,
+    request: BatchCreateIssueRequest,
+    session: SessionDep,
+    current_user_id: SyncedUserId,
+    workspace_repo: WorkspaceRepositoryDep,
+    rbac_svc: ProjectRbacServiceDep,
+    batch_service: BatchCreateIssuesServiceDep,
+) -> BatchCreateIssueResponse:
+    """Create multiple issues in batch from AI-generated proposals.
+
+    Iterates over the issues array and creates each via CreateIssueService.
+    Partial failures (per issue) are captured — the response includes
+    per-issue success/failure and aggregate counts.
+
+    Router signature includes `session: SessionDep` per DI ContextVar requirement.
+    Service exceptions propagate to the global error handler (no try/except).
+    """
+    from pilot_space.application.services.issue.batch_create_issues_service import (
+        BatchCreateIssuesPayload,
+        BatchIssueItemPayload,
+    )
+
+    workspace = await _resolve_workspace(workspace_id, workspace_repo)
+    await set_rls_context(session, current_user_id, workspace.id)
+
+    # Verify the user has access to the project
+    await rbac_svc.check_project_access(request.project_id, workspace.id, current_user_id)
+
+    # Build service payload
+    payload = BatchCreateIssuesPayload(
+        workspace_id=workspace.id,
+        project_id=request.project_id,
+        reporter_id=current_user_id,
+        issues=[
+            BatchIssueItemPayload(
+                title=item.title,
+                description=item.description,
+                acceptance_criteria=item.acceptance_criteria,
+                priority=item.priority,
+            )
+            for item in request.issues
+        ],
+        source_note_id=request.source_note_id,
+    )
+
+    result = await batch_service.execute(payload)
+
+    return BatchCreateIssueResponse(
+        results=[
+            BatchCreateIssueResult(
+                index=r.index,
+                success=r.success,
+                issue_id=r.issue_id,
+                error=r.error,
+            )
+            for r in result.results
+        ],
+        created_count=result.created_count,
+        failed_count=result.failed_count,
+    )
 
 
 __all__ = ["router"]

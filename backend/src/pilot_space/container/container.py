@@ -77,6 +77,11 @@ from pilot_space.application.services.issue import (
     ListIssuesService,
     UpdateIssueService,
 )
+from pilot_space.application.services.batch_run_service import BatchRunService
+from pilot_space.application.services.issue.batch_create_issues_service import (
+    BatchCreateIssuesService,
+)
+from pilot_space.application.services.issue.rich_context_assembler import RichContextAssembler
 from pilot_space.application.services.mcp_oauth import McpOAuthService
 from pilot_space.application.services.mcp_server import McpServerService
 from pilot_space.application.services.mcp_tool_execution import MCPToolExecutionService
@@ -179,6 +184,9 @@ from pilot_space.dependencies.auth import get_current_session
 from pilot_space.infrastructure.cache.invite_rate_limiter import InviteRateLimiter
 from pilot_space.infrastructure.database.repositories.audit_log_repository import (
     AuditLogRepository,
+)
+from pilot_space.infrastructure.database.repositories.batch_run_repository import (
+    BatchRunRepository,
 )
 from pilot_space.infrastructure.database.repositories.custom_role_repository import (
     CustomRoleRepository,
@@ -517,6 +525,12 @@ class Container(SkillContainer, PluginContainer):
         label_repository=InfraContainer.label_repository,
         queue=InfraContainer.queue_client,
         audit_log_repository=audit_log_repository,
+    )
+
+    batch_create_issues_service = providers.Factory(
+        BatchCreateIssuesService,
+        session=providers.Callable(get_current_session),
+        create_issue_service=create_issue_service,
     )
 
     update_issue_service = providers.Factory(
@@ -1037,6 +1051,16 @@ class Container(SkillContainer, PluginContainer):
         llm_gateway=llm_gateway,
     )
 
+    # Rich Context Assembler (wraps GetImplementContextService with KG, PRs, sprint peers)
+    rich_context_assembler = providers.Factory(
+        RichContextAssembler,
+        base_service=get_implement_context_service,
+        memory_recall=memory_recall_service,
+        issue_link_repo=InfraContainer.issue_link_repository,
+        integration_link_repo=InfraContainer.integration_link_repository,
+        cycle_repo=InfraContainer.cycle_repository,
+    )
+
     memory_lifecycle_service = providers.Factory(
         MemoryLifecycleService,
         session=providers.Callable(get_current_session),
@@ -1136,6 +1160,17 @@ class Container(SkillContainer, PluginContainer):
         PermissionService,
         cache=permission_cache,
         redis_client=InfraContainer.redis_client,
+    )
+
+    # Sprint Batch Implementation (Phase 76)
+    batch_run_repository = providers.Factory(
+        BatchRunRepository,
+        session=providers.Callable(get_current_session),
+    )
+
+    batch_run_service = providers.Factory(
+        BatchRunService,
+        session=providers.Callable(get_current_session),
     )
 
 

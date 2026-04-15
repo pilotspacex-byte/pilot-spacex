@@ -36,6 +36,7 @@ if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.cycle import Cycle
     from pilot_space.infrastructure.database.models.label import Label
     from pilot_space.infrastructure.database.models.module import Module
+    from pilot_space.infrastructure.database.models.note import Note
     from pilot_space.infrastructure.database.models.note_issue_link import NoteIssueLink
     from pilot_space.infrastructure.database.models.project import Project
     from pilot_space.infrastructure.database.models.state import State
@@ -230,6 +231,15 @@ class Issue(WorkspaceScopedModel):
         nullable=True,
     )
 
+    # Note traceability (v2.0 — Phase 73)
+    source_note_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("notes.id", ondelete="SET NULL", name="fk_issues_source_note_id"),
+        nullable=True,
+        default=None,
+        index=True,
+    )
+
     # Relationships
     project: Mapped[Project] = relationship(
         "Project",
@@ -301,6 +311,11 @@ class Issue(WorkspaceScopedModel):
         back_populates="issue",
         cascade="all, delete-orphan",
         lazy="raise",
+    )
+    source_note: Mapped[Note | None] = relationship(
+        "Note",
+        foreign_keys=[source_note_id],
+        lazy="selectin",
     )
 
     # Indexes and constraints

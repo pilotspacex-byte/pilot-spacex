@@ -28,6 +28,11 @@ from pilot_space.application.services.issue.list_issues_service import (
     ListIssuesPayload,
     ListIssuesService,
 )
+from pilot_space.application.services.issue.rich_context_assembler import (
+    RichContextAssembler,
+    RichContextPayload,
+    RichContextResult,
+)
 from pilot_space.application.services.issue.update_issue_service import (
     UpdateIssuePayload,
     UpdateIssueService,
@@ -47,6 +52,9 @@ __all__ = [
     "GetIssueService",
     "ListIssuesPayload",
     "ListIssuesService",
+    "RichContextAssembler",
+    "RichContextPayload",
+    "RichContextResult",
     "UpdateIssuePayload",
     "UpdateIssueService",
 ]

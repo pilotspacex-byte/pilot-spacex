@@ -55,6 +55,7 @@ class IssueDetail(BaseSchema):
     state: IssueStateDetail
     project_id: UUID
     assignee_id: UUID | None
+    cycle_id: UUID | None = None
 
     @classmethod
     def from_issue(cls, issue: Any) -> IssueDetail:
@@ -83,6 +84,7 @@ class IssueDetail(BaseSchema):
             state=IssueStateDetail.model_validate(issue.state) if issue.state else None,  # type: ignore[arg-type]
             project_id=issue.project_id,
             assignee_id=issue.assignee_id,
+            cycle_id=getattr(issue, "cycle_id", None),
         )
 
 
@@ -141,6 +143,44 @@ class ProjectContext(BaseSchema):
 
 
 # ============================================================================
+# Enrichment Schemas (Phase 74 — Rich Context Engine)
+# ============================================================================
+
+
+class KGDecision(BaseSchema):
+    """Knowledge graph decision or pattern relevant to the issue.
+
+    Note: source_type covers both DECISION and PATTERN KG node types —
+    CTX-01 "code patterns" are stored as PATTERN nodes in the KG and
+    surfaced through the same recall pipeline as DECISION nodes.
+    """
+
+    node_id: str
+    snippet: str
+    score: float
+    source_type: str  # "DECISION" or "PATTERN" (both are KG node types)
+
+
+class RelatedPR(BaseSchema):
+    """PR from a related closed issue."""
+
+    issue_identifier: str
+    issue_title: str
+    pr_url: str
+    pr_state: str | None = None  # "merged" | "closed" | "open"
+
+
+class SprintPeer(BaseSchema):
+    """Another issue in the same active sprint."""
+
+    identifier: str
+    title: str
+    state: str
+    assignee_name: str | None = None
+    acceptance_criteria_summary: str | None = None  # first 200 chars
+
+
+# ============================================================================
 # Top-Level Response
 # ============================================================================
 
@@ -171,6 +211,10 @@ class ImplementContextResponse(BaseSchema):
         description="Suggested git branch name: feat/ps-{sequence_id}-{title_slug}",
         max_length=60,
     )
+    kg_decisions: list[KGDecision] = Field(default_factory=list)
+    related_prs: list[RelatedPR] = Field(default_factory=list)
+    sprint_peers: list[SprintPeer] = Field(default_factory=list)
+    context_budget_used_pct: float | None = None
 
 
 __all__ = [
@@ -178,8 +222,11 @@ __all__ = [
     "IssueDetail",
     "IssueLabelDetail",
     "IssueStateDetail",
+    "KGDecision",
     "LinkedNoteBlock",
     "ProjectContext",
+    "RelatedPR",
     "RepositoryContext",
+    "SprintPeer",
     "WorkspaceContext",
 ]

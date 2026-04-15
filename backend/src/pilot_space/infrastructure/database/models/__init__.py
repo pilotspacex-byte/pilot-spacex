@@ -42,6 +42,8 @@ from pilot_space.infrastructure.database.models.ai_tool_call import AIToolCall, 
 from pilot_space.infrastructure.database.models.artifact import Artifact
 from pilot_space.infrastructure.database.models.artifact_annotation import ArtifactAnnotation
 from pilot_space.infrastructure.database.models.audit_log import ActorType, AuditLog
+from pilot_space.infrastructure.database.models.batch_run import BatchRun, BatchRunStatus
+from pilot_space.infrastructure.database.models.batch_run_issue import BatchRunIssue, BatchRunIssueStatus
 from pilot_space.infrastructure.database.models.chat_attachment import ChatAttachment
 from pilot_space.infrastructure.database.models.custom_role import CustomRole
 from pilot_space.infrastructure.database.models.cycle import Cycle, CycleStatus
@@ -182,6 +184,10 @@ __all__ = [
     "Artifact",
     "ArtifactAnnotation",
     "AuditLog",
+    "BatchRun",
+    "BatchRunIssue",
+    "BatchRunIssueStatus",
+    "BatchRunStatus",
     "Base",
     "BaseModel",
     "BindingType",

@@ -81,6 +81,11 @@ class IssueCreateRequest(BaseSchema):
     # AI enhancement request
     enhance_with_ai: bool = False
 
+    # Structured acceptance criteria (v2.0 — DAT-01)
+    acceptance_criteria: list[dict[str, Any]] | None = None
+    # Note traceability (v2.0 — DAT-02)
+    source_note_id: UUID | None = None
+
 
 class IssueUpdateRequest(BaseSchema):
     """Request to update an issue."""
@@ -102,6 +107,11 @@ class IssueUpdateRequest(BaseSchema):
     sort_order: int | None = None
     label_ids: list[UUID] | None = None
 
+    # Structured acceptance criteria (v2.0 — DAT-01)
+    acceptance_criteria: list[dict[str, Any]] | None = None
+    # Note traceability (v2.0 — DAT-02)
+    source_note_id: UUID | None = None
+
     # Explicit null fields (for clearing values)
     clear_assignee: bool = False
     clear_cycle: bool = False
@@ -110,6 +120,7 @@ class IssueUpdateRequest(BaseSchema):
     clear_estimate: bool = False
     clear_start_date: bool = False
     clear_target_date: bool = False
+    clear_source_note: bool = False
 
 
 class NoteIssueLinkBriefSchema(BaseSchema):
@@ -164,6 +175,11 @@ class IssueResponse(BaseSchema):
     # Counts
     sub_issue_count: int = 0
 
+    # Structured acceptance criteria (v2.0 — DAT-01)
+    acceptance_criteria: list[dict[str, Any]] | None = None
+    # Note traceability (v2.0 — DAT-02)
+    source_note_id: UUID | None = None
+
     @classmethod
     def from_issue(cls, issue: Any) -> IssueResponse:
         """Create from Issue model."""
@@ -211,6 +227,8 @@ class IssueResponse(BaseSchema):
             ai_metadata=issue.ai_metadata,
             has_ai_enhancements=issue.has_ai_enhancements,
             sub_issue_count=len(issue.sub_issues) if issue.sub_issues else 0,
+            acceptance_criteria=issue.acceptance_criteria,
+            source_note_id=issue.source_note_id,
         )
 
 
@@ -383,6 +401,9 @@ class WorkspaceIssueUpdateRequest(BaseSchema):
     sort_order: int | None = None
     label_ids: list[UUID] | None = None
     acceptance_criteria: list[dict[str, Any]] | None = None
+    # Note traceability (v2.0 — DAT-02)
+    source_note_id: UUID | None = None
+    clear_source_note: bool = False
 
     # Clear flags
     clear_assignee: bool = False
@@ -414,9 +435,58 @@ class StateUpdateRequest(BaseSchema):
     state: str
 
 
+# ============================================================================
+# Batch Issue Creation Schemas (Phase 75 — CIP-01, CIP-02, CIP-05)
+# ============================================================================
+
+
+class BatchIssueItemRequest(BaseSchema):
+    """A single issue item in a batch create request."""
+
+    title: str = Field(..., min_length=1, max_length=255)
+    description: str | None = None
+    acceptance_criteria: list[dict[str, Any]] | None = None
+    priority: str = Field(default="medium")
+
+
+class BatchCreateIssueRequest(BaseSchema):
+    """Request to create a batch of issues from a PM chat description.
+
+    Uses BaseSchema (NOT BaseModel) for camelCase contract:
+      - sourceNoteId  → source_note_id
+      - projectId     → project_id
+      - acceptanceCriteria → acceptance_criteria
+    """
+
+    issues: list[BatchIssueItemRequest] = Field(..., min_length=1)
+    source_note_id: UUID | None = None
+    project_id: UUID
+
+
+class BatchCreateIssueResult(BaseSchema):
+    """Per-issue result in a batch create response."""
+
+    index: int
+    success: bool
+    issue_id: UUID | None = None
+    error: str | None = None
+
+
+class BatchCreateIssueResponse(BaseSchema):
+    """Response for POST /issues/batch endpoint."""
+
+    results: list[BatchCreateIssueResult]
+    created_count: int
+    failed_count: int
+
+
 __all__ = [
     "ActivityResponse",
     "ActivityTimelineResponse",
+    "BatchCreateIssueRequest",
+    "BatchCreateIssueResponse",
+    "BatchCreateIssueResult",
+    "BatchIssueItemRequest",
     "CommentCreateRequest",
     "IssueBriefResponse",
     "IssueCreateRequest",

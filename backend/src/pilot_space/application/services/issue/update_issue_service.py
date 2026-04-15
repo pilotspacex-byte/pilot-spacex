@@ -77,6 +77,10 @@ class UpdateIssuePayload:
     # Acceptance criteria (list of structured dicts matching JSONB model)
     acceptance_criteria: list[dict[str, Any]] | None | _Unchanged = UNCHANGED
 
+    # Note traceability (v2.0 — DAT-02)
+    source_note_id: UUID | None | _Unchanged = UNCHANGED
+    clear_source_note: bool = False
+
     # AI metadata update
     ai_metadata: dict[str, Any] | None | _Unchanged = UNCHANGED
 
@@ -427,6 +431,15 @@ class UpdateIssueService:
             if payload.acceptance_criteria != issue.acceptance_criteria:
                 issue.acceptance_criteria = payload.acceptance_criteria
                 changed_fields.append("acceptance_criteria")
+
+        if payload.clear_source_note:
+            if issue.source_note_id is not None:
+                issue.source_note_id = None
+                changed_fields.append("source_note_id")
+        elif not isinstance(payload.source_note_id, _Unchanged):
+            if payload.source_note_id != issue.source_note_id:
+                issue.source_note_id = payload.source_note_id
+                changed_fields.append("source_note_id")
 
         # Handle label updates
         if not isinstance(payload.label_ids, _Unchanged):

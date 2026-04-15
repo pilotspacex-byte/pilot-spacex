@@ -19,6 +19,7 @@ Available routers:
 from __future__ import annotations
 
 from pilot_space.api.v1.routers.admin import router as admin_router
+from pilot_space.api.v1.routers.batch_runs import router as batch_runs_router
 from pilot_space.api.v1.routers.ai_approvals import router as ai_approvals_router
 from pilot_space.api.v1.routers.ai_attachments import router as ai_attachments_router
 from pilot_space.api.v1.routers.ai_chat import router as ai_chat_router
@@ -166,6 +167,7 @@ debug_router = None
 
 __all__ = [
     "admin_router",
+    "batch_runs_router",
     "ai_annotations_router",
     "ai_approvals_router",
     "ai_attachments_router",
