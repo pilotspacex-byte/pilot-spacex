@@ -170,16 +170,22 @@ Return ONLY the JSON array:"""
             max_tokens=2048,
             messages=[{"role": "user", "content": prompt}],
         )
-        raw_text = response.content[0].text.strip()
+        # Extract text — only TextBlock has .text; other content types are tool results
+        first_block = response.content[0]
+        if not hasattr(first_block, "text"):
+            logger.warning("[IssueGenerate] LLM returned non-text block: %s", type(first_block))
+            return []
+        raw_text = str(first_block.text).strip()  # type: ignore[union-attr]
 
         # Strip any markdown code fences if present
         raw_text = re.sub(r"^```(?:json)?\s*", "", raw_text)
         raw_text = re.sub(r"\s*```$", "", raw_text)
 
-        issues: list[dict[str, Any]] = json.loads(raw_text)
-        if not isinstance(issues, list):
-            logger.warning("[IssueGenerate] LLM returned non-list: %s", type(issues))
+        parsed: Any = json.loads(raw_text)
+        if not isinstance(parsed, list):
+            logger.warning("[IssueGenerate] LLM returned non-list: %s", type(parsed))
             return []
+        issues: list[Any] = parsed
 
         # Normalize and validate each issue
         normalized: list[dict[str, Any]] = []
