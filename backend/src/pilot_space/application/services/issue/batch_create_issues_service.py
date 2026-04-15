@@ -4,11 +4,13 @@ Creates multiple issues in a single request, calling CreateIssueService for each
 Handles partial failures gracefully — returns per-issue success/failure results.
 
 Phase 75, Plan 01 — CIP-01, CIP-02, CIP-05.
+Phase 78, Plan 01 — LSP-03: Append decision record to source note spec_annotations.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
@@ -181,6 +183,37 @@ class BatchCreateIssuesService:
             created_count,
             failed_count,
         )
+
+        # LSP-03: Append decision record to source note's spec_annotations.
+        # Non-fatal — annotation failure must not roll back created issues.
+        if payload.source_note_id is not None and created_count > 0:
+            try:
+                from pilot_space.infrastructure.database.repositories.note_repository import (
+                    NoteRepository,
+                )
+
+                note_repo = NoteRepository(self._session)
+                annotation: dict[str, Any] = {
+                    "type": "decision",
+                    "action": "approved",
+                    "content": f"Approved {created_count} issues for implementation",
+                    "issues": [item.title for item in payload.issues],
+                    "user_id": str(payload.reporter_id),
+                    "created_at": datetime.now(tz=UTC).isoformat(),
+                }
+                await note_repo.append_spec_annotation(payload.source_note_id, annotation)
+                await self._session.commit()
+                logger.info(
+                    "BatchCreateIssuesService: decision annotation appended to note %s",
+                    payload.source_note_id,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "BatchCreateIssuesService: failed to append decision annotation "
+                    "to note %s — non-fatal: %s",
+                    payload.source_note_id,
+                    exc,
+                )
 
         return BatchCreateIssuesResult(
             results=results,

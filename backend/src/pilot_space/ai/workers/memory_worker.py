@@ -50,6 +50,7 @@ TASK_DOCUMENT_INGESTION = "document_ingestion"
 TASK_ARTIFACT_CLEANUP = "artifact_cleanup"
 TASK_SEND_INVITATION_EMAIL = "send_invitation_email"
 TASK_SUMMARIZE_NOTE = "summarize_note"  # Phase 70-06
+TASK_DEVIATION_ANALYSIS = "deviation_analysis"  # Phase 78 — Living Specs
 
 # RLS bypass allowlist (PROD-04): task types that are intentionally
 # RLS bypass allowlist (PROD-04): task types that are intentionally
@@ -301,6 +302,7 @@ class MemoryWorker:
             TASK_ARTIFACT_CLEANUP,
             TASK_SEND_INVITATION_EMAIL,
             TASK_SUMMARIZE_NOTE,
+            TASK_DEVIATION_ANALYSIS,
         ):
             logger.warning(
                 "MemoryWorker: unknown task_type %s (msg %s) — moving to dead letter",
@@ -485,7 +487,18 @@ class MemoryWorker:
             await send_invitation_email(payload)
             return {"task_type": task_type, "invitation_id": payload.get("invitation_id")}
 
+        if task_type == TASK_DEVIATION_ANALYSIS:
+            from pilot_space.infrastructure.queue.handlers.deviation_analysis_handler import (
+                DeviationAnalysisHandler,
+            )
+
+            handler = DeviationAnalysisHandler(
+                session=session,
+                llm_gateway=self._llm_gateway,  # type: ignore[arg-type]
+            )
+            return await handler.handle(payload)
+
         raise AssertionError(f"Unreachable: _dispatch called with unknown task_type {task_type!r}")
 
 
-__all__ = ["TASK_DOCUMENT_INGESTION", "MemoryWorker"]
+__all__ = ["TASK_DEVIATION_ANALYSIS", "TASK_DOCUMENT_INGESTION", "MemoryWorker"]

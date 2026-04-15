@@ -28,10 +28,13 @@ from pilot_space.infrastructure.database.repositories.batch_run_repository impor
 )
 from pilot_space.infrastructure.database.rls import set_rls_context
 from pilot_space.infrastructure.logging import get_logger
+from pilot_space.infrastructure.queue.models import QueueName
 
 if TYPE_CHECKING:
     from redis.asyncio import Redis
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+    from pilot_space.infrastructure.queue.supabase_queue import SupabaseQueueClient
 
 __all__ = ["BatchImplHandler"]
 
@@ -69,10 +72,12 @@ class BatchImplHandler:
         session_factory: async_sessionmaker[AsyncSession],
         redis_client: Redis,  # type: ignore[type-arg]
         active_procs: dict[UUID, asyncio.subprocess.Process],
+        queue_client: SupabaseQueueClient | None = None,
     ) -> None:
         self._session_factory = session_factory
         self._redis = redis_client
         self._active_procs = active_procs
+        self._queue = queue_client
 
     # ------------------------------------------------------------------
     # Public API
@@ -311,6 +316,56 @@ class BatchImplHandler:
                     final_status,
                     completed_at=datetime.now(tz=UTC),
                 )
+
+            # Enqueue deviation_analysis if the issue has a source_note_id.
+            # Non-fatal: queue failure must not affect the batch run outcome.
+            if pr_url and self._queue is not None:
+                try:
+                    from sqlalchemy import select
+
+                    from pilot_space.infrastructure.database.models.batch_run_issue import (
+                        BatchRunIssue,
+                    )
+                    from pilot_space.infrastructure.database.models.issue import Issue
+
+                    bri_stmt = (
+                        select(Issue.id, Issue.source_note_id)
+                        .join(BatchRunIssue, BatchRunIssue.issue_id == Issue.id)
+                        .where(BatchRunIssue.id == batch_run_issue_id)
+                    )
+                    bri_result = await session.execute(bri_stmt)
+                    bri_row = bri_result.one_or_none()
+                    if bri_row is not None and bri_row[1] is not None:
+                        issue_id, source_note_id = bri_row
+                        await self._queue.enqueue(
+                            QueueName.AI_NORMAL,
+                            {
+                                "task_type": "deviation_analysis",
+                                "issue_id": str(issue_id),
+                                "pr_url": pr_url,
+                                "workspace_id": str(workspace_id),
+                                "actor_user_id": str(actor_user_id),
+                                "source_note_id": str(source_note_id),
+                            },
+                        )
+                        logger.info(
+                            "batch_impl_handler.deviation_analysis_enqueued",
+                            extra={
+                                "issue_id": str(issue_id),
+                                "source_note_id": str(source_note_id),
+                                "pr_url": pr_url,
+                            },
+                        )
+                except Exception:
+                    logger.warning(
+                        "batch_impl_handler.deviation_analysis_enqueue_failed",
+                        extra={
+                            "batch_run_issue_id": str(batch_run_issue_id),
+                            "pr_url": pr_url,
+                        },
+                        exc_info=True,
+                    )
+
             await session.commit()
 
     async def _finalize_failure(
