@@ -197,6 +197,23 @@ export class PilotSpaceStore {
     return this.streamingState.isStreaming;
   }
 
+  /**
+   * Phase 75: Returns the assistant message currently being streamed (by currentMessageId),
+   * or the last assistant message if streaming is complete. Used by stream handler to attach
+   * batchProposal data to the message that triggered the event.
+   */
+  get currentAssistantMessage(): ChatMessage | undefined {
+    const currentId = this.streamingState.currentMessageId;
+    if (currentId) {
+      return this.messages.find((m) => m.id === currentId);
+    }
+    // Fall back to last assistant message (for post-stream event handling)
+    for (let i = this.messages.length - 1; i >= 0; i--) {
+      if (this.messages[i]!.role === 'assistant') return this.messages[i];
+    }
+    return undefined;
+  }
+
   get streamContent(): string {
     return this.streamingState.streamContent;
   }

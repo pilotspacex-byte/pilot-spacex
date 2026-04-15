@@ -46,7 +46,9 @@ export type SSEEventType =
   // Phase 64: Chat-first skill refinement events
   | 'skill_preview'
   | 'test_result'
-  | 'skill_saved';
+  | 'skill_saved'
+  // Phase 75: Chat-to-issue pipeline events
+  | 'issue_batch_proposal';
 
 /**
  * Base SSE event structure.
@@ -711,6 +713,41 @@ export interface SkillSavedEvent extends SSEEvent {
   };
 }
 
+// Phase 75: Chat-to-issue pipeline — batch issue proposal event.
+
+/**
+ * A single proposed issue from the generate_issues_from_description tool.
+ */
+export interface ProposedIssue {
+  title: string;
+  description: string;
+  acceptance_criteria: Array<{ criterion: string; met: boolean }>;
+  priority: 'none' | 'low' | 'medium' | 'high' | 'urgent';
+}
+
+/**
+ * Issue batch proposal event.
+ * Emitted by the generate_issues_from_description MCP tool after extracting issues
+ * from a PM description in the chat. Frontend renders a BatchPreviewCard inline
+ * in AssistantMessage so the PM can review, edit, and approve before DB writes.
+ *
+ * Attached to the triggering ChatMessage.batchProposal (not globally on store)
+ * to support multiple proposals per session (RESEARCH Pitfall 2).
+ */
+export interface IssueBatchProposalEvent extends SSEEvent {
+  type: 'issue_batch_proposal';
+  data: {
+    /** ID of the assistant message that carries this proposal */
+    messageId: string;
+    /** Proposed issues ready for PM review */
+    issues: ProposedIssue[];
+    /** Source note ID (null when initiated from plain chat) */
+    sourceNoteId: string | null;
+    /** Project ID to create issues in */
+    projectId: string;
+  };
+}
+
 // Feature 015: Intent/skill lifecycle events extracted to events-workforce.ts.
 // Re-exported here for backward compatibility.
 export type {
@@ -755,4 +792,6 @@ export {
   isSkillPreviewEvent,
   isTestResultEvent,
   isSkillSavedEvent,
+  // Phase 75: Chat-to-issue pipeline
+  isIssueBatchProposalEvent,
 } from './event-guards';

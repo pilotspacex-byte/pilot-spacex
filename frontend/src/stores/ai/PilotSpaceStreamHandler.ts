@@ -26,6 +26,7 @@ import type {
   SkillPreviewEvent,
   TestResultEvent,
   SkillSavedEvent,
+  IssueBatchProposalEvent,
 } from './types/events';
 import {
   isMessageStartEvent,
@@ -51,6 +52,7 @@ import {
   isSkillPreviewEvent,
   isTestResultEvent,
   isSkillSavedEvent,
+  isIssueBatchProposalEvent,
 } from './types/events';
 import type { PilotSpaceStore } from './PilotSpaceStore';
 import { PilotSpaceToolCallHandler } from './PilotSpaceToolCallHandler';
@@ -150,7 +152,8 @@ export class PilotSpaceStreamHandler {
         | FocusBlockEvent
         | SkillPreviewEvent
         | TestResultEvent
-        | SkillSavedEvent;
+        | SkillSavedEvent
+        | IssueBatchProposalEvent;
 
       // Route to type-specific handler
       if (isMessageStartEvent(event)) {
@@ -199,6 +202,13 @@ export class PilotSpaceStreamHandler {
         this.store.handleTestResult(event);
       } else if (isSkillSavedEvent(event)) {
         this.store.handleSkillSaved(event);
+      } else if (isIssueBatchProposalEvent(event)) {
+        // Phase 75: Attach batch proposal to the current assistant message.
+        // Attaching per-message (not globally) supports multiple proposals per session.
+        const currentMsg = this.store.currentAssistantMessage;
+        if (currentMsg) {
+          currentMsg.batchProposal = event.data;
+        }
       }
     });
   }

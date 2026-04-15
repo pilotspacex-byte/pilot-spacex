@@ -36,6 +36,7 @@ import type {
   SkillPreviewEvent,
   TestResultEvent,
   SkillSavedEvent,
+  IssueBatchProposalEvent,
 } from './events';
 
 /**
@@ -267,6 +268,18 @@ export function isSkillSavedEvent(event: SSEEvent): event is SkillSavedEvent {
   return event.type === 'skill_saved';
 }
 
+// Phase 75: Chat-to-issue pipeline event guards
+
+/**
+ * Type guard for IssueBatchProposalEvent.
+ * Validates that the event carries a non-null data object with an issues array.
+ */
+export function isIssueBatchProposalEvent(event: SSEEvent): event is IssueBatchProposalEvent {
+  if (event.type !== 'issue_batch_proposal') return false;
+  const data = (event as IssueBatchProposalEvent).data;
+  return data != null && typeof data === 'object' && Array.isArray(data.issues);
+}
+
 const KNOWN_EVENT_TYPES = new Set([
   'message_start',
   'content_block_start',
@@ -297,6 +310,8 @@ const KNOWN_EVENT_TYPES = new Set([
   'skill_preview',
   'test_result',
   'skill_saved',
+  // Phase 75: Chat-to-issue pipeline
+  'issue_batch_proposal',
 ]);
 
 /**

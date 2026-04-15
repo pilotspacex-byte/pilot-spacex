@@ -136,6 +136,9 @@ export interface ChatMessage {
   }>;
   /** Additional message metadata */
   metadata?: MessageMetadata;
+  /** Phase 75: Batch issue proposal from generate_issues_from_description tool.
+   *  Attached to the triggering message so multiple proposals can coexist in a session. */
+  batchProposal?: import('./events').IssueBatchProposalEvent['data'] | null;
 }
 
 /**
