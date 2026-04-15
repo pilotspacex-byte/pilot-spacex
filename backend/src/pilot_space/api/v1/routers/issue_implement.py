@@ -16,12 +16,12 @@ from fastapi import APIRouter, Body, HTTPException, status
 from pilot_space.api.v1.dependencies import UpdateIssueServiceDep
 from pilot_space.api.v1.dependencies_pilot import (
     CLIRequesterContextDep,
-    GetImplementContextServiceDep,
+    RichContextAssemblerDep,
 )
 from pilot_space.api.v1.repository_deps import IssueRepositoryDep
 from pilot_space.api.v1.schemas.implement_context import ImplementContextResponse
 from pilot_space.api.v1.schemas.issue import StateUpdateRequest
-from pilot_space.application.services.issue import GetImplementContextPayload
+from pilot_space.application.services.issue.rich_context_assembler import RichContextPayload
 from pilot_space.dependencies.auth import SessionDep
 from pilot_space.infrastructure.database.rls import set_rls_context
 from pilot_space.infrastructure.logging import get_logger
@@ -106,7 +106,7 @@ async def _resolve_issue_id(
 async def get_implement_context(
     issue_ref: str,
     session: SessionDep,
-    service: GetImplementContextServiceDep,
+    service: RichContextAssemblerDep,
     issue_repo: IssueRepositoryDep,
     requester_context: CLIRequesterContextDep,
 ) -> ImplementContextResponse:
@@ -138,7 +138,7 @@ async def get_implement_context(
 
     issue_id = await _resolve_issue_id(issue_ref, workspace_id, issue_repo)
 
-    payload = GetImplementContextPayload(
+    payload = RichContextPayload(
         issue_id=issue_id,
         workspace_id=workspace_id,
         requester_id=current_user_id,

@@ -55,6 +55,37 @@ _No linked notes for this issue._
 
 {{ project.tech_stack_summary or '_Not specified._' }}
 
+{% if kg_decisions %}
+
+## Architecture Decisions & Code Patterns (Knowledge Graph)
+
+These decisions and patterns from your workspace's knowledge graph are relevant to this issue:
+
+{% for d in kg_decisions %}
+- **{{ d.source_type }}** (score: {{ "%.2f"|format(d.score) }}): {{ d.snippet }}
+{% endfor %}
+{% endif %}
+{% if related_prs %}
+
+## Related Closed Issues & PRs
+
+These previously completed issues and their PRs may serve as implementation reference:
+
+{% for pr in related_prs %}
+- {{ pr.issue_identifier }}: {{ pr.issue_title }} — [PR]({{ pr.pr_url }}) ({{ pr.pr_state or 'unknown' }})
+{% endfor %}
+{% endif %}
+{% if sprint_peers %}
+
+## Sprint Peer Issues (Conflict Awareness)
+
+Other issues currently in progress in the same sprint. Avoid modifying the same files if possible:
+
+{% for peer in sprint_peers %}
+- **{{ peer.identifier }}** ({{ peer.state }}{% if peer.assignee_name %}, {{ peer.assignee_name }}{% endif %}): {{ peer.title }}
+{% endfor %}
+{% endif %}
+
 ## Your Task
 
 **Implement this issue now.** Work through every acceptance criterion systematically.

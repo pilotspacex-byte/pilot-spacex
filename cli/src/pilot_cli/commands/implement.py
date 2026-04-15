@@ -427,6 +427,41 @@ def _normalize_ctx(ctx: dict[str, Any]) -> dict[str, Any]:
         for n in notes_raw
     ]
 
+    # Enrichment fields (camelCase from API -> snake_case for template)
+    kg_decisions_raw: list[dict[str, Any]] = ctx.get("kgDecisions", [])
+    kg_decisions: list[dict[str, Any]] = [
+        {
+            "node_id": d.get("nodeId", ""),
+            "snippet": d.get("snippet", ""),
+            "score": d.get("score", 0.0),
+            "source_type": d.get("sourceType", ""),
+        }
+        for d in kg_decisions_raw
+    ]
+
+    related_prs_raw: list[dict[str, Any]] = ctx.get("relatedPrs", [])
+    related_prs: list[dict[str, Any]] = [
+        {
+            "issue_identifier": pr.get("issueIdentifier", ""),
+            "issue_title": pr.get("issueTitle", ""),
+            "pr_url": pr.get("prUrl", ""),
+            "pr_state": pr.get("prState"),
+        }
+        for pr in related_prs_raw
+    ]
+
+    sprint_peers_raw: list[dict[str, Any]] = ctx.get("sprintPeers", [])
+    sprint_peers: list[dict[str, Any]] = [
+        {
+            "identifier": p.get("identifier", ""),
+            "title": p.get("title", ""),
+            "state": p.get("state", ""),
+            "assignee_name": p.get("assigneeName"),
+            "acceptance_criteria_summary": p.get("acceptanceCriteriaSummary"),
+        }
+        for p in sprint_peers_raw
+    ]
+
     return {
         "issue": issue,
         "repository": repository,
@@ -434,6 +469,9 @@ def _normalize_ctx(ctx: dict[str, Any]) -> dict[str, Any]:
         "workspace": workspace,
         "linked_notes": linked_notes,
         "suggested_branch": ctx.get("suggestedBranch", ""),
+        "kg_decisions": kg_decisions,
+        "related_prs": related_prs,
+        "sprint_peers": sprint_peers,
     }
 
 
@@ -459,6 +497,9 @@ def _inject_claude_md(target_path: Path, ctx: dict[str, Any]) -> None:
         suggested_branch=normalized["suggested_branch"],
         backend_quality_gate=_BACKEND_GATE,
         frontend_quality_gate=_FRONTEND_GATE,
+        kg_decisions=normalized.get("kg_decisions", []),
+        related_prs=normalized.get("related_prs", []),
+        sprint_peers=normalized.get("sprint_peers", []),
     )
 
     claude_md = target_path / "CLAUDE.md"

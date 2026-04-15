@@ -77,6 +77,7 @@ from pilot_space.application.services.issue import (
     ListIssuesService,
     UpdateIssueService,
 )
+from pilot_space.application.services.issue.rich_context_assembler import RichContextAssembler
 from pilot_space.application.services.mcp_oauth import McpOAuthService
 from pilot_space.application.services.mcp_server import McpServerService
 from pilot_space.application.services.mcp_tool_execution import MCPToolExecutionService
@@ -1035,6 +1036,16 @@ class Container(SkillContainer, PluginContainer):
         session=providers.Callable(get_current_session),
         redis_client=InfraContainer.redis_client,
         llm_gateway=llm_gateway,
+    )
+
+    # Rich Context Assembler (wraps GetImplementContextService with KG, PRs, sprint peers)
+    rich_context_assembler = providers.Factory(
+        RichContextAssembler,
+        base_service=get_implement_context_service,
+        memory_recall=memory_recall_service,
+        issue_link_repo=InfraContainer.issue_link_repository,
+        integration_link_repo=InfraContainer.integration_link_repository,
+        cycle_repo=InfraContainer.cycle_repository,
     )
 
     memory_lifecycle_service = providers.Factory(

@@ -15,6 +15,7 @@ from fastapi import Depends, HTTPException, Request, status
 from pilot_space.api.v1.repository_deps import PilotAPIKeyRepositoryDep
 from pilot_space.application.services.auth import ValidateAPIKeyService
 from pilot_space.application.services.issue import GetImplementContextService
+from pilot_space.application.services.issue.rich_context_assembler import RichContextAssembler
 from pilot_space.container import Container
 from pilot_space.dependencies.auth import SessionDep, get_current_user, get_token_from_header
 from pilot_space.dependencies.workspace import get_current_workspace_id
@@ -22,6 +23,7 @@ from pilot_space.dependencies.workspace import get_current_workspace_id
 __all__ = [
     "CLIRequesterContextDep",
     "GetImplementContextServiceDep",
+    "RichContextAssemblerDep",
     "ValidateAPIKeyServiceDep",
 ]
 
@@ -36,6 +38,16 @@ def _get_implement_context_service(
 GetImplementContextServiceDep = Annotated[
     GetImplementContextService, Depends(_get_implement_context_service)
 ]
+
+
+@inject
+def _get_rich_context_assembler(
+    svc: RichContextAssembler = Depends(Provide[Container.rich_context_assembler]),
+) -> RichContextAssembler:
+    return svc
+
+
+RichContextAssemblerDep = Annotated[RichContextAssembler, Depends(_get_rich_context_assembler)]
 
 
 @inject
