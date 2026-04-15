@@ -14,6 +14,26 @@ import type {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '/api/v1';
 
+export interface LinkedIssueResponse {
+  id: string;
+  identifier: string;
+  title: string;
+  stateName: string;
+  stateGroup: string;
+  batchStatus: string | null;
+}
+
+export interface SpecAnnotationResponse {
+  type: 'deviation' | 'decision';
+  content: string;
+  issueId: string | null;
+  createdAt: string;
+  prUrl: string | null;
+  action: string | null;
+  issues: string[] | null;
+  userId: string | null;
+}
+
 interface NoteFilters {
   projectIds?: string[];
   isPinned?: boolean;
@@ -159,6 +179,18 @@ export const notesApi = {
 
   getNoteBacklinks(workspaceId: string, noteId: string): Promise<NoteBacklink[]> {
     return apiClient.get<NoteBacklink[]>(`/workspaces/${workspaceId}/notes/${noteId}/backlinks`);
+  },
+
+  getLinkedIssues(workspaceId: string, noteId: string): Promise<LinkedIssueResponse[]> {
+    return apiClient.get<LinkedIssueResponse[]>(
+      `/workspaces/${workspaceId}/notes/${noteId}/linked-issues`
+    );
+  },
+
+  getSpecAnnotations(workspaceId: string, noteId: string): Promise<SpecAnnotationResponse[]> {
+    return apiClient.get<SpecAnnotationResponse[]>(
+      `/workspaces/${workspaceId}/notes/${noteId}/spec-annotations`
+    );
   },
 
   movePage(workspaceId: string, noteId: string, newParentId: string | null): Promise<Note> {

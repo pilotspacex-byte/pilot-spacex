@@ -38,6 +38,10 @@ export const notesKeys = {
     [...notesKeys.details(), workspaceId, noteId] as const,
   annotations: (workspaceId: string, noteId: string) =>
     [...notesKeys.detail(workspaceId, noteId), 'annotations'] as const,
+  linkedIssues: (workspaceId: string, noteId: string) =>
+    [...notesKeys.detail(workspaceId, noteId), 'linked-issues'] as const,
+  specAnnotations: (workspaceId: string, noteId: string) =>
+    [...notesKeys.detail(workspaceId, noteId), 'spec-annotations'] as const,
   versions: (workspaceId: string, noteId: string) =>
     [...notesKeys.detail(workspaceId, noteId), 'versions'] as const,
 };

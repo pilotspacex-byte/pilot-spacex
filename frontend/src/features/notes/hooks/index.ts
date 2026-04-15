@@ -39,3 +39,13 @@ export type {
 
 // Issue extraction
 export { useIssueExtraction } from './useIssueExtraction';
+
+// Living Spec sidebar hooks (Phase 78)
+export { useLivingSpec } from './use-living-spec';
+export type { UseLivingSpecOptions, LinkedIssueResponse } from './use-living-spec';
+
+export { useSpecAnnotations } from './use-note-annotations';
+export type { UseNoteAnnotationsOptions, SpecAnnotationResponse } from './use-note-annotations';
+
+export { useTocHeadings } from './use-toc-headings';
+export type { TocHeading } from './use-toc-headings';
