@@ -93,6 +93,59 @@ class DAGPreviewResponse(BaseSchema):
     cycle_issues: list[str]
 
 
+class DashboardIssueStatus(BaseSchema):
+    """Per-issue status with cost for dashboard display."""
+
+    id: UUID
+    issue_id: UUID
+    issue_identifier: str | None = None
+    issue_title: str | None = None
+    status: str
+    execution_order: int
+    current_stage: str | None = None
+    pr_url: str | None = None
+    error_message: str | None = None
+    cost_cents: int = 0
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+
+
+class AttentionItemResponse(BaseSchema):
+    """Single item requiring PM attention."""
+
+    type: str  # "pr_ready" | "blocked" | "pending_approval"
+    issue_id: UUID
+    issue_identifier: str | None = None
+    issue_title: str | None = None
+    pr_url: str | None = None
+
+
+class DashboardResponse(BaseSchema):
+    """Aggregated dashboard data for a batch run."""
+
+    # Progress (DSH-01)
+    batch_run_id: UUID
+    cycle_id: UUID
+    status: str
+    total_issues: int
+    completed_issues: int
+    failed_issues: int
+    queued_issues: int
+    running_issues: int
+    completion_percent: float
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    # Per-issue statuses (DSH-02)
+    issues: list[DashboardIssueStatus]
+    # Attention feed (DSH-03)
+    attention_items: list[AttentionItemResponse]
+    attention_count: int
+    # Cost (DSH-04)
+    sprint_cost_cents: int
+    monthly_cost_cents: int
+
+
+
 # ---------------------------------------------------------------------------
 # Type aliases for path parameters
 # ---------------------------------------------------------------------------
@@ -382,6 +435,137 @@ async def cancel_batch_run_issue(
         )
 
     return {"status": "cancelled"}
+
+
+@router.get(
+    "/workspaces/{workspace_id}/batch-runs/{batch_run_id}/dashboard",
+    response_model=DashboardResponse,
+    summary="Get aggregated dashboard data for a batch run",
+)
+async def get_batch_run_dashboard(
+    workspace_id: WorkspaceIdPath,
+    batch_run_id: BatchRunIdPath,
+    session: DbSession,
+    _member: WorkspaceMemberId,
+) -> DashboardResponse:
+    """Return aggregated dashboard data for a sprint batch run.
+
+    Returns a single response containing:
+    - Progress stats (DSH-01): total, completed, failed, queued, running counts + percent
+    - Per-issue statuses with cost (DSH-02): all items with identifier, title, cost_cents
+    - Attention feed (DSH-03): PRs ready for review, blocked issues, pending approvals
+    - Cost breakdown (DSH-04): per-issue cost_cents and sprint total
+    """
+    from pilot_space.domain.exceptions import NotFoundError
+    from pilot_space.infrastructure.database.repositories.batch_run_repository import (
+        BatchRunRepository,
+    )
+
+    repo = BatchRunRepository(session)
+    batch_run = await repo.get_dashboard_data(batch_run_id)
+    if batch_run is None:
+        raise NotFoundError(f"BatchRun {batch_run_id} not found.")
+
+    items = batch_run.items or []
+
+    # --- Running status counts ---
+    running_statuses = {"cloning", "implementing", "creating_pr", "running"}
+    queued_statuses = {"queued", "pending"}
+
+    queued_issues = sum(1 for item in items if item.status.value in queued_statuses)
+    running_issues = sum(1 for item in items if item.status.value in running_statuses)
+
+    # --- Completion percent ---
+    total = batch_run.total_issues
+    completed_count = batch_run.completed_issues
+    completion_percent = round((completed_count / total) * 100, 1) if total > 0 else 0.0
+
+    # --- Per-issue statuses with cost and identifiers ---
+    issue_statuses = [
+        DashboardIssueStatus(
+            id=item.id,
+            issue_id=item.issue_id,
+            issue_identifier=item.issue.identifier if item.issue else None,
+            issue_title=item.issue.name if item.issue else None,
+            status=item.status.value,
+            execution_order=item.execution_order,
+            current_stage=item.current_stage,
+            pr_url=item.pr_url,
+            error_message=item.error_message,
+            cost_cents=item.cost_cents,
+            started_at=item.started_at,
+            completed_at=item.completed_at,
+        )
+        for item in items
+    ]
+
+    # --- Attention feed ---
+    attention_items: list[AttentionItemResponse] = []
+
+    for item in items:
+        issue_identifier = item.issue.identifier if item.issue else None
+        issue_title = item.issue.name if item.issue else None
+
+        # PRs ready for review: completed status with a PR URL
+        if item.status.value == "completed" and item.pr_url:
+            attention_items.append(
+                AttentionItemResponse(
+                    type="pr_ready",
+                    issue_id=item.issue_id,
+                    issue_identifier=issue_identifier,
+                    issue_title=issue_title,
+                    pr_url=item.pr_url,
+                )
+            )
+        # Blocked: cancelled with dependency/blocked in error message
+        elif item.status.value == "cancelled" and item.error_message and (
+            "dependency" in item.error_message.lower()
+            or "blocked" in item.error_message.lower()
+        ):
+            attention_items.append(
+                AttentionItemResponse(
+                    type="blocked",
+                    issue_id=item.issue_id,
+                    issue_identifier=issue_identifier,
+                    issue_title=issue_title,
+                    pr_url=None,
+                )
+            )
+        # Pending approval: pending status (stuck waiting)
+        elif item.status.value == "pending":
+            attention_items.append(
+                AttentionItemResponse(
+                    type="pending_approval",
+                    issue_id=item.issue_id,
+                    issue_identifier=issue_identifier,
+                    issue_title=issue_title,
+                    pr_url=None,
+                )
+            )
+
+    # --- Cost breakdown ---
+    sprint_cost_cents = sum(item.cost_cents for item in items)
+    # monthly_cost_cents: single-sprint view for now; future: aggregate across batch_runs in month
+    monthly_cost_cents = sprint_cost_cents
+
+    return DashboardResponse(
+        batch_run_id=batch_run.id,
+        cycle_id=batch_run.cycle_id,
+        status=batch_run.status.value,
+        total_issues=batch_run.total_issues,
+        completed_issues=batch_run.completed_issues,
+        failed_issues=batch_run.failed_issues,
+        queued_issues=queued_issues,
+        running_issues=running_issues,
+        completion_percent=completion_percent,
+        started_at=batch_run.started_at,
+        completed_at=batch_run.completed_at,
+        issues=issue_statuses,
+        attention_items=attention_items,
+        attention_count=len(attention_items),
+        sprint_cost_cents=sprint_cost_cents,
+        monthly_cost_cents=monthly_cost_cents,
+    )
 
 
 __all__ = ["router"]

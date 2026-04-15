@@ -68,6 +68,33 @@ class BatchRunRepository(BaseRepository[BatchRun]):
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
 
+    async def get_dashboard_data(self, batch_run_id: UUID) -> BatchRun | None:
+        """Get a BatchRun with eagerly loaded items AND their related issues.
+
+        Loads items with their issue relationships (for identifier/title) to
+        support the dashboard aggregation endpoint without N+1 queries.
+
+        Args:
+            batch_run_id: The BatchRun UUID.
+
+        Returns:
+            The BatchRun with items and issue relationships loaded, or None.
+        """
+        query = (
+            select(BatchRun)
+            .where(
+                and_(
+                    BatchRun.id == batch_run_id,
+                    BatchRun.is_deleted == False,  # noqa: E712
+                )
+            )
+            .options(
+                selectinload(BatchRun.items).selectinload(BatchRunIssue.issue)
+            )
+        )
+        result = await self.session.execute(query)
+        return result.scalar_one_or_none()
+
     # ------------------------------------------------------------------
     # BatchRunIssue queries
     # ------------------------------------------------------------------
