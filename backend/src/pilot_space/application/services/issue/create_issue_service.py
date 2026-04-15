@@ -70,6 +70,11 @@ class CreateIssuePayload:
     ai_metadata: dict[str, Any] | None = None
     ai_enhanced: bool = False
 
+    # Structured acceptance criteria (v2.0 — DAT-01)
+    acceptance_criteria: list[dict[str, Any]] | None = None
+    # Note traceability (v2.0 — DAT-02)
+    source_note_id: UUID | None = None
+
 
 @dataclass
 class CreateIssueResult:
@@ -175,6 +180,8 @@ class CreateIssueService:
             start_date=payload.start_date,
             target_date=payload.target_date,
             ai_metadata=payload.ai_metadata,
+            acceptance_criteria=payload.acceptance_criteria,
+            source_note_id=payload.source_note_id,
         )
 
         # Save issue
