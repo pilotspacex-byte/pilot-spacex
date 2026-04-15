@@ -231,6 +231,31 @@ class IntegrationLinkRepository(BaseRepository[IntegrationLink]):
             link_type=IntegrationLinkType.PULL_REQUEST,
         )
 
+    async def get_pull_requests_for_issues(
+        self,
+        issue_ids: list[UUID],
+        workspace_id: UUID,
+    ) -> Sequence[IntegrationLink]:
+        """Get PR links for multiple issues in one query.
+
+        Args:
+            issue_ids: List of issue UUIDs to query.
+            workspace_id: Workspace scope for RLS.
+
+        Returns:
+            List of PR-type integration links.
+        """
+        if not issue_ids:
+            return []
+        stmt = select(IntegrationLink).where(
+            IntegrationLink.issue_id.in_(issue_ids),
+            IntegrationLink.workspace_id == workspace_id,
+            IntegrationLink.link_type == IntegrationLinkType.PULL_REQUEST,
+            IntegrationLink.is_deleted == False,  # noqa: E712
+        )
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
+
     async def get_by_issue_in_workspace(
         self,
         issue_id: UUID,
