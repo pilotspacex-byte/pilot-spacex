@@ -75,9 +75,9 @@
   /* Typography - Pilot Space v4 fonts */
   --font-display: var(--font-fraunces), 'Fraunces', georgia, serif;
   --font-sans:
-    system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    var(--font-inter), 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
   --font-mono:
-    var(--font-jetbrains-mono), 'JetBrains Mono', 'SF Mono', 'Cascadia Code', 'Fira Code',
+    var(--font-geist-mono), 'Geist Mono', var(--font-jetbrains-mono), 'JetBrains Mono', 'SF Mono', 'Cascadia Code', 'Fira Code',
     ui-monospace, monospace;
 
   /* Border radius (Apple squircle style) */
@@ -114,10 +114,10 @@
    LIGHT THEME (Default) - Neutral Notion-like base
    ============================================================================= */
 :root {
-  /* Base - Neutral Notion-like values */
-  --background: #ffffff;
-  --background-subtle: #f7f7f5;
-  --background-muted: #f1f1ef;
+  /* Base - Warm Notion-like values */
+  --background: #f7f7f5;
+  --background-subtle: #f1f1ef;
+  --background-muted: #eae8e4;
   --foreground: #37352f;
   --foreground-muted: #787774;
 
@@ -372,35 +372,35 @@
    CUSTOM CLASSES (Not using @layer utilities for Tailwind v4 compatibility)
    ============================================================================= */
 
-/* Neutral Shadows */
+/* Warm Shadows */
 .shadow-warm-sm {
   box-shadow:
-    0 1px 2px hsl(0 0% 0% / 0.04),
-    0 1px 1px hsl(0 0% 0% / 0.02);
+    0 1px 2px rgba(120, 100, 80, 0.04),
+    0 1px 1px rgba(120, 100, 80, 0.02);
 }
 
 .shadow-warm {
   box-shadow:
-    0 2px 4px hsl(0 0% 0% / 0.04),
-    0 4px 8px hsl(0 0% 0% / 0.04);
+    0 2px 4px rgba(120, 100, 80, 0.05),
+    0 4px 8px rgba(120, 100, 80, 0.04);
 }
 
 .shadow-warm-md {
   box-shadow:
-    0 4px 8px hsl(0 0% 0% / 0.04),
-    0 8px 16px hsl(0 0% 0% / 0.06);
+    0 4px 8px rgba(120, 100, 80, 0.06),
+    0 8px 16px rgba(120, 100, 80, 0.06);
 }
 
 .shadow-warm-lg {
   box-shadow:
-    0 8px 16px hsl(0 0% 0% / 0.06),
-    0 16px 32px hsl(0 0% 0% / 0.08);
+    0 8px 16px rgba(120, 100, 80, 0.08),
+    0 16px 32px rgba(120, 100, 80, 0.08);
 }
 
 .shadow-warm-xl {
   box-shadow:
-    0 12px 24px hsl(0 0% 0% / 0.08),
-    0 24px 48px hsl(0 0% 0% / 0.1);
+    0 12px 24px rgba(120, 100, 80, 0.10),
+    0 24px 48px rgba(120, 100, 80, 0.10);
 }
 
 /* Frosted Glass */
