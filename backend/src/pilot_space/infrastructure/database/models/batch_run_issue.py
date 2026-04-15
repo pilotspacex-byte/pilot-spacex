@@ -129,6 +129,13 @@ class BatchRunIssue(WorkspaceScopedModel):
         nullable=True,
     )
 
+    # Fine-grained execution stage for SSE (cloning/implementing/creating_pr)
+    # Persisted so late-joining SSE clients see current sub-stage.
+    current_stage: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
     # AI cost tracking (cents × 100 to avoid floating point — e.g., 125 = $0.0125)
     cost_cents: Mapped[int] = mapped_column(
         Integer,

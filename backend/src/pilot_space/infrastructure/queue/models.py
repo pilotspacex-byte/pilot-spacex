@@ -37,6 +37,9 @@ class QueueName(StrEnum):
     # Dead Letter Queue
     DEAD_LETTER = "dead_letter"
 
+    # Sprint Batch Implementation
+    BATCH_IMPL = "batch_impl"  # Sprint batch implementation trigger
+
 
 class MessageStatus(StrEnum):
     """Queue message status."""
