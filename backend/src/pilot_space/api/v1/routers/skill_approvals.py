@@ -19,7 +19,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Path, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import column, func, select, table
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from pilot_space.api.middleware.request_context import WorkspaceId
@@ -35,7 +35,6 @@ from pilot_space.infrastructure.database.models.skill_execution import (
     SkillApprovalStatus,
     SkillExecution,
 )
-from pilot_space.infrastructure.database.models.work_intent import WorkIntent
 from pilot_space.infrastructure.database.models.workspace_member import (
     WorkspaceMember,
     WorkspaceRole,
@@ -43,6 +42,10 @@ from pilot_space.infrastructure.database.models.workspace_member import (
 from pilot_space.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
+
+# Lightweight table reference for work_intents (ORM model removed in Phase 79,
+# DB table remains). Used only for RLS-scoped joins on workspace_id.
+_work_intents = table("work_intents", column("id"), column("workspace_id"))
 
 router = APIRouter(
     prefix="/{workspace_id}/skill-approvals",
@@ -113,10 +116,10 @@ async def _get_execution_or_404(
     """
     stmt = (
         select(SkillExecution)
-        .join(WorkIntent, SkillExecution.intent_id == WorkIntent.id)
+        .join(_work_intents, SkillExecution.intent_id == _work_intents.c.id)
         .where(
             SkillExecution.id == execution_id,
-            WorkIntent.workspace_id == workspace_id,
+            _work_intents.c.workspace_id == workspace_id,
             SkillExecution.is_deleted == False,  # noqa: E712
         )
     )
@@ -171,20 +174,20 @@ async def list_pending_approvals(
 
     base_filter = (
         SkillExecution.approval_status == SkillApprovalStatus.PENDING_APPROVAL,
-        WorkIntent.workspace_id == workspace_id,
+        _work_intents.c.workspace_id == workspace_id,
         SkillExecution.is_deleted == False,  # noqa: E712
     )
 
     count_stmt = (
         select(func.count(SkillExecution.id))
-        .join(WorkIntent, SkillExecution.intent_id == WorkIntent.id)
+        .join(_work_intents, SkillExecution.intent_id == _work_intents.c.id)
         .where(*base_filter)
     )
     total: int = (await session.execute(count_stmt)).scalar_one()
 
     page_stmt = (
         select(SkillExecution)
-        .join(WorkIntent, SkillExecution.intent_id == WorkIntent.id)
+        .join(_work_intents, SkillExecution.intent_id == _work_intents.c.id)
         .where(*base_filter)
         .order_by(SkillExecution.created_at.asc())
         .limit(limit)

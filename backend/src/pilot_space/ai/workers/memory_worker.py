@@ -1,7 +1,6 @@
 """MemoryWorker — polls ai_normal queue for memory engine jobs.
 
 T-068: Routes by task_type:
-- 'intent_dedup'              → IntentDedupJobHandler
 - 'memory_embedding'          → MemoryEmbeddingJobHandler
 - 'graph_embedding'           → MemoryEmbeddingJobHandler.handle_graph_node
 - 'memory_dlq_reconciliation' → MemoryDLQJobHandler
@@ -40,7 +39,6 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 # Task type constants
-TASK_INTENT_DEDUP = "intent_dedup"
 TASK_KG_POPULATE = "kg_populate"
 TASK_MEMORY_EMBEDDING = "memory_embedding"
 TASK_GRAPH_EMBEDDING = "graph_embedding"
@@ -96,10 +94,9 @@ _EMBEDDING_BACKFILL_BATCH = 50
 class MemoryWorker:
     """Worker polling ai_normal queue for memory engine jobs.
 
-    Handles intent_dedup, memory_embedding, graph_embedding,
-    memory_dlq_reconciliation, graph_expiration, kg_populate,
-    document_ingestion, and artifact_cleanup task types.
-    Uses session per job for clean transaction boundaries.
+    Handles memory_embedding, graph_embedding, memory_dlq_reconciliation,
+    graph_expiration, kg_populate, document_ingestion, and artifact_cleanup
+    task types. Uses session per job for clean transaction boundaries.
 
     Args:
         queue: Supabase queue client.
@@ -291,7 +288,6 @@ class MemoryWorker:
         msg_id = message.id  # type: ignore[attr-defined]
 
         if task_type not in (
-            TASK_INTENT_DEDUP,
             TASK_KG_POPULATE,
             TASK_MEMORY_EMBEDDING,
             TASK_GRAPH_EMBEDDING,
@@ -388,25 +384,6 @@ class MemoryWorker:
         Returns:
             Handler result dict.
         """
-        if task_type == TASK_INTENT_DEDUP:
-            from pilot_space.infrastructure.database.repositories.intent_repository import (
-                WorkIntentRepository,
-            )
-            from pilot_space.infrastructure.queue.handlers.intent_dedup_handler import (
-                IntentDedupJobPayload,
-                process_intent_dedup,
-            )
-
-            intent_repo = WorkIntentRepository(session)
-            job_payload = IntentDedupJobPayload.from_dict(payload)
-            await process_intent_dedup(
-                job_payload,
-                session,
-                intent_repo,
-                embedding_service=self._embedding_service,
-            )
-            return {"task_type": task_type, "intent_id": payload.get("intent_id")}
-
         if task_type in (TASK_MEMORY_EMBEDDING, TASK_GRAPH_EMBEDDING):
             from pilot_space.infrastructure.queue.handlers.memory_embedding_handler import (
                 MemoryEmbeddingJobHandler,

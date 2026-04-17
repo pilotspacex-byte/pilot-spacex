@@ -46,7 +46,6 @@ from pilot_space.api.v1.routers import (
     homepage_notes_from_chat_router,
     homepage_router,
     integrations_router,
-    intents_router,
     invitation_router,
     invitations_public_router,
     issue_implement_router,
@@ -396,7 +395,6 @@ app.include_router(note_templates_router, prefix=f"{API_V1_PREFIX}")
 app.include_router(note_versions_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(note_yjs_state_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_tasks_router, prefix=f"{API_V1_PREFIX}/workspaces")
-app.include_router(intents_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(knowledge_graph_router, prefix=API_V1_PREFIX)
 app.include_router(knowledge_graph_issues_router, prefix=API_V1_PREFIX)
 app.include_router(knowledge_graph_projects_router, prefix=API_V1_PREFIX)

@@ -17,12 +17,10 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from pilot_space.infrastructure.database.base import BaseModel
 from pilot_space.infrastructure.database.types import JSONBCompat
-
-from .work_intent import WorkIntent
 
 
 class SkillApprovalStatus(StrEnum):
@@ -89,12 +87,6 @@ class SkillExecution(BaseModel):
         JSONBCompat,
         nullable=True,
         default=None,
-    )
-
-    # Relationship back to intent
-    intent: Mapped[WorkIntent] = relationship(
-        "WorkIntent",
-        lazy="joined",
     )
 
     __table_args__ = (
