@@ -1,15 +1,22 @@
 'use client';
 
 /**
- * Implementation Dashboard Page
+ * Dashboard Page
  *
  * Route: /[workspaceSlug]/dashboard?batchRunId=<id>
  *
- * Shows sprint progress, live AI status, attention feed, and cost tracking.
+ * Composition:
+ *   1. Workspace overview (relocated from v2 HomepageHub)
+ *      — RecentWorkSection, ActiveRoutines, SprintProgress, DailyBrief, DigestInsights
+ *   2. Implementation dashboard (unchanged)
+ *      — sprint progress ring, live AI status, attention feed, cost breakdown
+ *
  * Uses TanStack Query (useDashboard) + SSE real-time updates (useBatchRunStream).
  * All layout components use React.memo (NOT observer) per CLAUDE.md TipTap constraint.
  *
  * Phase 77 — Implementation Dashboard (DSH-01, DSH-02, DSH-03, DSH-04, UIX-04)
+ * Phase 5 (v3 migration) — Relocated v2 homepage sections to give them a stable home
+ *   after HomepageHub switched to the chat-first launchpad.
  */
 import * as React from 'react';
 import { useSearchParams, useParams } from 'next/navigation';
@@ -28,6 +35,13 @@ import { LiveIssueCard } from '@/features/dashboard/components/live-issue-card';
 import { EtaDisplay } from '@/features/dashboard/components/eta-display';
 import { AttentionFeedSection } from '@/features/dashboard/components/attention-feed-section';
 import { CostBreakdownPanel } from '@/features/dashboard/components/cost-breakdown-panel';
+import { ActiveRoutines } from '@/features/homepage/components/ActiveRoutines';
+import { SprintProgress } from '@/features/homepage/components/SprintProgress';
+import { RecentWorkSection } from '@/features/homepage/components/RecentWorkSection';
+import { DailyBrief } from '@/features/homepage/components/DailyBrief';
+import { DigestInsights } from '@/features/homepage/components/DigestInsights';
+import { useWorkspaceStore } from '@/stores/RootStore';
+import { useWorkspaceDigest } from '@/features/homepage/hooks/useWorkspaceDigest';
 
 // -----------------------------------------------------------------------
 // Loading skeleton
@@ -111,6 +125,11 @@ export default function DashboardPage() {
   const searchParams = useSearchParams();
   const batchRunId = searchParams?.get('batchRunId') ?? null;
   const queryClient = useQueryClient();
+  const workspaceStore = useWorkspaceStore();
+  const workspaceId = workspaceStore.currentWorkspace?.id ?? '';
+
+  // Digest — powers DigestInsights in the workspace overview
+  const digest = useWorkspaceDigest({ workspaceId, enabled: !!workspaceId });
 
   // Dashboard data
   const { data, isLoading, isError, refetch } = useDashboard(workspaceSlug, batchRunId);
@@ -137,10 +156,41 @@ export default function DashboardPage() {
   // Render
   return (
     <div className="px-8 py-12 min-h-full">
-      {/* Page header */}
-      <h1 className="text-[20px] font-semibold text-foreground leading-[1.2] mb-8">
-        Implementation Dashboard
-      </h1>
+      {/* ── Workspace overview (relocated from v2 HomepageHub) ─────────── */}
+      <section aria-label="Workspace overview" className="mx-auto max-w-5xl space-y-8">
+        <header>
+          <h1 className="text-[24px] font-semibold leading-[1.2] text-foreground">
+            Dashboard
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Everything happening in your workspace at a glance.
+          </p>
+        </header>
+
+        <RecentWorkSection workspaceSlug={workspaceSlug} workspaceId={workspaceId} />
+        <ActiveRoutines workspaceSlug={workspaceSlug} />
+        <SprintProgress workspaceSlug={workspaceSlug} workspaceId={workspaceId} />
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <DailyBrief workspaceSlug={workspaceSlug} />
+          <DigestInsights
+            groups={digest.groups}
+            generatedAt={digest.generatedAt}
+            isLoading={digest.isLoading}
+            isError={digest.isError}
+            isRefreshing={digest.isRefreshing}
+            onDismiss={digest.dismiss}
+            onRefresh={digest.refresh}
+            onRetry={() => void digest.refetch()}
+          />
+        </div>
+      </section>
+
+      {/* ── Implementation dashboard (existing, Phase 77) ──────────────── */}
+      <section aria-label="Implementation dashboard" className="mx-auto mt-16 max-w-5xl">
+        <h2 className="mb-8 text-[20px] font-semibold leading-[1.2] text-foreground">
+          Implementation Dashboard
+        </h2>
 
       {/* No batch run: empty state */}
       {!batchRunId && <DashboardEmptyState />}
@@ -243,6 +293,7 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+      </section>
     </div>
   );
 }

@@ -5,5 +5,15 @@
 export { OutlineTree } from './OutlineTree';
 export type { OutlineTreeProps, NoteTreeItem } from './OutlineTree';
 
-export { PinnedNotesList } from './PinnedNotesList';
-export type { PinnedNotesListProps, PinnedNote } from './PinnedNotesList';
+export {
+  PinnedArtifactsList,
+  PinnedNotesList,
+  default as PinnedArtifactsListDefault,
+} from './PinnedArtifactsList';
+export type {
+  PinnedArtifactsListProps,
+  PinnedNotesListProps,
+  PinnedArtifact,
+  PinnedNote,
+  PinnedArtifactType,
+} from './PinnedArtifactsList';

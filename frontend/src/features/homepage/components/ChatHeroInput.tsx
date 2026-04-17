@@ -139,7 +139,7 @@ export const ChatHeroInput = observer(function ChatHeroInput({
           type="button"
           aria-label="Add attachment"
           onClick={() => navigateToChat('')}
-          className="flex h-5 w-5 items-center justify-center text-[#5f6368] transition-colors hover:text-foreground dark:text-muted-foreground"
+          className="flex h-5 w-5 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
         >
           <Plus className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />
         </button>
@@ -149,7 +149,7 @@ export const ChatHeroInput = observer(function ChatHeroInput({
           type="button"
           aria-label="AI settings"
           onClick={() => router.push(`/${workspaceSlug}/settings/ai`)}
-          className="flex h-5 w-5 items-center justify-center text-[#5f6368] transition-colors hover:text-foreground dark:text-muted-foreground"
+          className="flex h-5 w-5 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
         >
           <SlidersHorizontal className="h-5 w-5" strokeWidth={1.5} aria-hidden="true" />
         </button>
@@ -209,7 +209,7 @@ export const ChatHeroInput = observer(function ChatHeroInput({
         {/* Mode selector — static (no mode state in store yet) */}
         <button
           type="button"
-          className="inline-flex items-center gap-1 text-[13px] font-medium text-[#5f6368] transition-colors hover:text-foreground dark:text-muted-foreground"
+          className="inline-flex items-center gap-1 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground"
         >
           <span>Plan</span>
           <ChevronDown className="h-3.5 w-3.5" strokeWidth={1.5} aria-hidden="true" />

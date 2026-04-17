@@ -1,11 +1,15 @@
 /**
- * Unit tests for Sidebar navigation sections.
+ * Unit tests for Sidebar navigation (v3).
  *
- * Tests the restructured Main + AI section layout, section headers,
- * collapsed mode behavior, and Roles nav item.
+ * The v3 sidebar replaces the flat section list with:
+ *   - primary nav (Home, Pilot AI)
+ *   - a WORKSPACE accordion grouping Projects/Issues/Notes/Skills/Knowledge/Members/Integrations
+ *   - an AI section gated to Owner/Admin
+ *   - a search-as-button that opens the Command Palette
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { Sidebar } from '../sidebar';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
@@ -25,6 +29,7 @@ vi.mock('next/navigation', () => ({
 
 // Mock stores
 const mockSidebarCollapsed = vi.fn(() => false);
+const mockOpenCommandPalette = vi.fn();
 const mockWorkspace = { slug: 'test-ws', id: 'test-ws', name: 'Test Workspace' };
 const defaultFeatureToggles = {
   notes: true,
@@ -46,6 +51,7 @@ vi.mock('@/stores', () => ({
     setSidebarCollapsed: vi.fn(),
     theme: 'system' as const,
     setTheme: vi.fn(),
+    openCommandPalette: mockOpenCommandPalette,
   }),
   useWorkspaceStore: () => ({
     currentWorkspace: mockWorkspace,
@@ -94,17 +100,16 @@ vi.mock('@/features/notes/hooks', () => ({
   createNoteDefaults: () => ({}),
 }));
 
-// Mock useProjects — sidebar uses this to fetch workspace projects
+// Sidebar no longer depends on projects, but guard remaining imports that may load.
 vi.mock('@/features/projects/hooks/useProjects', () => ({
   useProjects: () => ({ data: undefined, isLoading: false }),
   selectAllProjects: () => [],
 }));
 
-// Mock ProjectPageTree and PersonalPagesList to avoid their hook dependencies in sidebar tests
+// Mock ProjectPageTree / PersonalPagesList — still imported by layout barrel in tests.
 vi.mock('@/components/layout/ProjectPageTree', () => ({
   ProjectPageTree: () => null,
 }));
-
 vi.mock('@/components/layout/PersonalPagesList', () => ({
   PersonalPagesList: () => null,
 }));
@@ -135,14 +140,22 @@ vi.mock('@/features/approvals/hooks/use-approvals', () => ({
   usePendingApprovalCount: () => 0,
 }));
 
-// Mock usePinnedNotes — sidebar calls this via useQuery, which needs QueryClientProvider
-vi.mock('@/hooks/usePinnedNotes', () => ({
-  usePinnedNotes: () => ({ data: [] }),
+// Mock AI store + SessionListStore so the recents effect resolves with no sessions.
+vi.mock('@/stores/ai/AIStore', () => ({
+  getAIStore: () => ({ pilotSpace: null }),
+}));
+vi.mock('@/stores/ai/SessionListStore', () => ({
+  SessionListStore: class {
+    sessions: unknown[] = [];
+    async fetchSessions(): Promise<void> {
+      /* noop */
+    }
+  },
 }));
 
 // Mock useSettingsModal — used by SidebarUserControls inside Sidebar
 vi.mock('@/features/settings/settings-modal-context', () => ({
-  useSettingsModal: () => ({ open: vi.fn(), isOpen: false }),
+  useSettingsModal: () => ({ openSettings: vi.fn(), open: false, closeSettings: vi.fn() }),
 }));
 
 function renderSidebar() {
@@ -153,7 +166,7 @@ function renderSidebar() {
   );
 }
 
-describe('Sidebar Navigation', () => {
+describe('Sidebar v3', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPathname.mockReturnValue('/test-ws');
@@ -161,135 +174,16 @@ describe('Sidebar Navigation', () => {
     Object.assign(mockFeatureToggles, defaultFeatureToggles);
   });
 
-  describe('section structure', () => {
-    it('renders Main section items (Home, Notes, Issues, Projects, Members, Knowledge)', () => {
+  describe('primary nav', () => {
+    it('renders Home and Pilot AI in the main navigation landmark', () => {
       renderSidebar();
 
+      const mainNav = screen.getByRole('navigation', { name: 'Main navigation' });
+      expect(mainNav).toBeInTheDocument();
       expect(screen.getByTestId('nav-home')).toBeInTheDocument();
-      expect(screen.getByTestId('nav-notes')).toBeInTheDocument();
-      expect(screen.getByTestId('nav-issues')).toBeInTheDocument();
-      expect(screen.getByTestId('nav-projects')).toBeInTheDocument();
-      expect(screen.getByTestId('nav-members')).toBeInTheDocument();
-      expect(screen.getByTestId('nav-knowledge')).toBeInTheDocument();
+      expect(screen.getByTestId('nav-pilot-ai')).toBeInTheDocument();
     });
 
-    it('renders AI section items (Skill, Costs)', () => {
-      renderSidebar();
-
-      expect(screen.getByTestId('nav-roles')).toBeInTheDocument();
-      expect(screen.getByTestId('nav-costs')).toBeInTheDocument();
-    });
-
-    it('renders section headers when sidebar is expanded', () => {
-      renderSidebar();
-
-      expect(screen.getByText('Main')).toBeInTheDocument();
-      expect(screen.getByText('AI')).toBeInTheDocument();
-    });
-
-    it('hides section headers when sidebar is collapsed', () => {
-      mockSidebarCollapsed.mockReturnValue(true);
-      renderSidebar();
-
-      expect(screen.queryByText('Main')).not.toBeInTheDocument();
-      expect(screen.queryByText('AI')).not.toBeInTheDocument();
-    });
-
-    it('renders dot separator between sections when collapsed', () => {
-      mockSidebarCollapsed.mockReturnValue(true);
-      renderSidebar();
-
-      const aiNav = screen.getByRole('navigation', { name: 'AI navigation' });
-      const separator = aiNav.querySelector('.bg-sidebar-border');
-      expect(separator).toBeInTheDocument();
-      expect(separator).toHaveAttribute('aria-hidden', 'true');
-    });
-
-    it('renders two nav landmarks with aria-labels', () => {
-      renderSidebar();
-
-      expect(screen.getByRole('navigation', { name: 'Main navigation' })).toBeInTheDocument();
-      expect(screen.getByRole('navigation', { name: 'AI navigation' })).toBeInTheDocument();
-    });
-
-    it('hides Knowledge nav item when knowledge feature is disabled', () => {
-      mockFeatureToggles.knowledge = false;
-      renderSidebar();
-
-      expect(screen.queryByTestId('nav-knowledge')).not.toBeInTheDocument();
-    });
-
-    it('hides Pinned Notes section when notes feature is disabled', () => {
-      mockFeatureToggles.notes = false;
-      renderSidebar();
-
-      expect(screen.queryByTestId('pinned-notes')).not.toBeInTheDocument();
-    });
-
-    it('hides New Note button when notes feature is disabled', () => {
-      mockFeatureToggles.notes = false;
-      renderSidebar();
-
-      expect(screen.queryByTestId('new-note-button')).not.toBeInTheDocument();
-    });
-
-    it('shows Pinned Notes section and New Note button when notes feature is enabled', () => {
-      mockFeatureToggles.notes = true;
-      renderSidebar();
-
-      expect(screen.getByTestId('pinned-notes')).toBeInTheDocument();
-      expect(screen.getByTestId('new-note-button')).toBeInTheDocument();
-    });
-  });
-
-  describe('Skill nav item', () => {
-    it('links to /test-ws/roles', () => {
-      renderSidebar();
-
-      const rolesLink = screen.getByTestId('nav-roles');
-      expect(rolesLink).toHaveAttribute('href', '/test-ws/skills');
-    });
-
-    it('displays "Skill" label text', () => {
-      renderSidebar();
-
-      expect(screen.getByText('Skill')).toBeInTheDocument();
-    });
-
-    it('highlights Skill when pathname matches /test-ws/skills', () => {
-      mockPathname.mockReturnValue('/test-ws/skills');
-      renderSidebar();
-
-      const rolesLink = screen.getByTestId('nav-roles');
-      expect(rolesLink.className).toContain('bg-sidebar-accent');
-    });
-  });
-
-  describe('Members nav item', () => {
-    it('links to /test-ws/members', () => {
-      renderSidebar();
-
-      const membersLink = screen.getByTestId('nav-members');
-      expect(membersLink).toHaveAttribute('href', '/test-ws/members');
-    });
-
-    it('displays "Members" label text', () => {
-      renderSidebar();
-
-      expect(screen.getByText('Members')).toBeInTheDocument();
-    });
-
-    it('highlights Members when pathname matches /test-ws/members', () => {
-      mockPathname.mockReturnValue('/test-ws/members');
-      renderSidebar();
-
-      const membersLink = screen.getByTestId('nav-members');
-      expect(membersLink.className).toContain('bg-sidebar-accent');
-      expect(membersLink).toHaveAttribute('aria-current', 'page');
-    });
-  });
-
-  describe('active state', () => {
     it('highlights Home on exact workspace path', () => {
       mockPathname.mockReturnValue('/test-ws');
       renderSidebar();
@@ -298,7 +192,91 @@ describe('Sidebar Navigation', () => {
       expect(homeLink.className).toContain('bg-sidebar-accent');
       expect(homeLink).toHaveAttribute('aria-current', 'page');
     });
+  });
 
+  describe('search button', () => {
+    it('renders an accessible button (not an input) with ⌘K hint', () => {
+      renderSidebar();
+
+      const searchBtn = screen.getByTestId('nav-search');
+      expect(searchBtn).toBeInstanceOf(HTMLButtonElement);
+      expect(searchBtn).toHaveAttribute('aria-label', 'Search');
+      expect(searchBtn.textContent).toContain('⌘K');
+    });
+
+    it('opens the command palette when clicked', async () => {
+      const user = userEvent.setup();
+      renderSidebar();
+
+      await user.click(screen.getByTestId('nav-search'));
+      expect(mockOpenCommandPalette).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('WORKSPACE accordion', () => {
+    it('renders the accordion trigger with aria-expanded=true by default', () => {
+      renderSidebar();
+
+      const trigger = screen.getByTestId('workspace-accordion-trigger');
+      expect(trigger).toBeInTheDocument();
+      expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    });
+
+    it('collapses and re-expands on click', async () => {
+      const user = userEvent.setup();
+      renderSidebar();
+
+      const trigger = screen.getByTestId('workspace-accordion-trigger');
+      await user.click(trigger);
+      expect(trigger).toHaveAttribute('aria-expanded', 'false');
+
+      await user.click(trigger);
+      expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    });
+
+    it('renders all workspace children when expanded', () => {
+      renderSidebar();
+
+      expect(screen.getByTestId('nav-projects')).toBeInTheDocument();
+      expect(screen.getByTestId('nav-issues')).toBeInTheDocument();
+      expect(screen.getByTestId('nav-notes')).toBeInTheDocument();
+      expect(screen.getByTestId('nav-skills')).toBeInTheDocument();
+      expect(screen.getByTestId('nav-knowledge')).toBeInTheDocument();
+      expect(screen.getByTestId('nav-members')).toBeInTheDocument();
+      expect(screen.getByTestId('nav-integrations')).toBeInTheDocument();
+    });
+
+    it('hides children whose feature is disabled', () => {
+      mockFeatureToggles.knowledge = false;
+      mockFeatureToggles.skills = false;
+      renderSidebar();
+
+      expect(screen.queryByTestId('nav-knowledge')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('nav-skills')).not.toBeInTheDocument();
+      // Non-feature-gated items still render.
+      expect(screen.getByTestId('nav-integrations')).toBeInTheDocument();
+    });
+
+    it('routes Integrations to the workspace settings sub-page', () => {
+      renderSidebar();
+
+      expect(screen.getByTestId('nav-integrations')).toHaveAttribute(
+        'href',
+        '/test-ws/settings/integrations'
+      );
+    });
+  });
+
+  describe('AI section', () => {
+    it('renders AI navigation landmark with Costs (owner/admin only)', () => {
+      renderSidebar();
+
+      expect(screen.getByRole('navigation', { name: 'AI navigation' })).toBeInTheDocument();
+      expect(screen.getByTestId('nav-costs')).toBeInTheDocument();
+    });
+  });
+
+  describe('active state', () => {
     it('highlights Notes on nested note path', () => {
       mockPathname.mockReturnValue('/test-ws/notes/some-note-id');
       renderSidebar();
@@ -315,6 +293,43 @@ describe('Sidebar Navigation', () => {
       const issuesLink = screen.getByTestId('nav-issues');
       expect(issuesLink).not.toHaveAttribute('aria-current');
       expect(issuesLink.className).not.toMatch(/\bbg-sidebar-accent\b(?!\/)/);
+    });
+  });
+
+  describe('collapsed rail', () => {
+    it('hides accordion chrome and flattens workspace items', () => {
+      mockSidebarCollapsed.mockReturnValue(true);
+      renderSidebar();
+
+      // No accordion trigger in collapsed mode — rail flattens the list.
+      expect(screen.queryByTestId('workspace-accordion-trigger')).not.toBeInTheDocument();
+      // Child links still rendered so keyboard/tooltip nav works.
+      expect(screen.getByTestId('nav-projects')).toBeInTheDocument();
+      expect(screen.getByTestId('nav-integrations')).toBeInTheDocument();
+    });
+
+    it('hides section header text when collapsed', () => {
+      mockSidebarCollapsed.mockReturnValue(true);
+      renderSidebar();
+
+      expect(screen.queryByText('Workspace')).not.toBeInTheDocument();
+      expect(screen.queryByText('AI')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('feature gating — top-level', () => {
+    it('hides the New Note button when notes feature is disabled', () => {
+      mockFeatureToggles.notes = false;
+      renderSidebar();
+
+      expect(screen.queryByTestId('new-note-button')).not.toBeInTheDocument();
+    });
+
+    it('shows the New Note button when notes feature is enabled', () => {
+      mockFeatureToggles.notes = true;
+      renderSidebar();
+
+      expect(screen.getByTestId('new-note-button')).toBeInTheDocument();
     });
   });
 });

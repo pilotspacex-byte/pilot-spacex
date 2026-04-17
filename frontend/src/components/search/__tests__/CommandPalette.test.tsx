@@ -1,5 +1,5 @@
 /**
- * CommandPalette Tests — T-019
+ * CommandPalette Tests — v3 (issues/people/pages/commands)
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -14,11 +14,34 @@ vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceSlug: 'my-workspace' }),
 }));
 
-// Mock stores
+// Mock stores — v3 adds members data (currentMembers + fetchMembers)
+const mockFetchMembers = vi.fn().mockResolvedValue(undefined);
+const mockMembers = [
+  {
+    id: 'u-tin',
+    userId: 'u-tin',
+    workspaceId: 'ws-uuid-1',
+    role: 'owner',
+    joinedAt: '',
+    weeklyAvailableHours: 40,
+    user: { id: 'u-tin', name: 'Tin Dang', email: 'tin@example.com' },
+  },
+  {
+    id: 'u-alex',
+    userId: 'u-alex',
+    workspaceId: 'ws-uuid-1',
+    role: 'member',
+    joinedAt: '',
+    weeklyAvailableHours: 40,
+    user: { id: 'u-alex', name: 'Alex Rivera', email: 'alex@example.com' },
+  },
+];
+
 vi.mock('@/stores', () => ({
   useUIStore: () => ({
     commandPaletteOpen: true,
     closeCommandPalette: vi.fn(),
+    openCommandPalette: vi.fn(),
     toggleCommandPalette: vi.fn(),
   }),
   useWorkspaceStore: () => ({
@@ -26,6 +49,8 @@ vi.mock('@/stores', () => ({
     currentWorkspaceId: 'ws-uuid-1',
     getWorkspaceBySlug: vi.fn(() => ({ id: 'ws-uuid-1' })),
     workspaceList: [{ id: 'ws-uuid-1' }],
+    currentMembers: mockMembers,
+    fetchMembers: mockFetchMembers,
   }),
 }));
 
@@ -99,16 +124,17 @@ describe('CommandPalette', () => {
 
   it('renders the dialog when open', () => {
     render(<CommandPalette />);
-    // The command dialog is mounted
     expect(screen.getByRole('dialog')).toBeDefined();
   });
 
   it('shows placeholder when query is empty', () => {
     render(<CommandPalette />);
-    expect(screen.getByText('Start typing to search notes and issues')).toBeDefined();
+    expect(
+      screen.getByText((t) => t.startsWith('Start typing'))
+    ).toBeDefined();
   });
 
-  it('shows note and issue results when query matches', async () => {
+  it('shows note and issue results when query matches (unified search)', async () => {
     render(<CommandPalette />);
     const input = screen.getByPlaceholderText('Search notes and issues...');
 
@@ -164,24 +190,36 @@ describe('CommandPalette', () => {
     });
   });
 
-  // ─── Mode prefix tests ───────────────────────────────────────────────────
+  // ─── v3 prefix legend ────────────────────────────────────────────────────
 
-  it('shows hint bar with > Commands # Symbols : Go to Line', () => {
+  it('shows prefix legend chips: issues, people, pages, commands', () => {
     render(<CommandPalette />);
-    // The hint bar should always be visible
-    expect(screen.getByText('Commands')).toBeDefined();
-    expect(screen.getByText('Symbols')).toBeDefined();
-    expect(screen.getByText('Go to Line')).toBeDefined();
+    expect(screen.getByLabelText('Switch to issues mode')).toBeDefined();
+    expect(screen.getByLabelText('Switch to people mode')).toBeDefined();
+    expect(screen.getByLabelText('Switch to pages mode')).toBeDefined();
+    expect(screen.getByLabelText('Switch to commands mode')).toBeDefined();
   });
+
+  it('clicking a prefix chip prepends that prefix to the input', async () => {
+    render(<CommandPalette />);
+    const input = screen.getByRole('combobox') as HTMLInputElement;
+
+    await userEvent.type(input, 'tin');
+    fireEvent.click(screen.getByLabelText('Switch to people mode'));
+
+    await waitFor(() => {
+      expect(input.value).toBe('@tin');
+    });
+  });
+
+  // ─── Mode prefix tests ───────────────────────────────────────────────────
 
   it('switches to commands mode when typing > prefix', async () => {
     render(<CommandPalette />);
     const input = screen.getByPlaceholderText('Search notes and issues...');
 
-    // Type > to enter commands mode
     await userEvent.type(input, '>');
 
-    // Should show commands mode items
     await waitFor(() => {
       expect(screen.getByText('Toggle Source Control Panel')).toBeDefined();
     });
@@ -197,19 +235,67 @@ describe('CommandPalette', () => {
       expect(screen.getByText('Toggle Source Control Panel')).toBeDefined();
     });
 
-    // "Toggle File Tree" should not appear since query is "source"
     expect(screen.queryByText('Toggle File Tree')).toBeNull();
   });
 
-  it('switches to symbols mode when typing # prefix', async () => {
+  it('switches to issues mode when typing # prefix', async () => {
     render(<CommandPalette />);
     const input = screen.getByPlaceholderText('Search notes and issues...');
 
     await userEvent.type(input, '#');
 
-    // Should show symbol search placeholder
     await waitFor(() => {
-      expect(screen.getByText('Symbol search available in a future update')).toBeDefined();
+      expect(
+        (screen.getByPlaceholderText('Search issues...') as HTMLInputElement).value
+      ).toBe('#');
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Fix login bug')).toBeDefined();
+    });
+  });
+
+  it('switches to pages mode when typing / prefix', async () => {
+    render(<CommandPalette />);
+    const input = screen.getByPlaceholderText('Search notes and issues...');
+
+    await userEvent.type(input, '/');
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText('Search pages...')).toBeDefined();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Sprint planning notes')).toBeDefined();
+    });
+  });
+
+  it('switches to people mode when typing @ prefix and filters by name', async () => {
+    render(<CommandPalette />);
+    const input = screen.getByPlaceholderText('Search notes and issues...');
+
+    await userEvent.type(input, '@tin');
+
+    await waitFor(() => {
+      expect(screen.getByText('Tin Dang')).toBeDefined();
+    });
+    expect(screen.queryByText('Alex Rivera')).toBeNull();
+  });
+
+  it('navigates to member URL on selection in people mode', async () => {
+    render(<CommandPalette />);
+    const input = screen.getByPlaceholderText('Search notes and issues...');
+
+    await userEvent.type(input, '@tin');
+
+    await waitFor(() => {
+      expect(screen.getByText('Tin Dang')).toBeDefined();
+    });
+
+    fireEvent.click(screen.getByText('Tin Dang'));
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith('/my-workspace/members/u-tin');
     });
   });
 
@@ -217,21 +303,6 @@ describe('CommandPalette', () => {
     render(<CommandPalette />);
     const input = screen.getByPlaceholderText('Search notes and issues...');
 
-    await userEvent.type(input, ':');
-
-    // Should show go-to-line prompt
-    await waitFor(() => {
-      expect(screen.getByText('Type a line number to navigate')).toBeDefined();
-    });
-  });
-
-  it('shows go-to-line prompt text after : prefix mode is active', async () => {
-    render(<CommandPalette />);
-    // Verify the goto-line mode renders the "Type a line number to navigate" prompt
-    // by checking that the : prefix mode switch shows its content
-    const input = screen.getByRole('combobox');
-
-    // Type ':' to enter goto-line mode (the existing test confirms mode switch)
     await userEvent.type(input, ':');
 
     await waitFor(() => {
@@ -243,17 +314,12 @@ describe('CommandPalette', () => {
     render(<CommandPalette />);
     const input = screen.getByPlaceholderText('Search notes and issues...');
 
-    // Type plain text — no prefix
     await userEvent.type(input, 'sprint');
 
-    // Should show notes/issues results (search mode)
     await waitFor(() => {
       expect(screen.getByText('Sprint planning notes')).toBeDefined();
     });
 
-    // Commands mode items should NOT appear
     expect(screen.queryByText('Toggle Source Control Panel')).toBeNull();
-    // Symbols placeholder should NOT appear
-    expect(screen.queryByText('Symbol search available in a future update')).toBeNull();
   });
 });

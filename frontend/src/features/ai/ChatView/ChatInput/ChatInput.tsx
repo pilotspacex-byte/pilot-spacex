@@ -8,8 +8,19 @@ import type { KeyboardEvent } from 'react';
 import { observer } from 'mobx-react-lite';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Sparkles, AtSign, History, Hash } from 'lucide-react';
+import { History, Hash, ArrowUp, Square } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  SkillPill,
+  AgentPill,
+  AttachmentPill,
+  VoicePill,
+  ToolPill,
+} from '@/features/chat/composer';
+import {
+  QUOTE_TO_CHAT_EVENT,
+  type QuoteToChatEventDetail,
+} from '@/features/chat/QuoteToChat';
 import type {
   NoteContext,
   IssueContext,
@@ -19,18 +30,14 @@ import type {
 } from '../types';
 import { TokenBudgetRing } from '@/components/ui/token-budget-ring';
 import { ContextIndicator } from './ContextIndicator';
-import { SkillMenu } from './SkillMenu';
 import { useSkills } from '../hooks/useSkills';
-import { AgentMenu } from './AgentMenu';
 import { SectionMenu } from './SectionMenu';
 import { SessionResumeMenu, type SessionSummary } from './SessionResumeMenu';
 import type { HeadingItem } from '@/components/editor/AutoTOC';
 import { WorkingIndicator } from './WorkingIndicator';
 import { useAttachments } from '../hooks/useAttachments';
 import { useDriveStatus } from '../hooks/useDriveStatus';
-import { AttachmentButton } from './AttachmentButton';
 import { DriveFilePicker } from './DriveFilePicker';
-import { RecordButton } from './RecordButton';
 import { AudioPlaybackPill } from './AudioPlaybackPill';
 import { attachmentsApi } from '@/services/api/attachments';
 import { EntityPicker } from './EntityPicker';
@@ -640,17 +647,77 @@ export const ChatInput = observer<ChatInputProps>(
       ]
     );
 
+    // Build the ready-attachments payload and hand it to onSubmit. Shared by
+    // Enter key handling and the explicit submit button.
+    const submitMessage = useCallback(() => {
+      const serialized = editableRef.current
+        ? getSerializedValue(editableRef.current)
+        : value;
+      if (!serialized.trim() || isStreaming || isDisabled) return;
+      const readyAttachments = attachments
+        .filter((a) => a.status === 'ready' && a.attachmentId)
+        .map((a) => ({
+          attachmentId: a.attachmentId!,
+          filename: a.filename,
+          mimeType: a.mimeType,
+          sizeBytes: a.sizeBytes,
+          source: a.source,
+        }));
+      onSubmit({
+        attachmentIds,
+        attachments: readyAttachments,
+        voiceAudioUrl: pendingAudioUrl,
+      });
+      setPendingAudioUrl(null);
+      reset();
+    }, [value, isStreaming, isDisabled, attachments, attachmentIds, onSubmit, pendingAudioUrl, reset]);
+
+    // Listen for QuoteToChat events and append a blockquote + blank line to the
+    // current composer value, then focus the editor. The serialized DOM is
+    // resynced via the existing `useEffect([value])`.
+    useEffect(() => {
+      const handler = (event: Event) => {
+        const detail = (event as CustomEvent<QuoteToChatEventDetail>).detail;
+        if (!detail?.text) return;
+        const trimmed = detail.text.trim();
+        if (!trimmed) return;
+        const blockquote = trimmed
+          .split('\n')
+          .map((line) => `> ${line}`)
+          .join('\n');
+        const existing = value.trimEnd();
+        const next = existing ? `${existing}\n\n${blockquote}\n\n` : `${blockquote}\n\n`;
+        onChange(next);
+        // Defer focus so contenteditable picks up the new text first.
+        setTimeout(() => {
+          if (!editableRef.current) return;
+          editableRef.current.focus();
+          const range = document.createRange();
+          range.selectNodeContents(editableRef.current);
+          range.collapse(false);
+          const sel = window.getSelection();
+          sel?.removeAllRanges();
+          sel?.addRange(range);
+        }, 0);
+      };
+      window.addEventListener(QUOTE_TO_CHAT_EVENT, handler);
+      return () => window.removeEventListener(QUOTE_TO_CHAT_EVENT, handler);
+    }, [value, onChange]);
+
+    const canSubmit = !!value.trim() && !isStreaming && !isDisabled;
+
     return (
       <>
         <div
-          className={cn('border-t bg-background relative', className)}
+          data-composer-scope
+          className={cn('bg-background relative', className)}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
           {isDragOver && (
             <div
-              className="absolute inset-0 z-20 flex items-center justify-center bg-background/80 border-2 border-dashed border-primary/50 rounded-lg pointer-events-none"
+              className="absolute inset-0 z-20 flex items-center justify-center bg-background/80 border-2 border-dashed border-primary/50 rounded-[28px] pointer-events-none"
               data-testid="drop-overlay"
             >
               <span className="text-sm font-medium text-primary">Drop to attach</span>
@@ -677,8 +744,19 @@ export const ChatInput = observer<ChatInputProps>(
               />
             )}
 
-            {/* Input area - single container with inline toolbar */}
-            <div className="relative" ref={inputContainerRef}>
+            {/* v3 Gemini composer container — 28px radius, chatbox surface,
+                zone 1 (textarea) + zone 2 (toolbar with pills). */}
+            <div
+              ref={inputContainerRef}
+              className={cn(
+                'relative flex flex-col',
+                'rounded-[var(--radius-chatbox,28px)]',
+                'border border-[var(--border-toolbar)] bg-[var(--surface-chatbox)]',
+                'transition-shadow duration-200',
+                'focus-within:shadow-[0_8px_24px_-8px_rgba(15,23,42,0.18)]',
+                isDisabled && 'opacity-70'
+              )}
+            >
               {/* Entity picker — positioned above the input via absolute bottom-full (D-06) */}
               <EntityPicker
                 open={entityPickerOpen}
@@ -698,6 +776,7 @@ export const ChatInput = observer<ChatInputProps>(
                 commandRef={entityCommandRef}
               />
 
+              {/* Zone 1 — textarea (contenteditable) */}
               <div
                 role="textbox"
                 aria-multiline="true"
@@ -710,149 +789,153 @@ export const ChatInput = observer<ChatInputProps>(
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
                 className={cn(
-                  'min-h-[40px] max-h-[160px] overflow-y-auto resize-none pr-20',
-                  'rounded-xl border border-border/60 bg-muted/30',
-                  'text-sm',
-                  'px-3 py-2',
-                  'outline-none focus-visible:ring-1 focus-visible:ring-primary/40 focus-visible:border-primary/40',
-                  'transition-colors',
-                  'empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/60',
+                  'min-h-[60px] max-h-[240px] overflow-y-auto resize-none',
+                  'text-[15px] leading-6 text-foreground',
+                  'bg-transparent px-[18px] pt-[18px] pb-2',
+                  'outline-none',
+                  'empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/70',
                   isStreaming && 'chat-input-working',
-                  isDisabled && 'cursor-not-allowed opacity-50'
+                  isDisabled && 'cursor-not-allowed'
                 )}
                 data-placeholder="Ask anything… or type / for skills"
               />
 
-              {/* Inline toolbar buttons */}
-              <div className="absolute bottom-1.5 right-2 flex items-center gap-0.5">
-                <RecordButton
-                  workspaceId={workspaceId ?? ''}
-                  onTranscript={(text, audioUrl) => {
-                    // Append committed transcript to the pre-recording text
-                    const base = preRecordTextRef.current;
-                    onChange(base + (base ? ' ' : '') + text);
-                    preRecordTextRef.current = '';
-                    setPendingAudioUrl(audioUrl);
-                    setTimeout(() => editableRef.current?.focus(), 0);
-                  }}
-                  onPartialTranscript={(text) => {
-                    // Save original text on first partial, then show live preview
-                    if (!preRecordTextRef.current && !text) return;
-                    if (!preRecordTextRef.current) {
-                      preRecordTextRef.current = value;
-                    }
-                    const base = preRecordTextRef.current;
-                    onChange(base + (base ? ' ' : '') + text);
-                  }}
-                  disabled={isDisabled || isStreaming || !workspaceId}
-                />
-                <AttachmentButton
-                  onAddFile={addFile}
-                  disabled={isDisabled || isStreaming}
-                  driveConnected={driveStatus?.connected}
-                  onConnectDrive={handleConnectDrive}
-                  onOpenDrivePicker={() => setDrivePickerOpen(true)}
-                />
-                {tokenBudgetPercent != null && tokenBudgetPercent > 0 && (
-                  <TokenBudgetRing
-                    percentage={tokenBudgetPercent}
-                    tokensUsed={tokensUsed}
-                    tokenBudget={tokenBudget}
+              {/* Zone 2 — toolbar with pills */}
+              <div className="flex items-center gap-2 px-[14px] pb-[14px] pt-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <AttachmentPill
+                    onAddFile={addFile}
+                    disabled={isDisabled || isStreaming}
+                    driveConnected={driveStatus?.connected}
+                    onConnectDrive={handleConnectDrive}
+                    onOpenDrivePicker={() => setDrivePickerOpen(true)}
                   />
-                )}
-                <SkillMenu
-                  open={skillMenuOpen}
-                  onOpenChange={(open) => {
-                    setSkillMenuOpen(open);
-                    if (!open) {
-                      setSlashQuery(null);
-                      slashQueryStartOffsetRef.current = null;
-                      if (skipFocusOnSkillCloseRef.current) {
-                        skipFocusOnSkillCloseRef.current = false;
-                      } else {
-                        setTimeout(() => editableRef.current?.focus(), 0);
+
+                  <ToolPill disabled={isDisabled || isStreaming} />
+
+                  <SkillPill
+                    open={skillMenuOpen}
+                    onOpenChange={(open) => {
+                      setSkillMenuOpen(open);
+                      if (!open) {
+                        setSlashQuery(null);
+                        slashQueryStartOffsetRef.current = null;
+                        if (skipFocusOnSkillCloseRef.current) {
+                          skipFocusOnSkillCloseRef.current = false;
+                        } else {
+                          setTimeout(() => editableRef.current?.focus(), 0);
+                        }
                       }
-                    }
-                  }}
-                  onSelect={handleSkillSelect}
-                  onCancel={handleSkillCancel}
-                  skills={dynamicSkills}
-                  popoverWidth={inputWidth ?? undefined}
-                  searchQuery={slashQuery ?? ''}
-                  commandRef={skillCommandRef}
-                >
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-muted-foreground/60 hover:text-foreground"
-                    onClick={() => setSkillMenuOpen(true)}
-                  >
-                    <Sparkles className="h-3.5 w-3.5" />
-                    <span className="sr-only">Open skill menu</span>
-                  </Button>
-                </SkillMenu>
+                    }}
+                    onSelect={handleSkillSelect}
+                    onCancel={handleSkillCancel}
+                    skills={dynamicSkills}
+                    popoverWidth={inputWidth ?? undefined}
+                    searchQuery={slashQuery ?? ''}
+                    commandRef={skillCommandRef}
+                    onTriggerClick={() => setSkillMenuOpen(true)}
+                  />
 
-                <AgentMenu
-                  open={agentMenuOpen}
-                  onOpenChange={setAgentMenuOpen}
-                  onSelect={handleAgentSelect}
-                  popoverWidth={inputWidth ?? undefined}
-                >
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 text-muted-foreground/60 hover:text-foreground"
-                    onClick={() => setAgentMenuOpen(true)}
-                  >
-                    <AtSign className="h-3.5 w-3.5" />
-                    <span className="sr-only">Open agent menu</span>
-                  </Button>
-                </AgentMenu>
+                  <AgentPill
+                    open={agentMenuOpen}
+                    onOpenChange={setAgentMenuOpen}
+                    onSelect={handleAgentSelect}
+                    popoverWidth={inputWidth ?? undefined}
+                    onTriggerClick={() => setAgentMenuOpen(true)}
+                  />
 
-                {noteHeadings && noteHeadings.length > 0 && (
-                  <SectionMenu
-                    open={sectionMenuOpen}
-                    onOpenChange={setSectionMenuOpen}
-                    onSelect={handleSectionSelect}
-                    onCancel={handleSectionCancel}
-                    headings={noteHeadings}
+                  {noteHeadings && noteHeadings.length > 0 && (
+                    <SectionMenu
+                      open={sectionMenuOpen}
+                      onOpenChange={setSectionMenuOpen}
+                      onSelect={handleSectionSelect}
+                      onCancel={handleSectionCancel}
+                      headings={noteHeadings}
+                      popoverWidth={inputWidth ?? undefined}
+                    >
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 rounded-full border border-[var(--border-toolbar)] bg-card text-foreground hover:bg-accent"
+                        onClick={() => setSectionMenuOpen(true)}
+                        aria-label="Reference note section"
+                      >
+                        <Hash className="h-3.5 w-3.5" />
+                      </Button>
+                    </SectionMenu>
+                  )}
+
+                  <SessionResumeMenu
+                    open={resumeMenuOpen}
+                    onOpenChange={setResumeMenuOpen}
+                    sessions={sessions}
+                    isLoading={sessionsLoading}
+                    onSelect={handleSessionSelect}
+                    onSearch={onSearchSessions}
                     popoverWidth={inputWidth ?? undefined}
                   >
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6 text-muted-foreground/60 hover:text-foreground"
-                      onClick={() => setSectionMenuOpen(true)}
+                      className="h-8 w-8 rounded-full border border-[var(--border-toolbar)] bg-card text-foreground hover:bg-accent"
+                      onClick={() => setResumeMenuOpen(true)}
+                      aria-label="Resume session"
                     >
-                      <Hash className="h-3.5 w-3.5" />
-                      <span className="sr-only">Reference note section</span>
+                      <History className="h-3.5 w-3.5" />
                     </Button>
-                  </SectionMenu>
-                )}
+                  </SessionResumeMenu>
 
-                <SessionResumeMenu
-                  open={resumeMenuOpen}
-                  onOpenChange={setResumeMenuOpen}
-                  sessions={sessions}
-                  isLoading={sessionsLoading}
-                  onSelect={handleSessionSelect}
-                  onSearch={onSearchSessions}
-                  popoverWidth={inputWidth ?? undefined}
-                >
+                  <VoicePill
+                    workspaceId={workspaceId ?? ''}
+                    onTranscript={(text, audioUrl) => {
+                      const base = preRecordTextRef.current;
+                      onChange(base + (base ? ' ' : '') + text);
+                      preRecordTextRef.current = '';
+                      setPendingAudioUrl(audioUrl);
+                      setTimeout(() => editableRef.current?.focus(), 0);
+                    }}
+                    onPartialTranscript={(text) => {
+                      if (!preRecordTextRef.current && !text) return;
+                      if (!preRecordTextRef.current) {
+                        preRecordTextRef.current = value;
+                      }
+                      const base = preRecordTextRef.current;
+                      onChange(base + (base ? ' ' : '') + text);
+                    }}
+                    disabled={isDisabled || isStreaming || !workspaceId}
+                  />
+                </div>
+
+                {/* Trailing: token ring + submit button */}
+                <div className="ml-auto flex items-center gap-2">
+                  {tokenBudgetPercent != null && tokenBudgetPercent > 0 && (
+                    <TokenBudgetRing
+                      percentage={tokenBudgetPercent}
+                      tokensUsed={tokensUsed}
+                      tokenBudget={tokenBudget}
+                    />
+                  )}
                   <Button
                     type="button"
-                    variant="ghost"
                     size="icon"
-                    className="h-6 w-6 text-muted-foreground/60 hover:text-foreground"
-                    onClick={() => setResumeMenuOpen(true)}
+                    aria-label={isStreaming ? 'Streaming response' : 'Send message'}
+                    onClick={submitMessage}
+                    disabled={!canSubmit}
+                    className={cn(
+                      'h-9 w-9 rounded-full shrink-0',
+                      'bg-foreground text-background hover:bg-foreground/90',
+                      'disabled:bg-muted disabled:text-muted-foreground disabled:opacity-60'
+                    )}
                   >
-                    <History className="h-3.5 w-3.5" />
-                    <span className="sr-only">Resume session</span>
+                    {isStreaming ? (
+                      <Square className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
+                    ) : (
+                      <ArrowUp className="h-4 w-4" aria-hidden="true" />
+                    )}
                   </Button>
-                </SessionResumeMenu>
+                </div>
               </div>
             </div>
 

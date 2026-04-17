@@ -1,24 +1,31 @@
 'use client';
 
 /**
- * CommandPalette - Global Cmd+K / Cmd+P search modal (T-019)
+ * CommandPalette - Global Cmd+K / Cmd+P search modal (v3)
  *
- * Opens via uiStore.commandPaletteOpen. Searches notes and issues
- * with a 5-result cap per group via server-side search query.
- * Keyboard-navigable with cmdk.
+ * Opens via uiStore.commandPaletteOpen. Keyboard-navigable with cmdk.
  *
- * Mode prefixes:
+ * Mode prefixes (v3):
+ *   #  Issues mode    — search issues (title, identifier, state)
+ *   @  People mode    — search workspace members (name, email)
+ *   /  Pages mode     — search notes/pages (title)
  *   >  Commands mode  — editor/UI command list
- *   #  Symbols mode   — (deferred) symbol search placeholder
- *   :  Go-to-line mode — jump to a line number in the active editor
- *   (no prefix) — default notes/issues search
+ *   :  Go-to-line     — jump to a line number in the active editor (demoted)
+ *   (no prefix)       — unified search across notes + issues
  *
  * Cmd+P opens palette (alias for Cmd+K — identical behavior).
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { FileText, Ticket, Search, Terminal, Hash, CornerDownLeft } from 'lucide-react';
+import {
+  FileText,
+  Ticket,
+  Search,
+  Terminal,
+  CornerDownLeft,
+  User as UserIcon,
+} from 'lucide-react';
 
 import {
   CommandDialog,
@@ -38,17 +45,27 @@ import { notesApi } from '@/services/api/notes';
 import { issuesApi } from '@/services/api/issues';
 import type { Note } from '@/types/note';
 import type { Issue } from '@/types/issue';
+import type { WorkspaceMember } from '@/types/workspace';
 
 const MAX_RESULTS_PER_GROUP = 5;
 const DEBOUNCE_MS = 250;
+const PREFIX_CHARS = ['#', '@', '/', '>', ':'] as const;
 
 // ─── Palette modes ───────────────────────────────────────────────────────────
 
-type PaletteMode = 'search' | 'commands' | 'symbols' | 'goto-line';
+type PaletteMode =
+  | 'search'
+  | 'issues'
+  | 'people'
+  | 'pages'
+  | 'commands'
+  | 'goto-line';
 
 function detectMode(query: string): PaletteMode {
+  if (query.startsWith('#')) return 'issues';
+  if (query.startsWith('@')) return 'people';
+  if (query.startsWith('/')) return 'pages';
   if (query.startsWith('>')) return 'commands';
-  if (query.startsWith('#')) return 'symbols';
   if (query.startsWith(':')) return 'goto-line';
   return 'search';
 }
@@ -79,7 +96,14 @@ function NoteResultItem({ note }: { note: Note }) {
   return (
     <div className="flex items-center gap-2 min-w-0 w-full">
       <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-      <span className="truncate text-sm font-medium">{note.title || 'Untitled'}</span>
+      <span className="truncate text-sm font-medium flex-1">
+        {note.title || 'Untitled'}
+      </span>
+      {note.projectId && (
+        <Badge variant="secondary" className="text-xs shrink-0 font-normal">
+          Project
+        </Badge>
+      )}
     </div>
   );
 }
@@ -91,8 +115,12 @@ function IssueResultItem({ issue }: { issue: Issue }) {
   return (
     <div className="flex items-center gap-2 min-w-0 w-full">
       <Ticket className="h-4 w-4 shrink-0 text-muted-foreground" />
-      <span className="font-mono text-xs text-muted-foreground shrink-0">{issue.identifier}</span>
-      <span className="truncate text-sm font-medium flex-1">{issue.name ?? issue.title}</span>
+      <span className="font-mono text-xs text-muted-foreground shrink-0">
+        {issue.identifier}
+      </span>
+      <span className="truncate text-sm font-medium flex-1">
+        {issue.name ?? issue.title}
+      </span>
       {stateName && (
         <Badge
           variant="secondary"
@@ -100,6 +128,27 @@ function IssueResultItem({ issue }: { issue: Issue }) {
           style={stateColor ? { borderColor: stateColor, color: stateColor } : undefined}
         >
           {stateName}
+        </Badge>
+      )}
+    </div>
+  );
+}
+
+function MemberResultItem({ member }: { member: WorkspaceMember }) {
+  const name = member.user?.name ?? 'Unknown';
+  const email = member.user?.email ?? '';
+  return (
+    <div className="flex items-center gap-2 min-w-0 w-full">
+      <UserIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <span className="truncate text-sm font-medium flex-1">{name}</span>
+      {email && (
+        <span className="truncate text-xs text-muted-foreground shrink-0 max-w-[180px]">
+          {email}
+        </span>
+      )}
+      {member.role && (
+        <Badge variant="secondary" className="text-xs shrink-0 font-normal capitalize">
+          {member.role}
         </Badge>
       )}
     </div>
@@ -119,20 +168,66 @@ function ResultSkeleton() {
   );
 }
 
-// ─── Mode hint bar ────────────────────────────────────────────────────────────
+// ─── Prefix legend footer ─────────────────────────────────────────────────────
 
-function ModeHintBar({ mode }: { mode: PaletteMode }) {
+interface PrefixChip {
+  prefix: string;
+  label: string;
+}
+
+const PREFIX_CHIPS: readonly PrefixChip[] = [
+  { prefix: '#', label: 'issues' },
+  { prefix: '@', label: 'people' },
+  { prefix: '/', label: 'pages' },
+  { prefix: '>', label: 'commands' },
+];
+
+function PrefixLegend({
+  currentMode,
+  onPick,
+}: {
+  currentMode: PaletteMode;
+  onPick: (prefix: string) => void;
+}) {
+  const activeByMode: Record<PaletteMode, string | null> = {
+    issues: '#',
+    people: '@',
+    pages: '/',
+    commands: '>',
+    'goto-line': ':',
+    search: null,
+  };
+  const activePrefix = activeByMode[currentMode];
+
   return (
-    <div className="flex items-center gap-3 px-3 py-1.5 border-t text-[11px] text-muted-foreground bg-muted/30">
-      <span className={cn('flex items-center gap-1', mode === 'commands' && 'text-foreground font-medium')}>
-        <kbd className="font-mono">&gt;</kbd> Commands
-      </span>
-      <span className={cn('flex items-center gap-1', mode === 'symbols' && 'text-foreground font-medium')}>
-        <kbd className="font-mono">#</kbd> Symbols
-      </span>
-      <span className={cn('flex items-center gap-1', mode === 'goto-line' && 'text-foreground font-medium')}>
-        <kbd className="font-mono">:</kbd> Go to Line
-      </span>
+    <div className="flex items-center gap-1 px-2 py-1.5 border-t text-[11px] text-muted-foreground bg-muted/30">
+      {PREFIX_CHIPS.map((chip, idx) => {
+        const isActive = chip.prefix === activePrefix;
+        return (
+          <span key={chip.prefix} className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => onPick(chip.prefix)}
+              className={cn(
+                'inline-flex items-center gap-1 rounded px-1.5 py-0.5 transition-colors',
+                'hover:bg-accent hover:text-accent-foreground',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                isActive && 'bg-accent text-accent-foreground font-medium'
+              )}
+              aria-label={`Switch to ${chip.label} mode`}
+              aria-pressed={isActive}
+            >
+              <kbd className="font-mono text-[11px]">{chip.prefix}</kbd>
+              <span>{chip.label}</span>
+            </button>
+            {idx < PREFIX_CHIPS.length - 1 && (
+              <span aria-hidden="true" className="text-muted-foreground/60">
+                ·
+              </span>
+            )}
+          </span>
+        );
+      })}
     </div>
   );
 }
@@ -143,68 +238,53 @@ function ModeHintBar({ mode }: { mode: PaletteMode }) {
  * useCommands — returns the built-in command list for the commands mode.
  */
 function useCommands(onClose: () => void): Command[] {
-  return [
-    {
-      id: 'toggle-source-control',
-      label: 'Toggle Source Control Panel',
-      description: 'Ctrl+Shift+G',
-      action: () => {
-        const e = new KeyboardEvent('keydown', {
-          key: 'G',
-          shiftKey: true,
-          ctrlKey: true,
-          bubbles: true,
-        });
-        window.dispatchEvent(e);
-        onClose();
+  return useMemo<Command[]>(
+    () => [
+      {
+        id: 'toggle-source-control',
+        label: 'Toggle Source Control Panel',
+        description: 'Ctrl+Shift+G',
+        action: () => {
+          const e = new KeyboardEvent('keydown', {
+            key: 'G',
+            shiftKey: true,
+            ctrlKey: true,
+            bubbles: true,
+          });
+          window.dispatchEvent(e);
+          onClose();
+        },
       },
-    },
-    {
-      id: 'toggle-file-tree',
-      label: 'Toggle File Tree',
-      description: 'Ctrl+B',
-      action: () => {
-        window.dispatchEvent(new CustomEvent('code-editor:toggle-file-tree'));
-        onClose();
+      {
+        id: 'toggle-file-tree',
+        label: 'Toggle File Tree',
+        description: 'Ctrl+B',
+        action: () => {
+          window.dispatchEvent(new CustomEvent('code-editor:toggle-file-tree'));
+          onClose();
+        },
       },
-    },
-    {
-      id: 'format-document',
-      label: 'Format Document',
-      description: 'Shift+Alt+F',
-      action: () => {
-        window.dispatchEvent(new CustomEvent('code-editor:format-document'));
-        onClose();
+      {
+        id: 'format-document',
+        label: 'Format Document',
+        description: 'Shift+Alt+F',
+        action: () => {
+          window.dispatchEvent(new CustomEvent('code-editor:format-document'));
+          onClose();
+        },
       },
-    },
-    {
-      id: 'change-language-mode',
-      label: 'Change Language Mode',
-      action: () => {
-        window.dispatchEvent(new CustomEvent('code-editor:change-language'));
-        onClose();
+      {
+        id: 'change-language-mode',
+        label: 'Change Language Mode',
+        action: () => {
+          window.dispatchEvent(new CustomEvent('code-editor:change-language'));
+          onClose();
+        },
       },
-    },
-  ];
-}
-
-// ─── Symbols mode ─────────────────────────────────────────────────────────────
-
-function SymbolsMode() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-2 py-8 px-4 text-center">
-      <Hash className="h-6 w-6 text-muted-foreground" />
-      <p className="text-sm text-muted-foreground">
-        Symbol search available in a future update
-      </p>
-      <p className="text-xs text-muted-foreground">
-        Monaco outline API integration coming soon
-      </p>
-    </div>
+    ],
+    [onClose]
   );
 }
-
-// GotoLineMode is now rendered inside CommandList (see main component below)
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -218,6 +298,8 @@ export const CommandPalette = observer(function CommandPalette() {
   const open = uiStore.commandPaletteOpen;
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResults>({ notes: [], issues: [] });
+  const [issueResults, setIssueResults] = useState<Issue[]>([]);
+  const [pageResults, setPageResults] = useState<Note[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
@@ -232,6 +314,8 @@ export const CommandPalette = observer(function CommandPalette() {
         uiStore.closeCommandPalette();
         setQuery('');
         setResults({ notes: [], issues: [] });
+        setIssueResults([]);
+        setPageResults([]);
         setFetchError(null);
       }
     },
@@ -244,13 +328,24 @@ export const CommandPalette = observer(function CommandPalette() {
     (workspaceSlug ? workspaceStore.getWorkspaceBySlug(workspaceSlug)?.id : undefined) ??
     workspaceStore.currentWorkspaceId;
 
-  // Debounced search — only active in 'search' mode
+  // Members: prefer store-loaded list; fall back to fetching on open
+  const rawMembers = workspaceStore.currentMembers;
+  const allMembers = useMemo<WorkspaceMember[]>(() => rawMembers ?? [], [rawMembers]);
+  useEffect(() => {
+    if (!open || !workspaceId) return;
+    if (allMembers.length > 0) return;
+    // Guard: `fetchMembers` may be absent in test mocks
+    if (typeof workspaceStore.fetchMembers === 'function') {
+      void workspaceStore.fetchMembers(workspaceId);
+    }
+  }, [open, workspaceId, allMembers, workspaceStore]);
+
+  // Debounced search — unified 'search' mode (notes + issues)
   useEffect(() => {
     if (!open) return;
     if (mode !== 'search') return;
     if (!workspaceId) return;
 
-    // Clear results when query is empty
     if (!eQuery.trim()) {
       setResults({ notes: [], issues: [] });
       setIsLoading(false);
@@ -287,6 +382,83 @@ export const CommandPalette = observer(function CommandPalette() {
       clearTimeout(timer);
     };
   }, [eQuery, open, workspaceId, mode]);
+
+  // Debounced search — 'issues' mode (# prefix)
+  useEffect(() => {
+    if (!open) return;
+    if (mode !== 'issues') return;
+    if (!workspaceId) return;
+
+    setIsLoading(true);
+    setFetchError(null);
+    let cancelled = false;
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await issuesApi.list(
+          workspaceId,
+          eQuery.trim() ? { search: eQuery } : {},
+          1,
+          MAX_RESULTS_PER_GROUP
+        );
+        if (cancelled) return;
+        setIssueResults(res.items.slice(0, MAX_RESULTS_PER_GROUP));
+      } catch {
+        if (cancelled) return;
+        setFetchError('Issue search failed. Try again.');
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    }, DEBOUNCE_MS);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [eQuery, open, workspaceId, mode]);
+
+  // Debounced search — 'pages' mode (/ prefix)
+  useEffect(() => {
+    if (!open) return;
+    if (mode !== 'pages') return;
+    if (!workspaceId) return;
+
+    setIsLoading(true);
+    setFetchError(null);
+    let cancelled = false;
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await notesApi.list(
+          workspaceId,
+          eQuery.trim() ? { search: eQuery } : {},
+          1,
+          MAX_RESULTS_PER_GROUP
+        );
+        if (cancelled) return;
+        setPageResults(res.items.slice(0, MAX_RESULTS_PER_GROUP));
+      } catch {
+        if (cancelled) return;
+        setFetchError('Page search failed. Try again.');
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    }, DEBOUNCE_MS);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [eQuery, open, workspaceId, mode]);
+
+  // Clear per-mode results & error when switching modes to prevent stale UI
+  useEffect(() => {
+    setFetchError(null);
+    setIsLoading(false);
+    if (mode !== 'issues') setIssueResults([]);
+    if (mode !== 'pages') setPageResults([]);
+    if (mode !== 'search') setResults({ notes: [], issues: [] });
+  }, [mode]);
 
   // Register Cmd+P as alias for Cmd+K (opens palette)
   useEffect(() => {
@@ -330,8 +502,37 @@ export const CommandPalette = observer(function CommandPalette() {
     [router, workspaceSlug, handleOpenChange]
   );
 
+  const handleSelectMember = useCallback(
+    (member: WorkspaceMember) => {
+      if (!workspaceSlug) {
+        handleOpenChange(false);
+        return;
+      }
+      if (member.userId) {
+        router.push(`/${workspaceSlug}/members/${member.userId}`);
+      } else {
+        const name = member.user?.name ?? '';
+        router.push(`/${workspaceSlug}/members?q=${encodeURIComponent(name)}`);
+      }
+      handleOpenChange(false);
+    },
+    [router, workspaceSlug, handleOpenChange]
+  );
+
+  // Prefix legend: prepend prefix, preserving any existing non-prefix input
+  const handlePickPrefix = useCallback((prefix: string) => {
+    setQuery((prev) => {
+      const firstChar = prev.charAt(0);
+      const rest = PREFIX_CHARS.includes(firstChar as (typeof PREFIX_CHARS)[number])
+        ? prev.slice(1)
+        : prev;
+      return `${prefix}${rest}`;
+    });
+  }, []);
+
   // Commands mode state
-  const commands = useCommands(() => handleOpenChange(false));
+  const onCloseCb = useCallback(() => handleOpenChange(false), [handleOpenChange]);
+  const commands = useCommands(onCloseCb);
   const filteredCommands = eQuery
     ? commands.filter((c) => c.label.toLowerCase().includes(eQuery.toLowerCase()))
     : commands;
@@ -340,10 +541,22 @@ export const CommandPalette = observer(function CommandPalette() {
   const parsedLine = parseInt(eQuery, 10);
   const gotoLineNumber = !isNaN(parsedLine) && parsedLine > 0 ? parsedLine : null;
 
-  const hasResults = results.notes.length > 0 || results.issues.length > 0;
-  const hasQuery = query.trim().length > 0;
+  // People mode: client-side filter against loaded members
+  const filteredMembers = useMemo(() => {
+    if (!allMembers) return [];
+    const q = eQuery.trim().toLowerCase();
+    const pool = q
+      ? allMembers.filter((m) => {
+          const name = (m.user?.name ?? '').toLowerCase();
+          const email = (m.user?.email ?? '').toLowerCase();
+          return name.includes(q) || email.includes(q);
+        })
+      : allMembers;
+    return pool.slice(0, MAX_RESULTS_PER_GROUP);
+  }, [allMembers, eQuery]);
 
-  // Placeholder for default search mode (no query)
+  const hasSearchResults = results.notes.length > 0 || results.issues.length > 0;
+  const hasQuery = query.trim().length > 0;
   const showDefaultPlaceholder = !hasQuery && mode === 'search';
 
   return (
@@ -351,16 +564,26 @@ export const CommandPalette = observer(function CommandPalette() {
       open={open}
       onOpenChange={handleOpenChange}
       title="Command Palette"
-      description="Search notes, issues, run commands, or navigate"
+      description="Search issues, people, pages, or run commands"
       className="max-w-xl"
       showCloseButton={false}
+      // We handle filtering ourselves (per-mode prefix parsing, debounced API calls).
+      // cmdk's built-in filter would hide items whose `value` lacks the raw query (e.g. ">").
+      shouldFilter={false}
     >
       <CommandInput
         placeholder={
-          mode === 'commands' ? 'Search commands...' :
-          mode === 'symbols' ? 'Search symbols...' :
-          mode === 'goto-line' ? 'Enter line number...' :
-          'Search notes and issues...'
+          mode === 'issues'
+            ? 'Search issues...'
+            : mode === 'people'
+              ? 'Search people...'
+              : mode === 'pages'
+                ? 'Search pages...'
+                : mode === 'commands'
+                  ? 'Search commands...'
+                  : mode === 'goto-line'
+                    ? 'Enter line number...'
+                    : 'Search notes and issues...'
         }
         value={query}
         onValueChange={setQuery}
@@ -369,12 +592,94 @@ export const CommandPalette = observer(function CommandPalette() {
 
       {/* ── Modes ── */}
 
-      {/* Symbols mode (# prefix) — static placeholder, no CommandList needed */}
-      {mode === 'symbols' && (
-        <SymbolsMode />
+      {/* Issues mode (# prefix) */}
+      {mode === 'issues' && (
+        <CommandList className="max-h-[400px]">
+          {isLoading && <ResultSkeleton />}
+          {fetchError && !isLoading && (
+            <div role="alert" className="px-3 py-4 text-sm text-destructive text-center">
+              {fetchError}
+            </div>
+          )}
+          {!isLoading && !fetchError && issueResults.length === 0 && (
+            <CommandEmpty>
+              {eQuery ? `No issues for “${eQuery}”` : 'Type to search issues'}
+            </CommandEmpty>
+          )}
+          {!isLoading && !fetchError && issueResults.length > 0 && (
+            <CommandGroup heading="Issues">
+              {issueResults.map((issue) => (
+                <CommandItem
+                  key={issue.id}
+                  value={`issue-${issue.id}-${issue.identifier}-${issue.name ?? issue.title}`}
+                  onSelect={() => handleSelectIssue(issue.id)}
+                >
+                  <IssueResultItem issue={issue} />
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
+        </CommandList>
       )}
 
-      {/* Commands mode (> prefix) — inside CommandList for keyboard nav */}
+      {/* People mode (@ prefix) */}
+      {mode === 'people' && (
+        <CommandList className="max-h-[400px]">
+          {(!allMembers || allMembers.length === 0) && (
+            <ResultSkeleton />
+          )}
+          {allMembers && allMembers.length > 0 && filteredMembers.length === 0 && (
+            <CommandEmpty>
+              {eQuery ? `No people for “${eQuery}”` : 'Type a name or email'}
+            </CommandEmpty>
+          )}
+          {filteredMembers.length > 0 && (
+            <CommandGroup heading="People">
+              {filteredMembers.map((member) => (
+                <CommandItem
+                  key={member.userId || member.id}
+                  value={`member-${member.userId}-${member.user?.name ?? ''}-${member.user?.email ?? ''}`}
+                  onSelect={() => handleSelectMember(member)}
+                >
+                  <MemberResultItem member={member} />
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
+        </CommandList>
+      )}
+
+      {/* Pages mode (/ prefix) */}
+      {mode === 'pages' && (
+        <CommandList className="max-h-[400px]">
+          {isLoading && <ResultSkeleton />}
+          {fetchError && !isLoading && (
+            <div role="alert" className="px-3 py-4 text-sm text-destructive text-center">
+              {fetchError}
+            </div>
+          )}
+          {!isLoading && !fetchError && pageResults.length === 0 && (
+            <CommandEmpty>
+              {eQuery ? `No pages for “${eQuery}”` : 'Type to search pages'}
+            </CommandEmpty>
+          )}
+          {!isLoading && !fetchError && pageResults.length > 0 && (
+            <CommandGroup heading="Pages">
+              {pageResults.map((note) => (
+                <CommandItem
+                  key={note.id}
+                  value={`page-${note.id}-${note.title}`}
+                  onSelect={() => handleSelectNote(note.id)}
+                >
+                  <NoteResultItem note={note} />
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
+        </CommandList>
+      )}
+
+      {/* Commands mode (> prefix) */}
       {mode === 'commands' && (
         <CommandList className="max-h-[400px]">
           {filteredCommands.length === 0 ? (
@@ -382,11 +687,7 @@ export const CommandPalette = observer(function CommandPalette() {
           ) : (
             <CommandGroup heading="Commands">
               {filteredCommands.map((cmd) => (
-                <CommandItem
-                  key={cmd.id}
-                  value={cmd.label}
-                  onSelect={cmd.action}
-                >
+                <CommandItem key={cmd.id} value={cmd.label} onSelect={cmd.action}>
                   <Terminal className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <span className="flex-1">{cmd.label}</span>
                   {cmd.description && (
@@ -401,7 +702,7 @@ export const CommandPalette = observer(function CommandPalette() {
         </CommandList>
       )}
 
-      {/* Go-to-line mode (: prefix) — inside CommandList for keyboard nav */}
+      {/* Go-to-line mode (: prefix) */}
       {mode === 'goto-line' && (
         <CommandList className="max-h-[200px]">
           {gotoLineNumber === null ? (
@@ -414,7 +715,9 @@ export const CommandPalette = observer(function CommandPalette() {
                 value={`goto-line-${gotoLineNumber}`}
                 onSelect={() => {
                   window.dispatchEvent(
-                    new CustomEvent('code-editor:goto-line', { detail: { lineNumber: gotoLineNumber } })
+                    new CustomEvent('code-editor:goto-line', {
+                      detail: { lineNumber: gotoLineNumber },
+                    })
                   );
                   handleOpenChange(false);
                 }}
@@ -429,26 +732,22 @@ export const CommandPalette = observer(function CommandPalette() {
         </CommandList>
       )}
 
-      {/* Default search mode (no prefix) */}
+      {/* Default unified search mode (no prefix) */}
       {mode === 'search' && (
         <>
           <CommandList className={cn('max-h-[400px]', !hasQuery && 'hidden')}>
-            {/* Loading state */}
             {isLoading && <ResultSkeleton />}
 
-            {/* Error state */}
             {fetchError && !isLoading && (
               <div role="alert" className="px-3 py-4 text-sm text-destructive text-center">
                 {fetchError}
               </div>
             )}
 
-            {/* Empty state */}
-            {!isLoading && !fetchError && hasQuery && !hasResults && (
+            {!isLoading && !fetchError && hasQuery && !hasSearchResults && (
               <CommandEmpty>No results for &ldquo;{query}&rdquo;</CommandEmpty>
             )}
 
-            {/* Notes group */}
             {!isLoading && results.notes.length > 0 && (
               <>
                 <CommandGroup heading="Notes">
@@ -466,7 +765,6 @@ export const CommandPalette = observer(function CommandPalette() {
               </>
             )}
 
-            {/* Issues group */}
             {!isLoading && results.issues.length > 0 && (
               <CommandGroup heading="Issues">
                 {results.issues.map((issue) => (
@@ -482,18 +780,17 @@ export const CommandPalette = observer(function CommandPalette() {
             )}
           </CommandList>
 
-          {/* Placeholder when no query */}
           {showDefaultPlaceholder && (
             <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
               <Search className="h-4 w-4" />
-              <span>Start typing to search notes and issues</span>
+              <span>Start typing, or use # @ / &gt; to scope your search</span>
             </div>
           )}
         </>
       )}
 
-      {/* Mode hint bar — always visible */}
-      <ModeHintBar mode={mode} />
+      {/* Prefix legend footer — always visible, clickable chips */}
+      <PrefixLegend currentMode={mode} onPick={handlePickPrefix} />
     </CommandDialog>
   );
 });

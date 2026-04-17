@@ -115,6 +115,27 @@
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
+
+  /* v3 Depth/Elevation tokens (design.md v3 §5) */
+  --shadow-l0: none;
+  --shadow-l1: var(--depth-l1);
+  --shadow-l2: var(--depth-l2);
+  --shadow-l3: var(--depth-l3);
+  --shadow-l4: var(--depth-l4);
+
+  /* v3 Artifact type colors (design.md v3 §2 — 12 types) */
+  --color-artifact-note: var(--artifact-note);
+  --color-artifact-issue: var(--artifact-issue);
+  --color-artifact-spec: var(--artifact-spec);
+  --color-artifact-decision: var(--artifact-decision);
+  --color-artifact-md: var(--artifact-md);
+  --color-artifact-html: var(--artifact-html);
+  --color-artifact-code: var(--artifact-code);
+  --color-artifact-pdf: var(--artifact-pdf);
+  --color-artifact-csv: var(--artifact-csv);
+  --color-artifact-img: var(--artifact-img);
+  --color-artifact-pptx: var(--artifact-pptx);
+  --color-artifact-link: var(--artifact-link);
 }
 
 /* =============================================================================
@@ -226,6 +247,26 @@
   /* Accessible text colors (AA compliant) */
   --primary-text: #1f7d66;
   --ai-text: #4a6f8f;
+
+  /* v3 Depth/Elevation (design.md v3 §5) — warm shadows, subtle layering */
+  --depth-l1: 0 1px 2px rgba(55, 53, 47, 0.04);
+  --depth-l2: 0 2px 8px rgba(55, 53, 47, 0.06);
+  --depth-l3: 0 4px 16px rgba(55, 53, 47, 0.08);
+  --depth-l4: 0 12px 32px rgba(55, 53, 47, 0.12);
+
+  /* v3 Artifact type colors (design.md v3 §2 — Tier 1 native + Tier 2 file) */
+  --artifact-note: #c4a035;
+  --artifact-issue: #5b8fc9;
+  --artifact-spec: #29a386;
+  --artifact-decision: #8b7ec8;
+  --artifact-md: #6b8fad;
+  --artifact-html: #d9853f;
+  --artifact-code: #37352f;
+  --artifact-pdf: #d9534f;
+  --artifact-csv: #29a386;
+  --artifact-img: #c4a035;
+  --artifact-pptx: #d9853f;
+  --artifact-link: #9c9590;
 }
 
 /* =============================================================================
@@ -331,6 +372,26 @@
   /* Accessible text colors (AA compliant) */
   --primary-text: #4ecaa8;
   --ai-text: #8fb5d3;
+
+  /* v3 Depth/Elevation (dark — deeper opacity, same scale) */
+  --depth-l1: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --depth-l2: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --depth-l3: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --depth-l4: 0 12px 32px rgba(0, 0, 0, 0.6);
+
+  /* v3 Artifact type colors (dark — lifted saturation for contrast) */
+  --artifact-note: #d4b555;
+  --artifact-issue: #7aa8d8;
+  --artifact-spec: #3db896;
+  --artifact-decision: #a390d6;
+  --artifact-md: #87a6c2;
+  --artifact-html: #e19b5e;
+  --artifact-code: #ebebeb;
+  --artifact-pdf: #e0716d;
+  --artifact-csv: #3db896;
+  --artifact-img: #d4b555;
+  --artifact-pptx: #e19b5e;
+  --artifact-link: #b3aca7;
 }
 
 /* =============================================================================
@@ -2817,4 +2878,67 @@
     opacity: 0.4;
     transform: scale(1.25);
   }
+}
+
+/* =============================================================================
+   v3 READING TYPOGRAPHY (design.md v3 §3)
+   .prose-note — Fraunces 17px / 1.75 line-height for long-form note reading.
+   Target measure: 66–75ch (Nielsen Norman reading research).
+   Applied to TipTap editor DOM on /notes/[id] and peek drawer note body.
+   ============================================================================= */
+.prose-note {
+  font-family: var(--font-display);
+  font-size: 17px;
+  line-height: 1.75;
+  font-weight: 400;
+  color: var(--foreground);
+  max-width: 72ch;
+  letter-spacing: -0.003em;
+}
+
+.prose-note p,
+.prose-note li,
+.prose-note blockquote {
+  margin-block: 0.75em;
+}
+
+.prose-note h1 {
+  font-family: var(--font-display);
+  font-size: 34px;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin-block: 1.5em 0.5em;
+}
+
+.prose-note h2 {
+  font-family: var(--font-display);
+  font-size: 22px;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-block: 1.25em 0.4em;
+}
+
+.prose-note h3 {
+  font-family: var(--font-sans);
+  font-size: 17px;
+  line-height: 1.4;
+  font-weight: 600;
+  margin-block: 1em 0.3em;
+}
+
+.prose-note code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  background: var(--muted);
+  padding: 0.1em 0.35em;
+  border-radius: var(--radius-sm);
+}
+
+.prose-note blockquote {
+  border-left: 3px solid var(--border);
+  padding-inline-start: 1em;
+  color: var(--muted-foreground);
+  font-style: italic;
 }

@@ -8,9 +8,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { runInAction } from 'mobx';
 import { useRouter, useParams } from 'next/navigation';
 import { motion } from 'motion/react';
-import { FileX, ArrowLeft } from 'lucide-react';
+import { FileX, ArrowLeft, MessageSquare, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from '@/components/ui/sheet';
 import { NoteCanvas } from '@/components/editor/NoteCanvas';
 import { VersionHistoryPanel, type NoteVersion } from '@/components/editor/VersionHistoryPanel';
 import { EditorFilePreview } from '@/features/artifacts/components/EditorFilePreview';
@@ -19,6 +26,7 @@ import { useNote, useUpdateNote, useAutoSave } from '@/features/notes/hooks';
 import { LivingSpecSidebar } from '@/features/notes/components/living-spec-sidebar';
 import { useDeleteNote } from '@/features/notes/hooks/useDeleteNote';
 import { useTogglePin } from '@/hooks/useTogglePin';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useNoteVersions, useRestoreNoteVersion } from '@/hooks/useNoteVersions';
 import { useNoteStore, useUIStore } from '@/stores/RootStore';
 import { useWorkspace } from '@/components/workspace-guard';
@@ -27,6 +35,9 @@ import { notesKeys } from '@/features/notes/hooks';
 import type { JSONContent } from '@/types';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { ChatView } from '@/features/ai/ChatView';
+import { getAIStore } from '@/stores/ai/AIStore';
+import { cn } from '@/lib/utils';
 
 /**
  * Strips propertyBlock nodes from TipTap content to prevent unknown node errors
@@ -226,6 +237,49 @@ function NoteDetailPage() {
     return window.innerWidth >= 1024;
   });
 
+  // Chat pane state (Phase 6 — Gemini-style split-pane).
+  // On desktop (md+): renders as a 420px right column.
+  // On mobile (<md): renders as a Sheet overlay.
+  const [chatPaneOpen, setChatPaneOpen] = useState(false);
+  const isMobile = useMediaQuery('(max-width: 767px)');
+
+  // Lazy-bind the AI store so the note context is set on the chat store
+  // whenever the chat pane opens for this note.
+  const aiStore = getAIStore();
+  const pilotSpaceStore = aiStore?.pilotSpace ?? null;
+  const approvalStore = aiStore?.approval ?? undefined;
+
+  const handleToggleChatPane = useCallback(() => {
+    setChatPaneOpen((prev) => !prev);
+  }, []);
+
+  // ⌘⇧C / Ctrl+Shift+C toggles the chat pane on this page.
+  useEffect(() => {
+    const handler = (event: KeyboardEvent) => {
+      const isModifier = event.metaKey || event.ctrlKey;
+      if (isModifier && event.shiftKey && event.key.toLowerCase() === 'c') {
+        event.preventDefault();
+        setChatPaneOpen((prev) => !prev);
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, []);
+
+  // Wire the pilot store to the current workspace + note context whenever the
+  // chat pane opens. ChatView itself handles session resume.
+  useEffect(() => {
+    if (!chatPaneOpen || !pilotSpaceStore || !note) return;
+    if (pilotSpaceStore.workspaceId !== workspaceId) {
+      pilotSpaceStore.setWorkspaceId(workspaceId);
+    }
+    pilotSpaceStore.setNoteContext({
+      noteId: note.id,
+      noteTitle: note.title || 'Untitled',
+      selectedBlockIds: [],
+    });
+  }, [chatPaneOpen, pilotSpaceStore, note, workspaceId]);
+
   // Fetch versions when panel is open
   const { data: versions, isLoading: isLoadingVersions } = useNoteVersions({
     workspaceId,
@@ -402,12 +456,50 @@ function NoteDetailPage() {
     return <NoteNotFound workspaceSlug={workspaceSlug} />;
   }
 
+  // Desktop-only chat pane — collapses to Sheet on mobile (<md).
+  const desktopChatPaneOpen = chatPaneOpen && !isMobile;
+  const mobileChatPaneOpen = chatPaneOpen && isMobile;
+
   return (
-    <div className="flex h-full flex-col bg-[#f7f7f5]">
+    <div className="relative flex h-full flex-col bg-background">
+      {/* Floating Chat toggle — top-right of the page above editor/header.
+          ⌘⇧C also toggles it. Visible on desktop and mobile. */}
+      <div className="pointer-events-none absolute right-4 top-3 z-20 flex items-center gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant={chatPaneOpen ? 'secondary' : 'outline'}
+          onClick={handleToggleChatPane}
+          className="pointer-events-auto gap-1.5 rounded-full h-8 px-3"
+          aria-label={chatPaneOpen ? 'Close chat pane' : 'Open chat pane'}
+          aria-pressed={chatPaneOpen}
+          aria-keyshortcuts="Meta+Shift+C Control+Shift+C"
+        >
+          {chatPaneOpen ? (
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
+          ) : (
+            <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
+          )}
+          <span className="text-xs font-medium">Chat</span>
+          <kbd className="ml-1 hidden rounded-full border border-border/60 bg-muted/60 px-1.5 py-0.5 font-mono text-[10px] leading-none text-muted-foreground md:inline-flex">
+            <span aria-hidden="true">⌘⇧</span>C
+          </kbd>
+        </Button>
+      </div>
+
       {/* Editor with merged header - Three-column layout per Prototype v4 */}
       <div className="relative flex flex-1 overflow-hidden">
-        {/* NoteCanvas area — flex-1 takes remaining space */}
-        <div className="flex-1 min-w-0 relative">
+        {/* NoteCanvas area — flex-1 takes remaining space; shrinks when chat
+            pane is open on desktop. `data-quote-scope="note"` enables
+            QuoteToChat over editor selections. `.prose-note` tunes ProseMirror
+            typography via globals.css selectors. */}
+        <div
+          data-quote-scope="note"
+          className={cn(
+            'flex-1 min-w-0 relative prose-note',
+            desktopChatPaneOpen && 'lg:max-w-[calc(100%-420px)]'
+          )}
+        >
           <FilePreviewConfigContext.Provider
             value={{ workspaceId, projectId: note.projectId ?? '' }}
           >
@@ -466,6 +558,22 @@ function NoteDetailPage() {
           )}
         </div>
 
+        {/* Desktop chat pane — 420px right column. Hidden on <md. */}
+        {desktopChatPaneOpen && pilotSpaceStore && (
+          <aside
+            className="hidden md:flex w-[420px] shrink-0 border-l border-border bg-background"
+            aria-label="Chat panel"
+          >
+            <ChatView
+              store={pilotSpaceStore}
+              approvalStore={approvalStore}
+              autoFocus
+              className="h-full w-full"
+              onClose={handleToggleChatPane}
+            />
+          </aside>
+        )}
+
         {/* Living Spec Sidebar — hidden on sm (<768px), visible on md+ */}
         {/* Version history takes precedence over sidebar */}
         <div className="hidden md:flex">
@@ -479,6 +587,25 @@ function NoteDetailPage() {
           />
         </div>
       </div>
+
+      {/* Mobile chat pane — Sheet overlay on <md. */}
+      <Sheet open={mobileChatPaneOpen} onOpenChange={(open) => setChatPaneOpen(open)}>
+        <SheetContent side="right" className="w-full max-w-md p-0 md:hidden">
+          <SheetHeader className="sr-only">
+            <SheetTitle>Chat</SheetTitle>
+            <SheetDescription>Talk to PilotSpace about this note.</SheetDescription>
+          </SheetHeader>
+          {pilotSpaceStore && (
+            <ChatView
+              store={pilotSpaceStore}
+              approvalStore={approvalStore}
+              autoFocus
+              className="h-full w-full"
+              onClose={() => setChatPaneOpen(false)}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

@@ -55,6 +55,7 @@ import { userSkillsApi } from '@/services/api/user-skills';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import type { AgentTask } from './types';
+import { QuoteToChat } from '@/features/chat/QuoteToChat';
 export { isDestructiveAction } from './utils';
 
 interface ChatViewProps {
@@ -451,8 +452,16 @@ const ChatViewInternal = observer<ChatViewProps>(
           totalTokens={store.sessionState?.totalTokens ?? 0}
         />
 
-        {/* Main content area - relative for floating abort button */}
-        <div className="flex-1 flex flex-col overflow-hidden relative min-h-0">
+        {/* Floating "Quote in chat" chip — active for selections in any
+            [data-quote-scope] element (chat messages, note editor, peek drawer). */}
+        <QuoteToChat />
+
+        {/* Main content area - relative for floating abort button.
+            data-quote-scope="chat" lets QuoteToChat detect selections in messages. */}
+        <div
+          data-quote-scope="chat"
+          className="flex-1 flex flex-col overflow-hidden relative min-h-0"
+        >
           {/* T-060: Queue depth indicator — sticky top of message area */}
           <QueueDepthIndicator store={store} />
 

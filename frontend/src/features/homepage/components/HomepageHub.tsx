@@ -1,29 +1,21 @@
 'use client';
 
 /**
- * HomepageHub — v2 Chat-first homepage launchpad.
+ * HomepageHub — v3 chat-first launchpad entry point.
  *
- * 4-section dashboard per design.md §8:
- *   WorkspacePill → Greeting → AI Prompt Hero →
- *   Recent Artifacts → Active Routines → Sprint Progress
+ * v3 migration (Phase 5, .planning/quick/260417-eum-v3-design-system-migration-tokens-featur):
+ *   The v2 4-section dashboard (ChatHero + RecentWork + ActiveRoutines + SprintProgress +
+ *   RecentConversations) has been replaced by HomepageV3 (Hero → RedFlagRow → ContinueCard).
+ *   The v2 sections remain available for `/[workspaceSlug]/dashboard` and are still
+ *   imported through their own module paths; they are no longer composed here.
  *
- * Design source: Pencil "Homepage v2 — Artifacts + Sprint Progress"
- * Spacing: design.md §7 (36px pill→greeting, 36px greeting→chatbox, 80px chatbox→artifacts)
+ *   `buildContextualPrompts` stays exported from this module because unit tests
+ *   consume it directly (see __tests__/HomepageHub.test.ts) and it still drives
+ *   contextual prompt generation used by ChatHeroInput downstream.
  */
 
-import { useEffect } from 'react';
-import { observer } from 'mobx-react-lite';
-import { useAuthStore, useWorkspaceStore } from '@/stores/RootStore';
-import { getAIStore } from '@/stores/ai/AIStore';
-import { useWorkspaceDigest } from '../hooks/useWorkspaceDigest';
 import type { DigestCategoryGroup } from '../hooks/useWorkspaceDigest';
-import { ChatHeroInput } from './ChatHeroInput';
-import { ExamplePrompts } from './ExamplePrompts';
-import { RecentWorkSection } from './RecentWorkSection';
-import { ActiveRoutines } from './ActiveRoutines';
-import { SprintProgress } from './SprintProgress';
-import { RecentConversations } from './RecentConversations';
-import { WorkspacePill } from './WorkspacePill';
+import { HomepageV3 } from './HomepageV3';
 
 // ── Backward-compatible export ───────────────────────────────────────────────
 
@@ -82,109 +74,17 @@ export function buildContextualPrompts(groups: DigestCategoryGroup[]): readonly 
   return prompts;
 }
 
-// ────────────────────────────────────────────────────────────────────────────
+// ── v3 public export ────────────────────────────────────────────────────────
 
 interface HomepageHubProps {
   workspaceSlug: string;
 }
 
-export const HomepageHub = observer(function HomepageHub({ workspaceSlug }: HomepageHubProps) {
-  const authStore = useAuthStore();
-  const workspaceStore = useWorkspaceStore();
-  const workspaceId = workspaceStore.currentWorkspace?.id ?? '';
-
-  const rawDisplayName = authStore.userDisplayName ?? '';
-  const emailPrefix = authStore.user?.email?.split('@')[0] ?? '';
-  const firstName =
-    rawDisplayName && rawDisplayName !== emailPrefix ? rawDisplayName.split(' ')[0] : '';
-
-  const greeting = firstName
-    ? `Hi ${firstName}, what do you want to work on?`
-    : 'What do you want to work on?';
-
-  // ── AI context injection ─────────────────────────────────────────────────
-  const { groups, suggestionCount } = useWorkspaceDigest({ workspaceId });
-
-  useEffect(() => {
-    const store = getAIStore().pilotSpace;
-    if (!store || !workspaceId) return;
-
-    if (store.workspaceId !== workspaceId) {
-      store.setWorkspaceId(workspaceId);
-    }
-
-    const staleCount = groups
-      .filter((g) => g.category === 'stale_issues')
-      .reduce((sum, g) => sum + g.items.length, 0);
-    const cycleRiskCount = groups
-      .filter((g) => g.category === 'cycle_risk')
-      .reduce((sum, g) => sum + g.items.length, 0);
-    const noteGroups = groups.filter((g) => g.category === 'unlinked_notes');
-    const recentNotes = noteGroups.flatMap((g) =>
-      g.items.map((item) => ({ id: item.entityId ?? item.id, title: item.title }))
-    );
-
-    const parts: string[] = [];
-    if (staleCount > 0) parts.push(`${staleCount} stale issues`);
-    if (cycleRiskCount > 0) parts.push(`${cycleRiskCount} cycle risks`);
-    if (recentNotes.length > 0) parts.push(`${recentNotes.length} recent notes active`);
-    const digestSummary =
-      parts.length > 0
-        ? `Workspace has ${parts.join(', ')}.`
-        : `Workspace has ${suggestionCount} suggestions.`;
-
-    store.setHomepageContext({
-      digestSummary,
-      totalSuggestionCount: suggestionCount,
-      staleIssueCount: staleCount,
-      cycleRiskCount,
-      recentNotes,
-    });
-
-    return () => {
-      store.clearHomepageContext();
-    };
-  }, [workspaceId, groups, suggestionCount]);
-
-  return (
-    <div className="flex-1 overflow-y-auto bg-background">
-      {/* Main content — design.md §7: 56px top, 60px sides */}
-      <div className="mx-auto max-w-[720px] px-[60px] pt-14 pb-16 max-sm:px-6">
-        {/* Workspace pill */}
-        <div className="flex justify-center">
-          <WorkspacePill />
-        </div>
-
-        {/* Hero greeting — 36px below pill (mt-9) */}
-        <h1 className="mt-9 text-center font-display text-2xl font-normal leading-[1.2] tracking-[-1px] text-foreground">
-          {greeting}
-        </h1>
-
-        {/* AI Prompt Hero — 36px below greeting, max-w 680px */}
-        <div className="mx-auto mt-9 max-w-[680px]">
-          <ChatHeroInput workspaceSlug={workspaceSlug} />
-        </div>
-
-        {/* Example prompts — discoverability for new users */}
-        <div className="mt-4">
-          <ExamplePrompts workspaceSlug={workspaceSlug} />
-        </div>
-
-        {/* ── Content sections — 80px below chatbox ─────────────────── */}
-        <div className="mt-20">
-          {/* Recent Artifacts */}
-          <RecentWorkSection workspaceSlug={workspaceSlug} workspaceId={workspaceId} />
-
-          {/* Active Routines — 16px internal padding via py-4 */}
-          <ActiveRoutines workspaceSlug={workspaceSlug} />
-
-          {/* Sprint Progress — wired to cyclesApi */}
-          <SprintProgress workspaceSlug={workspaceSlug} workspaceId={workspaceId} />
-
-          {/* Recent Conversations — resume previous AI chats */}
-          <RecentConversations workspaceSlug={workspaceSlug} />
-        </div>
-      </div>
-    </div>
-  );
-});
+/**
+ * HomepageHub is preserved as a stable entry point so callers (e.g. the
+ * workspace home route) don't need to switch imports during the v3 rollout.
+ * Internally it simply delegates to the v3 launchpad.
+ */
+export function HomepageHub({ workspaceSlug }: HomepageHubProps) {
+  return <HomepageV3 workspaceSlug={workspaceSlug} />;
+}
