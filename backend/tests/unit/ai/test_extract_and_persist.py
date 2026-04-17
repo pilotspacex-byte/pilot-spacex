@@ -11,7 +11,7 @@ from uuid import uuid4
 
 import pytest
 
-from pilot_space.ai.agents.pilotspace_intent_pipeline import extract_and_persist_to_graph
+from pilot_space.ai.agents.pilotspace_agent import extract_and_persist_to_graph
 
 
 def _make_extraction_result(nodes: list, edges: list | None = None) -> MagicMock:

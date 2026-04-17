@@ -1,11 +1,8 @@
 """Test factories for Pilot Space domain entities.
 
 Provides factory functions and classes for all domain entities.
-Includes Feature 015 factories for WorkIntent and IntentArtifact.
 
 Usage:
-    intent = make_work_intent()
-    artifact = make_intent_artifact(intent_id=intent.id)
     user = UserFactory()
     workspace = WorkspaceFactory()
 """
@@ -38,9 +35,6 @@ from pilot_space.infrastructure.database.models.workspace_invitation import (
     InvitationStatus,
     WorkspaceInvitation,
 )
-
-from .intent_artifact_factory import make_intent_artifact
-from .work_intent_factory import make_work_intent
 
 
 class BaseFactory(factory.Factory):
@@ -406,6 +400,4 @@ __all__ = [
     "create_project_in_workspace",
     "create_test_scenario",
     "create_workspace_with_owner",
-    "make_intent_artifact",
-    "make_work_intent",
 ]

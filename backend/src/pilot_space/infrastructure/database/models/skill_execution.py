@@ -12,7 +12,6 @@ from typing import Any
 
 from sqlalchemy import (
     Enum as SQLEnum,
-    ForeignKey,
     Index,
     Text,
 )
@@ -49,10 +48,9 @@ class SkillExecution(BaseModel):
 
     __tablename__ = "skill_executions"  # type: ignore[assignment]
 
-    # Parent intent
+    # Parent intent (FK enforced at DB level; ORM model removed in Phase 79)
     intent_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("work_intents.id", ondelete="CASCADE"),
         nullable=False,
     )
 
