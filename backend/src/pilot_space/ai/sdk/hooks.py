@@ -537,21 +537,7 @@ class PermissionAwareHookExecutor:
                 return {}
 
             if result.requires_approval:
-                # Emit approval_request SSE event if queue available
-                if event_queue and result.approval_id:
-                    from pilot_space.ai.sdk.approval_waiter import (
-                        build_approval_sse_event,
-                    )
-
-                    approval_event = build_approval_sse_event(
-                        approval_id=result.approval_id,
-                        tool_name=tool_name,
-                        tool_input=tool_input,
-                        reason=result.reason,
-                    )
-                    await event_queue.put(approval_event)
-
-                # Block until user approves/rejects or timeout (5 min)
+                # Guard: approval_id is required for the bus flow
                 if not result.approval_id:
                     return {
                         "hookSpecificOutput": {
@@ -561,9 +547,33 @@ class PermissionAwareHookExecutor:
                         },
                     }
 
-                from pilot_space.ai.sdk.approval_waiter import wait_for_approval
+                from pilot_space.ai.sdk.approval_bus import (
+                    build_approval_sse_event,
+                    get_approval_bus,
+                )
 
-                decision = await wait_for_approval(result.approval_id)
+                bus = get_approval_bus()
+
+                # CRITICAL ordering: register BEFORE SSE push BEFORE wait
+                # (RESEARCH.md Pitfall 3). If we push SSE first, the
+                # frontend can resolve before register() runs, causing
+                # the resolve() to miss the event.
+                bus.register(result.approval_id)
+
+                # Emit approval_request SSE event if queue available
+                if event_queue:
+                    approval_event = build_approval_sse_event(
+                        approval_id=result.approval_id,
+                        tool_name=tool_name,
+                        tool_input=tool_input,
+                        reason=result.reason,
+                    )
+                    await event_queue.put(approval_event)
+
+                # Block until user approves/rejects or timeout (5 min)
+                decision = await bus.wait(
+                    result.approval_id, timeout_seconds=300.0,
+                )
 
                 if decision == "approved":
                     logger.info(
