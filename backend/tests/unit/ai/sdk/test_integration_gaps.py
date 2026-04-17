@@ -21,7 +21,7 @@ from pilot_space.ai.agents.pilotspace_agent_helpers import (
     transform_sdk_message,
     transform_tool_result,
 )
-from pilot_space.ai.sdk.approval_waiter import (
+from pilot_space.ai.sdk.approval_bus import (
     build_affected_entities,
     build_approval_sse_event,
     classify_urgency,

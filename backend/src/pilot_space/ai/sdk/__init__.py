@@ -36,6 +36,10 @@ Usage:
     hook_result = await hook.should_execute(tool_context)
 """
 
+from pilot_space.ai.sdk.approval_bus import (
+    UnifiedApprovalBus,
+    get_approval_bus,
+)
 from pilot_space.ai.sdk.command_registry import (
     CommandDefinition,
     CommandParameter,
@@ -128,9 +132,12 @@ __all__ = [
     "SandboxSettings",
     "SessionHandler",
     "ToolCallContext",
+    # Approval Bus
+    "UnifiedApprovalBus",
     "ValidationHook",
     "configure_sdk_for_space",
     "create_agent_options",
+    "get_approval_bus",
     "get_model_for_task",
     "is_bash_command_safe",
     "is_file_protected",
