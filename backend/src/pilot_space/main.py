@@ -106,6 +106,7 @@ from pilot_space.api.v1.routers.user_skills import router as user_skills_router
 from pilot_space.api.v1.routers.workspace_action_buttons import (
     router as workspace_action_buttons_router,
 )
+from pilot_space.api.v1.routers.workspace_hooks import router as workspace_hooks_router
 from pilot_space.api.v1.routers.workspace_plugins import router as workspace_plugins_router
 from pilot_space.api.v1.routers.workspace_role_skills import router as workspace_role_skills_router
 from pilot_space.api.v1.routers.workspace_scim_settings import workspace_scim_settings_router
@@ -342,6 +343,10 @@ app.include_router(ai_approvals_router, prefix=f"{API_V1_PREFIX}/ai")
 app.include_router(
     ai_permissions_router,
     prefix=f"{API_V1_PREFIX}/workspaces/{{workspace_id}}/ai/permissions",
+)
+app.include_router(
+    workspace_hooks_router,
+    prefix=f"{API_V1_PREFIX}/workspaces/{{workspace_id}}/hooks",
 )
 app.include_router(
     ai_memory_telemetry_router,
