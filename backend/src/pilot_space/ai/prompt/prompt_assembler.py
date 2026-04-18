@@ -30,7 +30,7 @@ from pilot_space.ai.prompt.models import (
     PromptLayerConfig,
     UserIntent,
 )
-from pilot_space.ai.proxy.tracing import observe
+from pilot_space.ai.proxy.tracing import observe  # pyright: ignore[reportAttributeAccessIssue]
 
 logger = logging.getLogger(__name__)
 
@@ -237,7 +237,7 @@ _FALLBACK_SAFETY = (
 )
 
 
-@observe(name="prompt-assembly")
+@observe(name="prompt-assembly")  # pyright: ignore[reportUntypedFunctionDecorator]
 async def assemble_system_prompt(config: PromptLayerConfig) -> AssembledPrompt:
     """Assemble a dynamic system prompt from the 6-layer pipeline.
 
