@@ -15,22 +15,72 @@ Layer order:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
+from enum import StrEnum
+from pathlib import Path
 from typing import Any
+
+from pydantic import BaseModel, Field
 
 from pilot_space.ai.prompt.layer_loaders import (
     load_role_template,
-    load_rule_file,
     load_static_layer,
 )
 from pilot_space.ai.prompt.models import (
     AssembledPrompt,
-    IntentClassification,
     PromptLayerConfig,
-    UserIntent,
 )
 from pilot_space.ai.proxy.tracing import observe  # pyright: ignore[reportAttributeAccessIssue]
+
+# ---------------------------------------------------------------------------
+# Temporary local definitions — Plan 82-02 deletes these with Layer 6.
+# ---------------------------------------------------------------------------
+
+
+class UserIntent(StrEnum):
+    """Classifies user messages for intent-aware prompt assembly (Layer 6).
+
+    Temporary: moved inline from models.py. Plan 82-02 deletes Layer 6 entirely.
+    """
+
+    NOTE_WRITING = "note_writing"
+    NOTE_READING = "note_reading"
+    ISSUE_MGMT = "issue_mgmt"
+    PM_BLOCKS = "pm_blocks"
+    PROJECT_MGMT = "project_mgmt"
+    COMMENT = "comment"
+    GENERAL = "general"
+
+
+class IntentClassification(BaseModel):
+    """Result of classifying a user message into intents (Layer 6).
+
+    Temporary: moved inline from models.py. Plan 82-02 deletes Layer 6 entirely.
+    """
+
+    primary: UserIntent
+    secondary: UserIntent | None = None
+    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
+
+
+# Temporary stub — rule files deleted in Plan 82-01, function removed from layer_loaders.
+# Plan 82-02 deletes all Layer 6 code that calls this.
+_RULES_DIR: Path = Path(__file__).parent.parent / "templates" / "rules"
+_MAX_RULE_CHARS: int = 4000
+
+
+async def _load_rule_file_local(filename: str) -> str:
+    """Load a rule file from templates/rules/ (local stub, Plan 82-02 deletes)."""
+    rule_path = _RULES_DIR / filename
+    if not rule_path.is_file():
+        return ""
+    content = await asyncio.to_thread(rule_path.read_text, encoding="utf-8")
+    if len(content) > _MAX_RULE_CHARS:
+        content = content[:_MAX_RULE_CHARS] + "\n... (truncated)"
+    return content
+
 
 logger = logging.getLogger(__name__)
 
@@ -250,7 +300,7 @@ async def assemble_system_prompt(config: PromptLayerConfig) -> AssembledPrompt:
     """
     sections: list[str] = []
     layers_loaded: list[str] = []
-    rules_loaded: list[str] = []
+    _rules_loaded: list[str] = []  # Tracked locally; no longer on AssembledPrompt (Plan 82-01)
 
     # Layer 1: Identity (always)
     identity = await load_static_layer("layer1_identity.md")
@@ -304,16 +354,19 @@ async def assemble_system_prompt(config: PromptLayerConfig) -> AssembledPrompt:
         layers_loaded.append("session")
 
     # Layer 6: Intent-based rules (at the end, closest to user message)
-    classification = _classify_for_rules(config.user_message, has_note_context=config.has_note_context)
+    # has_note_context removed from PromptLayerConfig in Plan 82-01; use getattr fallback.
+    # Plan 82-02 deletes Layer 6 entirely.
+    _has_note_ctx: bool = getattr(config, "has_note_context", False)
+    classification = _classify_for_rules(config.user_message, has_note_context=_has_note_ctx)
     rule_files, rule_summaries = _get_rules_for_intent(classification)
 
     if rule_files:
         rule_parts: list[str] = []
         for filename in rule_files:
-            content = await load_rule_file(filename)
+            content = await _load_rule_file_local(filename)
             if content:
                 rule_parts.append(content)
-                rules_loaded.append(filename)
+                _rules_loaded.append(filename)
                 layers_loaded.append(f"rules:{filename}")
 
         if rule_parts:
@@ -333,7 +386,6 @@ async def assemble_system_prompt(config: PromptLayerConfig) -> AssembledPrompt:
     result = AssembledPrompt(
         prompt=prompt,
         layers_loaded=layers_loaded,
-        rules_loaded=rules_loaded,
         estimated_tokens=estimated_tokens,
     )
 
@@ -346,7 +398,7 @@ async def assemble_system_prompt(config: PromptLayerConfig) -> AssembledPrompt:
             metadata={
                 "estimated_prompt_tokens": result.estimated_tokens,
                 "layers_loaded": result.layers_loaded,
-                "rules_loaded": result.rules_loaded,
+                "_rules_loaded": _rules_loaded,  # Temporary; Plan 82-02 removes
                 "context_mode": "lazy",
             },
         )
@@ -464,28 +516,34 @@ def _build_mention_resolution_rule() -> str:
 def _build_session_section(config: PromptLayerConfig) -> list[str]:
     """Build session state sections (layer 5).
 
+    Fields removed from PromptLayerConfig in Plan 82-01; uses getattr fallbacks.
+    Plan 82-02 deletes this function entirely.
+
     Returns:
         List of formatted section strings (may be empty).
     """
     parts: list[str] = []
 
     # Memory context (legacy fallback — Phase 81 moved recall to MCP tool)
-    if config.memory_entries:
-        parts.append(format_memory_entries(config.memory_entries))
+    memory_entries: list[dict[str, Any]] = getattr(config, "memory_entries", [])
+    if memory_entries:
+        parts.append(format_memory_entries(memory_entries))
 
     # Conversation summary
-    if config.conversation_summary:
-        parts.append(f"## Conversation Summary\n{config.conversation_summary}")
+    conversation_summary: str | None = getattr(config, "conversation_summary", None)
+    if conversation_summary:
+        parts.append(f"## Conversation Summary\n{conversation_summary}")
 
     # Pending approvals
-    if config.pending_approvals > 0:
-        count = config.pending_approvals
-        suffix = "s" if count > 1 else ""
-        parts.append(f"\u26a0 {count} pending approval{suffix} awaiting your response.")
+    pending_approvals: int = getattr(config, "pending_approvals", 0)
+    if pending_approvals > 0:
+        suffix = "s" if pending_approvals > 1 else ""
+        parts.append(f"\u26a0 {pending_approvals} pending approval{suffix} awaiting your response.")
 
     # Budget warning
-    if config.budget_warning:
-        parts.append(f"\u26a0 Budget: {config.budget_warning}")
+    budget_warning: str | None = getattr(config, "budget_warning", None)
+    if budget_warning:
+        parts.append(f"\u26a0 Budget: {budget_warning}")
 
     return parts
 

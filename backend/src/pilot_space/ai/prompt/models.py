@@ -1,55 +1,22 @@
-"""Pydantic models and enums for the prompt assembly pipeline.
+"""Pydantic models for the prompt assembly pipeline with static/dynamic split.
 
-Defines the data structures used across all prompt layers:
-- UserIntent: classifies user messages into actionable categories
-- IntentClassification: result of intent detection with confidence
+Defines the data structures used across prompt assembly:
 - PromptLayerConfig: input configuration for prompt assembly
-- AssembledPrompt: output of the assembly pipeline with metadata
+- AssembledPrompt: output of the assembly pipeline with static/dynamic split and metadata
 """
 
 from __future__ import annotations
 
-from enum import StrEnum
-from typing import Any
-
 from pydantic import BaseModel, Field
 
 
-class UserIntent(StrEnum):
-    """Classifies user messages for intent-aware prompt assembly.
-
-    Each intent maps to specific rule files and behavioral layers
-    that get injected into the system prompt.
-    """
-
-    NOTE_WRITING = "note_writing"
-    NOTE_READING = "note_reading"
-    ISSUE_MGMT = "issue_mgmt"
-    PM_BLOCKS = "pm_blocks"
-    PROJECT_MGMT = "project_mgmt"
-    COMMENT = "comment"
-    GENERAL = "general"
-
-
-class IntentClassification(BaseModel):
-    """Result of classifying a user message into intents.
-
-    Attributes:
-        primary: The dominant intent detected in the message.
-        secondary: An optional secondary intent for multi-intent messages.
-        confidence: Model confidence in the primary classification (0.0-1.0).
-    """
-
-    primary: UserIntent
-    secondary: UserIntent | None = None
-    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
-
-
 class PromptLayerConfig(BaseModel):
-    """Input configuration for the 6-layer prompt assembly pipeline.
+    """Input configuration for prompt assembly pipeline with static/dynamic split.
 
-    Collects all context needed to build a dynamic system prompt:
-    layers 1-2 are static templates, layers 3-6 use these fields.
+    Collects all context needed to build a system prompt. Static layers
+    (identity, safety, role) are KV-cache eligible. Dynamic layers
+    (workspace, skills, disabled features, mention resolution) are
+    assembled per-request.
 
     Attributes:
         base_prompt: Optional override for the identity layer. When empty
@@ -58,18 +25,13 @@ class PromptLayerConfig(BaseModel):
         role_type: User's primary workspace role (e.g. 'developer').
         workspace_name: Current workspace name for context injection.
         project_names: Active project names in the workspace.
-        user_message: The current user message for intent classification.
-        has_note_context: Whether note context is present in the conversation.
+        user_message: The current user message.
         has_mention_context: Whether @[Type:uuid] mention tokens are present in the message.
-        memory_entries: Retrieved memory entries for context (legacy fallback).
-        pending_approvals: Count of pending approval requests.
-        budget_warning: Optional budget/token warning message.
-        conversation_summary: Optional summary of prior conversation turns.
         user_skills: Active skills for the user in the workspace. Each entry
             is a dict with keys ``name`` (str) and ``description`` (str).
             Used to populate the "Your Skills" section in the assembled prompt
             so the agent can proactively suggest relevant skills.
-        feature_toggles: dict[str, bool] = Field(default_factory=dict)
+        feature_toggles: Feature toggle states for the workspace.
     """
 
     base_prompt: str = ""
@@ -77,31 +39,30 @@ class PromptLayerConfig(BaseModel):
     workspace_name: str | None = None
     project_names: list[str] | None = None
     user_message: str = ""
-    has_note_context: bool = False
     has_mention_context: bool = False
-    memory_entries: list[dict[str, Any]] = Field(default_factory=list)
-    pending_approvals: int = 0
-    budget_warning: str | None = None
-    conversation_summary: str | None = None
     user_skills: list[dict[str, str]] = Field(default_factory=list)
     feature_toggles: dict[str, bool] = Field(default_factory=dict)
 
 
 class AssembledPrompt(BaseModel):
-    """Output of the prompt assembly pipeline.
+    """Output of the prompt assembly pipeline with static/dynamic split.
 
     Contains the final assembled prompt string plus metadata about
-    which layers and rules were included, useful for debugging and
-    token budget tracking.
+    which layers were included, useful for debugging and token budget
+    tracking. The static_prefix and dynamic_suffix fields support
+    KV-cache optimization by separating cache-eligible content from
+    per-request content.
 
     Attributes:
         prompt: The fully assembled system prompt string.
         layers_loaded: Names of layers that were included.
-        rules_loaded: Names of rule files that were injected.
         estimated_tokens: Rough token estimate (chars / 4).
+        static_prefix: KV-cache eligible static portion of the prompt.
+        dynamic_suffix: Per-request dynamic portion of the prompt.
     """
 
     prompt: str
     layers_loaded: list[str] = Field(default_factory=list)
-    rules_loaded: list[str] = Field(default_factory=list)
     estimated_tokens: int = 0
+    static_prefix: str = ""
+    dynamic_suffix: str = ""

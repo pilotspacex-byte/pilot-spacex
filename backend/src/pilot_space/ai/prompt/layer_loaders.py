@@ -1,9 +1,8 @@
-"""File I/O loaders for prompt template layers and rule files.
+"""File I/O loaders for prompt template layers.
 
 Provides cached loading of:
 - Static prompt layer templates (templates/prompt_layers/*.md)
 - Role-specific templates (templates/role_templates/*.md)
-- Operational rule files (templates/rules/*.md)
 
 All loaders use module-level caches with ``asyncio.Lock`` to prevent
 redundant file reads under concurrent requests.
@@ -25,22 +24,13 @@ logger = logging.getLogger(__name__)
 _TEMPLATES_DIR: Path = Path(__file__).parent.parent / "templates"
 _PROMPT_LAYERS_DIR: Path = _TEMPLATES_DIR / "prompt_layers"
 _ROLE_TEMPLATES_DIR: Path = _TEMPLATES_DIR / "role_templates"
-_RULES_DIR: Path = _TEMPLATES_DIR / "rules"
-
-# ---------------------------------------------------------------------------
-# Limits
-# ---------------------------------------------------------------------------
-
-_MAX_RULE_CHARS: int = 4000
 
 # ---------------------------------------------------------------------------
 # Module-level caches (guarded by asyncio.Lock)
 # ---------------------------------------------------------------------------
 
 _template_cache: dict[str, str] = {}
-_rule_cache: dict[str, str] = {}
 _template_lock = asyncio.Lock()
-_rule_lock = asyncio.Lock()
 
 
 async def load_static_layer(filename: str) -> str:
@@ -111,39 +101,6 @@ async def load_role_template(role_type: str) -> str | None:
         return content
 
 
-async def load_rule_file(filename: str) -> str:
-    """Load a rule file from ``templates/rules/``, truncating at 4000 chars.
-
-    Results are cached after the first read. Lock prevents redundant
-    file reads when multiple requests hit a cold cache concurrently.
-
-    Args:
-        filename: Rule filename (e.g. ``issues.md``).
-
-    Returns:
-        Rule content (possibly truncated), or empty string if not found.
-    """
-    if filename in _rule_cache:
-        return _rule_cache[filename]
-
-    async with _rule_lock:
-        if filename in _rule_cache:
-            return _rule_cache[filename]
-
-        rule_path = _RULES_DIR / filename
-        if not rule_path.is_file():
-            logger.debug("Rule file not found: %s", rule_path)
-            return ""
-
-        content = await asyncio.to_thread(rule_path.read_text, encoding="utf-8")
-        if len(content) > _MAX_RULE_CHARS:
-            content = content[:_MAX_RULE_CHARS] + "\n... (truncated)"
-
-        _rule_cache[filename] = content
-        return content
-
-
 def clear_caches() -> None:
     """Clear all module-level caches. Call in tests to reset state."""
     _template_cache.clear()
-    _rule_cache.clear()
