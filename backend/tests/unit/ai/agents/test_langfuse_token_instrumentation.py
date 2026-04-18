@@ -120,8 +120,8 @@ class TestPromptAssemblerInstrumentation:
         assert len(result.layers_loaded) > 0
 
     @pytest.mark.asyncio
-    async def test_assembler_result_has_context_mode_lazy_metadata(self) -> None:
-        """Langfuse update_current_span is called with context_mode=lazy metadata."""
+    async def test_assembler_result_has_context_mode_slim_metadata(self) -> None:
+        """Langfuse update_current_span is called with context_mode=slim metadata."""
         from pilot_space.ai.prompt.models import PromptLayerConfig
         from pilot_space.ai.prompt.prompt_assembler import assemble_system_prompt
 
@@ -135,7 +135,8 @@ class TestPromptAssemblerInstrumentation:
             mock_client.update_current_span.assert_called_once()
             call_kwargs = mock_client.update_current_span.call_args.kwargs
             metadata = call_kwargs["metadata"]
-            assert metadata["context_mode"] == "lazy"
+            assert metadata["context_mode"] == "slim"
             assert metadata["estimated_prompt_tokens"] == result.estimated_tokens
+            assert isinstance(metadata["static_prefix_tokens"], int)
+            assert isinstance(metadata["dynamic_suffix_tokens"], int)
             assert isinstance(metadata["layers_loaded"], list)
-            assert isinstance(metadata["rules_loaded"], list)
