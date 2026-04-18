@@ -6,6 +6,11 @@ Phase 83 -- verify that the HookRuleService enforces:
 3. Allow rules CAN be created for CRITICAL tools (guard is at evaluation,
    not creation -- admins should see what they configured).
 
+And that the WorkspaceHookEvaluator enforces:
+4. DD-003 guard: CRITICAL tools cannot be auto-approved even if a
+   workspace hook says "allow".
+5. Non-critical tools respect allow rules normally.
+
 These are unit-level tests -- no database required. The repository is
 mocked to isolate service-layer logic.
 """
@@ -17,11 +22,17 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from pilot_space.ai.sdk.permission_handler import (
+    ActionClassification,
+    PermissionHandler,
+)
+from pilot_space.ai.sdk.workspace_hook_evaluator import WorkspaceHookEvaluator
 from pilot_space.application.services.hooks.exceptions import (
     HookRuleLimitError,
     InvalidHookPatternError,
 )
 from pilot_space.application.services.hooks.hook_rule_service import HookRuleService
+from pilot_space.domain.hooks.hook_action import HookAction
 
 
 def _make_service() -> HookRuleService:
@@ -49,6 +60,28 @@ def _mock_hook_config(
     mock.priority = 100
     mock.is_enabled = True
     return mock
+
+
+def _make_evaluator(rules: list[dict]) -> WorkspaceHookEvaluator:
+    """Create an evaluator with mocked HookRuleService."""
+    service = AsyncMock()
+    service.get_cached_rules = AsyncMock(return_value=rules)
+    return WorkspaceHookEvaluator(
+        workspace_id=uuid.uuid4(),
+        hook_rule_service=service,
+    )
+
+
+def _make_allow_all_rule() -> dict:
+    """Build an allow-all wildcard rule dict."""
+    return {
+        "id": str(uuid.uuid4()),
+        "name": "allow-all",
+        "tool_pattern": "*",
+        "action": "allow",
+        "event_type": "PreToolUse",
+        "priority": 1,
+    }
 
 
 class TestHookDD003Guard:
@@ -120,6 +153,108 @@ class TestHookDD003Guard:
 
         assert result.action == "allow"
         assert result.tool_pattern == "*"
+
+
+class TestEvaluatorDD003Guard:
+    """DD-003 evaluator guard: CRITICAL tools always require approval."""
+
+    @pytest.mark.asyncio
+    async def test_evaluator_overrides_allow_for_all_critical_tools(
+        self,
+    ) -> None:
+        """EXHAUSTIVE: every CRITICAL tool must be overridden.
+
+        Iterates ALL tools in ACTION_CLASSIFICATIONS that are
+        CRITICAL_REQUIRE_APPROVAL. For each, creates an allow-all
+        evaluator and verifies it returns HookAction.REQUIRE_APPROVAL.
+        """
+        critical_tools = [
+            tool_name
+            for tool_name, classification in (
+                PermissionHandler.ACTION_CLASSIFICATIONS.items()
+            )
+            if classification == ActionClassification.CRITICAL_REQUIRE_APPROVAL
+        ]
+
+        # Verify we actually have critical tools to test
+        assert len(critical_tools) > 0, (
+            "No CRITICAL_REQUIRE_APPROVAL tools found in "
+            "ACTION_CLASSIFICATIONS -- test is vacuous"
+        )
+
+        evaluator = _make_evaluator([_make_allow_all_rule()])
+
+        for tool_name in critical_tools:
+            result = await evaluator.evaluate(tool_name)
+            assert result == HookAction.REQUIRE_APPROVAL, (
+                f"DD-003 violation: CRITICAL tool '{tool_name}' was not "
+                f"overridden to require_approval (got {result})"
+            )
+
+    @pytest.mark.asyncio
+    async def test_evaluator_allow_passes_for_auto_execute_tools(
+        self,
+    ) -> None:
+        """Allow rule on AUTO_EXECUTE tool returns ALLOW (no override)."""
+        auto_tools = [
+            tool_name
+            for tool_name, classification in (
+                PermissionHandler.ACTION_CLASSIFICATIONS.items()
+            )
+            if classification == ActionClassification.AUTO_EXECUTE
+        ]
+
+        assert len(auto_tools) > 0, (
+            "No AUTO_EXECUTE tools found -- test is vacuous"
+        )
+
+        evaluator = _make_evaluator([_make_allow_all_rule()])
+
+        # Test a sample of auto-execute tools (first 5)
+        for tool_name in auto_tools[:5]:
+            result = await evaluator.evaluate(tool_name)
+            assert result == HookAction.ALLOW, (
+                f"AUTO_EXECUTE tool '{tool_name}' was not allowed "
+                f"(got {result})"
+            )
+
+    @pytest.mark.asyncio
+    async def test_evaluator_deny_overrides_critical_tool(self) -> None:
+        """Deny rule on CRITICAL tool returns DENY (deny always wins)."""
+        evaluator = _make_evaluator(
+            [
+                {
+                    "id": str(uuid.uuid4()),
+                    "name": "deny-critical",
+                    "tool_pattern": "delete_issue",
+                    "action": "deny",
+                    "event_type": "PreToolUse",
+                    "priority": 1,
+                },
+            ],
+        )
+        result = await evaluator.evaluate("delete_issue")
+        assert result == HookAction.DENY
+
+    @pytest.mark.asyncio
+    async def test_evaluator_require_approval_on_critical_passes(
+        self,
+    ) -> None:
+        """Require_approval rule on CRITICAL tool returns REQUIRE_APPROVAL."""
+        evaluator = _make_evaluator(
+            [
+                {
+                    "id": str(uuid.uuid4()),
+                    "name": "approval-critical",
+                    "tool_pattern": "delete_issue",
+                    "action": "require_approval",
+                    "event_type": "PreToolUse",
+                    "priority": 1,
+                },
+            ],
+        )
+        result = await evaluator.evaluate("delete_issue")
+        assert result == HookAction.REQUIRE_APPROVAL
 
 
 class TestHookPatternValidation:

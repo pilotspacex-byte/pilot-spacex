@@ -362,6 +362,7 @@ class PermissionAwareHookExecutor:
         event_queue: Any | None = None,
         max_budget_usd: float | None = None,
         session_factory: Any | None = None,
+        hook_rule_service: Any | None = None,
     ) -> None:
         """Initialize executor.
 
@@ -374,6 +375,7 @@ class PermissionAwareHookExecutor:
             event_queue: Optional asyncio.Queue for SSE approval events
             max_budget_usd: Per-request budget ceiling for BudgetStopHook
             session_factory: Optional async_sessionmaker for AuditLogHook DB writes
+            hook_rule_service: Optional HookRuleService for workspace hook evaluation
         """
         self._permission_hook = PermissionCheckHook(permission_handler)
         self._workspace_id = workspace_id
@@ -383,6 +385,7 @@ class PermissionAwareHookExecutor:
         self._event_queue = event_queue
         self._max_budget_usd = max_budget_usd
         self._session_factory = session_factory
+        self._hook_rule_service = hook_rule_service
 
     def to_sdk_hooks(self) -> dict[str, list[dict[str, Any]]]:
         """Convert to SDK-compatible hooks format.
@@ -408,6 +411,24 @@ class PermissionAwareHookExecutor:
         }
 
         pre_hooks = sdk_hooks.get("PreToolUse", [])
+
+        # Phase 83 -- Workspace Hook Evaluator (runs BEFORE permission check)
+        if self._workspace_id and self._hook_rule_service is not None:
+            from pilot_space.ai.sdk.workspace_hook_evaluator import (
+                WorkspaceHookEvaluator,
+            )
+
+            evaluator = WorkspaceHookEvaluator(
+                workspace_id=self._workspace_id,
+                redis_client=None,  # Wired via hook_rule_service
+                session_factory=self._session_factory,
+                hook_rule_service=self._hook_rule_service,
+            )
+            workspace_hook_matchers = evaluator.to_sdk_hooks().get(
+                "PreToolUse", [],
+            )
+            pre_hooks.extend(workspace_hook_matchers)
+
         pre_hooks.append(permission_matcher)
         sdk_hooks["PreToolUse"] = pre_hooks
 
