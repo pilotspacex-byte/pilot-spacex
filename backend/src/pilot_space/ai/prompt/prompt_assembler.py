@@ -30,6 +30,7 @@ from pilot_space.ai.prompt.models import (
     PromptLayerConfig,
     UserIntent,
 )
+from pilot_space.ai.proxy.tracing import observe
 
 logger = logging.getLogger(__name__)
 
@@ -236,6 +237,7 @@ _FALLBACK_SAFETY = (
 )
 
 
+@observe(name="prompt-assembly")
 async def assemble_system_prompt(config: PromptLayerConfig) -> AssembledPrompt:
     """Assemble a dynamic system prompt from the 6-layer pipeline.
 
@@ -328,12 +330,30 @@ async def assemble_system_prompt(config: PromptLayerConfig) -> AssembledPrompt:
     prompt = "\n\n".join(sections)
     estimated_tokens = len(prompt) // 4  # ~4 chars per token for English text
 
-    return AssembledPrompt(
+    result = AssembledPrompt(
         prompt=prompt,
         layers_loaded=layers_loaded,
         rules_loaded=rules_loaded,
         estimated_tokens=estimated_tokens,
     )
+
+    # LAZY-04: Record token metrics for before/after comparison via Langfuse span
+    try:
+        from langfuse import Langfuse
+
+        langfuse_client = Langfuse()
+        langfuse_client.update_current_span(
+            metadata={
+                "estimated_prompt_tokens": result.estimated_tokens,
+                "layers_loaded": result.layers_loaded,
+                "rules_loaded": result.rules_loaded,
+                "context_mode": "lazy",
+            },
+        )
+    except Exception:
+        pass  # Graceful degradation when Langfuse not configured (T-81-09)
+
+    return result
 
 
 def _build_workspace_section(config: PromptLayerConfig) -> str | None:

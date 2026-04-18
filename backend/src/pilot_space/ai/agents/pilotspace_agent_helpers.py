@@ -204,7 +204,24 @@ def build_contextual_message(
 
     if parts:
         context_block = "\n\n".join(parts)
-        return f"{context_block}\n\n{user_msg}"
+        full_message = f"{context_block}\n\n{user_msg}"
+        logger.info(
+            "contextual_message_built",
+            context_mode="lazy",
+            estimated_tokens=len(full_message) // 4,
+            has_active_context="<active_context>" in full_message,
+            has_selected_text="<selected_text>" in full_message,
+            has_block_refs="\u00b6" in full_message,
+        )
+        return full_message
+    logger.info(
+        "contextual_message_built",
+        context_mode="lazy",
+        estimated_tokens=len(user_msg) // 4,
+        has_active_context=False,
+        has_selected_text=False,
+        has_block_refs=False,
+    )
     return user_msg
 
 

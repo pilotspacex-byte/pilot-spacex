@@ -860,6 +860,12 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 feature_toggles=_feature_toggles,
             )
         )
+        logger.info(
+            "system_prompt_assembled",
+            estimated_tokens=assembled.estimated_tokens,
+            layers_loaded=assembled.layers_loaded,
+            context_mode="lazy",
+        )
 
         # Build env with workspace provider's API key and base URL.
         # When ai_proxy_enabled=True, route SDK calls through the built-in
