@@ -36,6 +36,10 @@ class NodeType(StrEnum):
     LEARNED_PATTERN = "learned_pattern"
     CONSTITUTION_RULE = "constitution_rule"
     WORK_INTENT = "work_intent"
+    # Phase 69/70 memory types (added in migration 106)
+    AGENT_TURN = "agent_turn"
+    USER_CORRECTION = "user_correction"
+    PR_REVIEW_FINDING = "pr_review_finding"
     USER_PREFERENCE = "user_preference"
     DOCUMENT = "document"
     DOCUMENT_CHUNK = "document_chunk"
