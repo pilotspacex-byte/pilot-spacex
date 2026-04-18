@@ -854,7 +854,6 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 workspace_name=input_data.context.get("workspace_name"),
                 project_names=input_data.context.get("project_names"),
                 user_message=input_data.message,
-                has_note_context=input_data.context.get("note") is not None,
                 has_mention_context="@[" in input_data.message,
                 user_skills=_user_skills_for_prompt,
                 feature_toggles=_feature_toggles,
@@ -864,7 +863,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
             "system_prompt_assembled",
             estimated_tokens=assembled.estimated_tokens,
             layers_loaded=assembled.layers_loaded,
-            context_mode="lazy",
+            context_mode="slim",
         )
 
         # Build env with workspace provider's API key and base URL.

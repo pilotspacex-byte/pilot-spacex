@@ -1,28 +1,15 @@
-"""Six-layer dynamic prompt assembler for PilotSpace AI agent.
+"""Static/dynamic prompt assembler for PilotSpace AI agent.
 
-Assembles system prompts from static templates, role context, workspace
-metadata, intent-based rules, and session state. Each layer is loaded
-only when relevant, keeping the prompt compact and focused.
-
-Layer order:
-1. Identity (always)
-2. Safety + tools + style (always)
-3. Role adaptation (if role_type set)
-4. Workspace context (if workspace/project info available)
-5. Session state (memory, conversation summary, approvals, budget)
-6. Intent-based operational rules (based on user message classification)
+Assembles system prompts with a static/dynamic boundary for KV-cache
+eligibility. Static prefix (identity, safety, role) is identical across
+requests for the same workspace+role. Dynamic suffix (workspace context,
+skills, disabled features, mentions) varies per request.
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import re
-from enum import StrEnum
-from pathlib import Path
-from typing import Any
-
-from pydantic import BaseModel, Field
 
 from pilot_space.ai.prompt.layer_loaders import (
     load_role_template,
@@ -34,242 +21,7 @@ from pilot_space.ai.prompt.models import (
 )
 from pilot_space.ai.proxy.tracing import observe  # pyright: ignore[reportAttributeAccessIssue]
 
-# ---------------------------------------------------------------------------
-# Temporary local definitions — Plan 82-02 deletes these with Layer 6.
-# ---------------------------------------------------------------------------
-
-
-class UserIntent(StrEnum):
-    """Classifies user messages for intent-aware prompt assembly (Layer 6).
-
-    Temporary: moved inline from models.py. Plan 82-02 deletes Layer 6 entirely.
-    """
-
-    NOTE_WRITING = "note_writing"
-    NOTE_READING = "note_reading"
-    ISSUE_MGMT = "issue_mgmt"
-    PM_BLOCKS = "pm_blocks"
-    PROJECT_MGMT = "project_mgmt"
-    COMMENT = "comment"
-    GENERAL = "general"
-
-
-class IntentClassification(BaseModel):
-    """Result of classifying a user message into intents (Layer 6).
-
-    Temporary: moved inline from models.py. Plan 82-02 deletes Layer 6 entirely.
-    """
-
-    primary: UserIntent
-    secondary: UserIntent | None = None
-    confidence: float = Field(default=1.0, ge=0.0, le=1.0)
-
-
-# Temporary stub — rule files deleted in Plan 82-01, function removed from layer_loaders.
-# Plan 82-02 deletes all Layer 6 code that calls this.
-_RULES_DIR: Path = Path(__file__).parent.parent / "templates" / "rules"
-_MAX_RULE_CHARS: int = 4000
-
-
-async def _load_rule_file_local(filename: str) -> str:
-    """Load a rule file from templates/rules/ (local stub, Plan 82-02 deletes)."""
-    rule_path = _RULES_DIR / filename
-    if not rule_path.is_file():
-        return ""
-    content = await asyncio.to_thread(rule_path.read_text, encoding="utf-8")
-    if len(content) > _MAX_RULE_CHARS:
-        content = content[:_MAX_RULE_CHARS] + "\n... (truncated)"
-    return content
-
-
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Inlined regex classifier. Phase 82 (PROM-02) removes Layer 6 entirely.
-# ---------------------------------------------------------------------------
-
-_INTENT_PATTERNS: dict[UserIntent, list[re.Pattern[str]]] = {
-    UserIntent.NOTE_WRITING: [
-        re.compile(p, re.IGNORECASE)
-        for p in [
-            r"\bwrite\b",
-            r"\bdraft\b",
-            r"\bdocument\b",
-            r"\badd\s+content\b",
-            r"\bcreate\s+(?:a\s+)?note\b",
-            r"\bimprove\s+writing\b",
-            r"\bsummarize\b",
-        ]
-    ],
-    UserIntent.NOTE_READING: [
-        re.compile(p, re.IGNORECASE)
-        for p in [
-            r"\bread\s+note\b",
-            r"\bshow\s+note\b",
-            r"\bsearch\s+note\b",
-            r"\bfind\s+in\s+note\b",
-            r"\bnote\s+content\b",
-        ]
-    ],
-    UserIntent.ISSUE_MGMT: [
-        re.compile(p, re.IGNORECASE)
-        for p in [
-            r"\b(?:create|update|close|reopen|extract|enhance|find|search|list)\s+(?:an?\s+)?issues?\b",
-            r"\bissues?\s+(?:list|board|status|state|tracker)\b",
-            r"\b(?:PS|PILOT)-\d+",
-            r"\bbug\b",
-            r"\bfeature\s+request\b",
-            r"\bticket\b",
-            r"\bfind\s+duplicates\b",
-            r"\bassign\s+(?:this|it|to|issue|task|ticket)\b",
-            r"\breassign\b",
-            r"\btransition\s+(?:the\s+)?state\b",
-            r"\bissue\s+state\b",
-            r"\bstate\s+(?:to|from)\b",
-        ]
-    ],
-    UserIntent.PM_BLOCKS: [
-        re.compile(p, re.IGNORECASE)
-        for p in [
-            r"\bdecision\s+record\b",
-            r"\b(?:create|add|insert)\s+(?:a\s+)?form\b",
-            r"\braci\s*(?:matrix)?\b",
-            r"\brisk\s+(?:register|matrix|assessment)\b",
-            r"\btimeline\b",
-            r"\b(?:kpi|pm)\s+dashboard\b",
-            r"\bchecklist\b",
-            r"\bdiagram\b",
-            r"\bmermaid\b",
-            r"\bsprint\s+planning\b",
-            r"\bpm\s+block\b",
-        ]
-    ],
-    UserIntent.PROJECT_MGMT: [
-        re.compile(p, re.IGNORECASE)
-        for p in [
-            r"\bproject\s+(?:status|settings|config|progress)\b",
-            r"\b(?:create|update|delete)\s+(?:a\s+)?project\b",
-            r"\bcycle\b",
-            r"\bvelocity\b",
-            r"\bcurrent\s+sprint\b",
-        ]
-    ],
-    UserIntent.COMMENT: [
-        re.compile(p, re.IGNORECASE)
-        for p in [
-            r"\b(?:add|post|create|leave)\s+(?:a\s+)?comment\b",
-            r"\breply\s+to\s+(?:the\s+)?(?:comment|thread|feedback)\b",
-            r"\bstart\s+(?:a\s+)?thread\b",
-            r"\bmention\s+(?:the\s+|@)?\w+",
-            r"\b(?:open|view)\s+(?:the\s+)?discussion\b",
-        ]
-    ],
-}
-
-_INTENT_RULE_MAP: dict[UserIntent, tuple[str, ...]] = {
-    UserIntent.NOTE_WRITING: ("notes.md",),
-    UserIntent.NOTE_READING: ("notes.md",),
-    UserIntent.ISSUE_MGMT: ("issues.md",),
-    UserIntent.PM_BLOCKS: ("pm_blocks.md", "notes.md"),
-    UserIntent.PROJECT_MGMT: (),
-    UserIntent.COMMENT: (),
-    UserIntent.GENERAL: (),
-}
-
-_RULE_SUMMARIES: dict[str, str] = {
-    "issues.md": "Issue creation/update rules: states, labels, confidence tagging, validation.",
-    "notes.md": "Note handling: ghost text, annotations, block structure, batch writing, PM blocks.",
-    "pm_blocks.md": "PM block types: decision, form, raci, risk, timeline, dashboard, diagrams, checklists.",
-}
-
-_INTENT_PRIORITY: dict[UserIntent, int] = {
-    UserIntent.ISSUE_MGMT: 7,
-    UserIntent.NOTE_WRITING: 6,
-    UserIntent.PM_BLOCKS: 5,
-    UserIntent.NOTE_READING: 4,
-    UserIntent.PROJECT_MGMT: 3,
-    UserIntent.COMMENT: 2,
-    UserIntent.GENERAL: 1,
-}
-
-
-def _classify_for_rules(
-    message: str,
-    *,
-    has_note_context: bool = False,
-) -> IntentClassification:
-    """Classify a user message into a primary (and optional secondary) intent.
-
-    Uses keyword/regex pattern matching. No LLM call.
-    """
-    message = " ".join(message.split())
-
-    match_counts: dict[UserIntent, int] = {}
-
-    for intent, patterns in _INTENT_PATTERNS.items():
-        count = sum(1 for p in patterns if p.search(message))
-        if count > 0:
-            match_counts[intent] = count
-
-    if not match_counts:
-        if has_note_context:
-            return IntentClassification(
-                primary=UserIntent.NOTE_WRITING,
-                confidence=0.4,
-            )
-        return IntentClassification(
-            primary=UserIntent.GENERAL,
-            confidence=0.5,
-        )
-
-    sorted_intents = sorted(
-        match_counts.items(),
-        key=lambda x: (x[1], _INTENT_PRIORITY.get(x[0], 0)),
-        reverse=True,
-    )
-
-    primary_intent, primary_count = sorted_intents[0]
-    total_matches = sum(c for _, c in sorted_intents)
-
-    confidence = min(primary_count / max(total_matches, 1), 1.0)
-
-    secondary_intent: UserIntent | None = None
-    if len(sorted_intents) > 1:
-        secondary_intent = sorted_intents[1][0]
-
-    return IntentClassification(
-        primary=primary_intent,
-        secondary=secondary_intent,
-        confidence=round(confidence, 2),
-    )
-
-
-def _get_rules_for_intent(
-    classification: IntentClassification,
-) -> tuple[list[str], list[str]]:
-    """Determine which rule files to load and which to summarize."""
-    files_to_load: list[str] = []
-    seen: set[str] = set()
-
-    for intent in (classification.primary, classification.secondary):
-        if intent is None:
-            continue
-        for rule_file in _INTENT_RULE_MAP.get(intent, ()):
-            if rule_file not in seen:
-                files_to_load.append(rule_file)
-                seen.add(rule_file)
-
-    summaries: list[str] = []
-    for rule_file, summary in _RULE_SUMMARIES.items():
-        if rule_file not in seen:
-            summaries.append(f"- {rule_file}: {summary}")
-
-    return files_to_load, summaries
-
-
-# ---------------------------------------------------------------------------
-# End inlined classifier
-# ---------------------------------------------------------------------------
 
 # Hardcoded fallbacks in case template files are missing (bad deployment, etc.)
 _FALLBACK_IDENTITY = (
@@ -283,113 +35,99 @@ _FALLBACK_SAFETY = (
     "- Read-only tools (search, get) auto-execute.\n"
     "- Operations return payloads; never mutate DB directly.\n\n"
     "## Interaction style\n"
-    "- Be concise. No filler phrases. Reference blocks using ¶N notation."
+    "- Be concise. No filler phrases. Reference blocks using \u00b6N notation."
 )
 
 
 @observe(name="prompt-assembly")  # pyright: ignore[reportUntypedFunctionDecorator]
 async def assemble_system_prompt(config: PromptLayerConfig) -> AssembledPrompt:
-    """Assemble a dynamic system prompt from the 6-layer pipeline.
+    """Assemble a system prompt with static/dynamic split for KV-cache eligibility.
+
+    The static prefix (identity + safety + role) is identical across requests
+    for the same workspace+role combination and is eligible for KV-cache reuse.
+    The dynamic suffix (workspace context, skills, disabled features, mentions)
+    varies per request.
 
     Args:
         config: All inputs needed for prompt assembly.
 
     Returns:
-        An ``AssembledPrompt`` with the final prompt, loaded layer names,
-        loaded rule filenames, and an estimated token count.
+        An ``AssembledPrompt`` with static_prefix, dynamic_suffix, the combined
+        prompt, loaded layer names, and an estimated token count.
     """
-    sections: list[str] = []
+    static_sections: list[str] = []
+    dynamic_sections: list[str] = []
     layers_loaded: list[str] = []
-    _rules_loaded: list[str] = []  # Tracked locally; no longer on AssembledPrompt (Plan 82-01)
+
+    # --- STATIC PREFIX (KV-cache eligible) ---
 
     # Layer 1: Identity (always)
     identity = await load_static_layer("layer1_identity.md")
     if identity:
-        sections.append(identity)
+        static_sections.append(identity)
         layers_loaded.append("identity")
     else:
         logger.warning("layer1_identity.md missing — using hardcoded fallback")
-        sections.append(config.base_prompt or _FALLBACK_IDENTITY)
+        static_sections.append(config.base_prompt or _FALLBACK_IDENTITY)
         layers_loaded.append("identity:fallback")
 
     # Layer 2: Safety + tools + style (always)
     safety = await load_static_layer("layer2_safety_tools_style.md")
     if safety:
-        sections.append(safety)
+        static_sections.append(safety)
         layers_loaded.append("safety_tools_style")
     else:
         logger.warning("layer2_safety_tools_style.md missing — using hardcoded fallback")
-        sections.append(_FALLBACK_SAFETY)
+        static_sections.append(_FALLBACK_SAFETY)
         layers_loaded.append("safety_tools_style:fallback")
 
-    # Layer 3: Role adaptation
+    # Layer 3: Role adaptation (stable per workspace+role)
     if config.role_type:
         role_content = await load_role_template(config.role_type)
         if role_content:
-            sections.append(f"## Your User's Role\n{role_content}")
+            static_sections.append(f"## Your User's Role\n{role_content}")
             layers_loaded.append(f"role:{config.role_type}")
 
-    # Layer 4: Workspace context
+    # --- DYNAMIC SUFFIX (per-request) ---
+
+    # Workspace context
     workspace_section = _build_workspace_section(config)
     if workspace_section:
-        sections.append(workspace_section)
+        dynamic_sections.append(workspace_section)
         layers_loaded.append("workspace")
 
-    # Layer 4.5: User skills (between workspace and session)
+    # User skills (skip entirely when empty -- PROM-03)
     skills_section = _build_skills_section(config)
     if skills_section:
-        sections.append(skills_section)
+        dynamic_sections.append(skills_section)
         layers_loaded.append("skills")
 
-    # Layer 4.6: Disabled features notice (between skills and session)
+    # Disabled features (skip entirely when empty -- PROM-03)
     disabled_section = _build_disabled_features_section(config)
     if disabled_section:
-        sections.append(disabled_section)
+        dynamic_sections.append(disabled_section)
         layers_loaded.append("disabled_features")
 
-    # Layer 5: Session state (memory, summary — placed before rules for recency)
-    session_parts = _build_session_section(config)
-    if session_parts:
-        sections.extend(session_parts)
-        layers_loaded.append("session")
-
-    # Layer 6: Intent-based rules (at the end, closest to user message)
-    # has_note_context removed from PromptLayerConfig in Plan 82-01; use getattr fallback.
-    # Plan 82-02 deletes Layer 6 entirely.
-    _has_note_ctx: bool = getattr(config, "has_note_context", False)
-    classification = _classify_for_rules(config.user_message, has_note_context=_has_note_ctx)
-    rule_files, rule_summaries = _get_rules_for_intent(classification)
-
-    if rule_files:
-        rule_parts: list[str] = []
-        for filename in rule_files:
-            content = await _load_rule_file_local(filename)
-            if content:
-                rule_parts.append(content)
-                _rules_loaded.append(filename)
-                layers_loaded.append(f"rules:{filename}")
-
-        if rule_parts:
-            sections.append("## Operational Rules\n" + "\n\n".join(rule_parts))
-
-    if rule_summaries:
-        sections.append("## Available Rule Domains (not loaded)\n" + "\n".join(rule_summaries))
-
-    # Mention resolution rule (conditional on @[Type:uuid] tokens in message)
+    # Mention resolution (conditional on @[Type:uuid] tokens in message)
     if config.has_mention_context:
-        sections.append(_build_mention_resolution_rule())
+        dynamic_sections.append(_build_mention_resolution_rule())
         layers_loaded.append("mention_resolution")
 
-    prompt = "\n\n".join(sections)
-    estimated_tokens = len(prompt) // 4  # ~4 chars per token for English text
+    # --- COMBINE ---
+    static_prefix = "\n\n".join(static_sections)
+    dynamic_suffix = "\n\n".join(dynamic_sections) if dynamic_sections else ""
+    combined = f"{static_prefix}\n\n{dynamic_suffix}" if dynamic_suffix else static_prefix
+    estimated_tokens = len(combined) // 4
 
     result = AssembledPrompt(
-        prompt=prompt,
+        prompt=combined,
+        static_prefix=static_prefix,
+        dynamic_suffix=dynamic_suffix,
         layers_loaded=layers_loaded,
         estimated_tokens=estimated_tokens,
     )
 
-    # LAZY-04: Record token metrics for before/after comparison via Langfuse span
+    # PROM-04: Record token metrics for before/after comparison via Langfuse span
     try:
         from langfuse import Langfuse
 
@@ -397,9 +135,10 @@ async def assemble_system_prompt(config: PromptLayerConfig) -> AssembledPrompt:
         langfuse_client.update_current_span(
             metadata={
                 "estimated_prompt_tokens": result.estimated_tokens,
+                "static_prefix_tokens": len(result.static_prefix) // 4,
+                "dynamic_suffix_tokens": len(result.dynamic_suffix) // 4,
                 "layers_loaded": result.layers_loaded,
-                "_rules_loaded": _rules_loaded,  # Temporary; Plan 82-02 removes
-                "context_mode": "lazy",
+                "context_mode": "slim",
             },
         )
     except Exception:
@@ -443,10 +182,7 @@ def _sanitize_skill_text(text: str, max_length: int) -> str:
 
 
 def _build_skills_section(config: PromptLayerConfig) -> str | None:
-    """Build the user skills section for the prompt (layer 4.5).
-
-    Positioned between workspace context (layer 4) and session state (layer 5)
-    so the agent can reference available skills when forming responses.
+    """Build the user skills section for the dynamic suffix.
 
     Returns:
         Formatted "## Your Skills" section, or None if no active skills.
@@ -467,7 +203,7 @@ def _build_skills_section(config: PromptLayerConfig) -> str | None:
 
 
 def _build_disabled_features_section(config: PromptLayerConfig) -> str | None:
-    """Build the disabled features notice section for the prompt (layer 4.6).
+    """Build the disabled features notice section for the dynamic suffix.
 
     When workspace features are disabled, the agent should not attempt to use
     related tools and should politely inform the user.
@@ -488,7 +224,7 @@ def _build_disabled_features_section(config: PromptLayerConfig) -> str | None:
 
 
 def _build_mention_resolution_rule() -> str:
-    """Build the mention-resolution instruction for Layer 6.
+    """Build the mention-resolution instruction for the dynamic suffix.
 
     Injected when the user message contains @[Type:uuid] entity references.
     Instructs the agent which MCP tools to call for each entity type.
@@ -511,54 +247,3 @@ def _build_mention_resolution_rule() -> str:
         "Do not expose the error to the user.\n"
         "Never include raw `@[Type:uuid]` strings in your response."
     )
-
-
-def _build_session_section(config: PromptLayerConfig) -> list[str]:
-    """Build session state sections (layer 5).
-
-    Fields removed from PromptLayerConfig in Plan 82-01; uses getattr fallbacks.
-    Plan 82-02 deletes this function entirely.
-
-    Returns:
-        List of formatted section strings (may be empty).
-    """
-    parts: list[str] = []
-
-    # Memory context (legacy fallback — Phase 81 moved recall to MCP tool)
-    memory_entries: list[dict[str, Any]] = getattr(config, "memory_entries", [])
-    if memory_entries:
-        parts.append(format_memory_entries(memory_entries))
-
-    # Conversation summary
-    conversation_summary: str | None = getattr(config, "conversation_summary", None)
-    if conversation_summary:
-        parts.append(f"## Conversation Summary\n{conversation_summary}")
-
-    # Pending approvals
-    pending_approvals: int = getattr(config, "pending_approvals", 0)
-    if pending_approvals > 0:
-        suffix = "s" if pending_approvals > 1 else ""
-        parts.append(f"\u26a0 {pending_approvals} pending approval{suffix} awaiting your response.")
-
-    # Budget warning
-    budget_warning: str | None = getattr(config, "budget_warning", None)
-    if budget_warning:
-        parts.append(f"\u26a0 Budget: {budget_warning}")
-
-    return parts
-
-
-def format_memory_entries(memory_entries: list[dict[str, Any]]) -> str:
-    """Format recalled memory entries as a system prompt section.
-
-    Formats memory entries as a markdown section for the system prompt.
-    """
-    lines = ["## Workspace Memory Context\n"]
-    for entry in memory_entries:
-        source = entry.get("source_type", "unknown")
-        content = entry.get("content", "")
-        lines.append(f"- [{source}] {content}")
-    lines.append("")
-    return "\n".join(lines)
-
-
