@@ -442,6 +442,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         memory_save_service: MemorySaveService | None = None,
         graph_queue_client: SupabaseQueueClient | None = None,
         session_factory: Any | None = None,
+        hook_rule_service: Any | None = None,
     ) -> None:
         super().__init__(
             provider_selector=provider_selector,
@@ -457,6 +458,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
         self._memory_save_service = memory_save_service
         self._graph_queue_client = graph_queue_client
         self._session_factory = session_factory
+        self._hook_rule_service = hook_rule_service
         self._message_id_holder: dict[str, str | None] = {"_current_message_id": None}
         self._active_clients: dict[str, ClaudeSDKClient] = {}
         # Strong references to fire-and-forget background tasks.
@@ -1100,6 +1102,7 @@ class PilotSpaceAgent(StreamingSDKBaseAgent[ChatInput, ChatOutput]):
                 file_hook_executor=file_hook_executor,
                 event_queue=tool_event_queue,
                 session_factory=self._session_factory,
+                hook_rule_service=self._hook_rule_service,
             )
 
             from pilot_space.infrastructure.database import get_db_session

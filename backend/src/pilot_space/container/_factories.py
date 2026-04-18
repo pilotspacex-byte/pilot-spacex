@@ -160,6 +160,7 @@ def create_pilotspace_agent(
     space_manager: Any,
     queue_client: Any = None,
     session_factory: Any = None,
+    hook_rule_service: Any = None,
 ) -> Any:
     """Create PilotSpaceAgent with all dependencies.
 
@@ -171,6 +172,7 @@ def create_pilotspace_agent(
         space_manager: Space management service.
         queue_client: Queue client for graph embedding jobs (optional).
         session_factory: Async sessionmaker for AuditLogHook out-of-request DB writes.
+        hook_rule_service: Workspace hook rule service for evaluator (optional).
 
     Returns:
         Fully initialized PilotSpaceAgent.
@@ -211,6 +213,17 @@ def create_pilotspace_agent(
         permission_service=permission_service,
     )
 
+    # Phase 83: Resolve HookRuleService lazily from the container
+    # (same pattern as permission_service above).
+    if hook_rule_service is None:
+        try:
+            from pilot_space.container.container import get_container
+
+            hook_rule_service = get_container().hook_rule_service()
+        except Exception:
+            logger.debug("HookRuleService unavailable — workspace hooks disabled.")
+            hook_rule_service = None
+
     # Skills are now loaded by PilotSpaceAgent from the space's .claude/skills/ directory
     # (DD-086 migration from siloed SkillRegistry to filesystem-based auto-discovery).
 
@@ -230,6 +243,7 @@ def create_pilotspace_agent(
         space_manager=space_manager,
         graph_queue_client=queue_client,
         session_factory=session_factory,
+        hook_rule_service=hook_rule_service,
     )
 
 
