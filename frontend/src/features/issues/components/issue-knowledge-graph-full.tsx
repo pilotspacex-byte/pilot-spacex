@@ -37,8 +37,8 @@ export interface IssueKnowledgeGraphFullProps {
 }
 
 const FILTER_CHIPS: FilterChip[] = [
-  { label: 'Issues', nodeType: 'issue' },
-  { label: 'Notes', nodeType: 'note' },
+  { label: 'Tasks', nodeType: 'issue' },
+  { label: 'Topics', nodeType: 'note' },
   { label: 'PRs', nodeType: 'pull_request' },
   { label: 'Decisions', nodeType: 'decision' },
   { label: 'Code', nodeType: 'code_reference' },

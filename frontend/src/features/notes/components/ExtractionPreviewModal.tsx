@@ -135,8 +135,8 @@ export function ExtractionPreviewModal({
       const count = result.created_issues.length;
       onCreated?.(result.created_issues.map((i) => i.id));
       onOpenChange(false);
-      toast.success(`${count} issue${count !== 1 ? 's' : ''} created`, {
-        description: 'View them in the Issues board.',
+      toast.success(`${count} task${count !== 1 ? 's' : ''} created`, {
+        description: 'View them in the Tasks board.',
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create issues';
@@ -155,9 +155,9 @@ export function ExtractionPreviewModal({
         aria-describedby="extraction-preview-description"
       >
         <DialogHeader>
-          <DialogTitle>Extracted Issues</DialogTitle>
+          <DialogTitle>Extracted Tasks</DialogTitle>
           <DialogDescription id="extraction-preview-description">
-            AI found the following issues in your note. Select which ones to create.
+            AI found the following tasks in your topic. Select which ones to create.
           </DialogDescription>
         </DialogHeader>
 
@@ -169,7 +169,7 @@ export function ExtractionPreviewModal({
               className="flex items-center justify-center py-8 text-muted-foreground"
             >
               <Loader2 className="h-5 w-5 motion-safe:animate-spin mr-2" />
-              <span>Analyzing note content...</span>
+              <span>Analyzing topic content...</span>
             </div>
           )}
 

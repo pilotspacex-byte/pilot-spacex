@@ -34,7 +34,7 @@ export function ContextSwitchIndicator({
   const title =
     newContext.noteTitle ||
     newContext.issueTitle ||
-    (isNote ? 'Untitled note' : isIssue ? 'Issue' : 'Unknown');
+    (isNote ? 'Untitled topic' : isIssue ? 'Task' : 'Unknown');
 
   // Determine icon
   const Icon = isNote ? FileText : GitBranch;

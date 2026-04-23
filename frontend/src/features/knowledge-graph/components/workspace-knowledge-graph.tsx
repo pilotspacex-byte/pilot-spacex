@@ -30,8 +30,8 @@ export interface WorkspaceKnowledgeGraphProps {
 
 const FILTER_CHIPS: FilterChip[] = [
   { label: 'Projects', nodeType: 'project' },
-  { label: 'Issues', nodeType: 'issue' },
-  { label: 'Notes', nodeType: 'note' },
+  { label: 'Tasks', nodeType: 'issue' },
+  { label: 'Topics', nodeType: 'note' },
   { label: 'Cycles', nodeType: 'cycle' },
   { label: 'PRs', nodeType: 'pull_request' },
   { label: 'Decisions', nodeType: 'decision' },

@@ -197,8 +197,8 @@ export const SKILL_CATEGORIES = [
   { id: 'session', label: 'Session', icon: 'History' },
   { id: 'my-skills', label: 'My Skills', icon: 'UserCog' },
   { id: 'writing', label: 'Writing', icon: 'PenTool' },
-  { id: 'notes', label: 'Notes', icon: 'FileText' },
-  { id: 'issues', label: 'Issues', icon: 'ListTodo' },
+  { id: 'notes', label: 'Topics', icon: 'FileText' },
+  { id: 'issues', label: 'Tasks', icon: 'ListTodo' },
   { id: 'code', label: 'Code', icon: 'Code' },
   { id: 'documentation', label: 'Documentation', icon: 'BookOpen' },
   { id: 'planning', label: 'Planning', icon: 'Calendar' },
@@ -210,12 +210,12 @@ export const SKILL_CATEGORIES = [
  * Shown in the tool execution banner during streaming.
  */
 export const TOOL_DISPLAY_NAMES: Record<string, string> = {
-  update_note_block: 'Updating Note Block',
+  update_note_block: 'Updating Topic Block',
   enhance_text: 'Enhancing Text',
-  summarize_note: 'Summarizing Note',
-  extract_issues: 'Extracting Issues',
-  create_issue_from_note: 'Creating Issue',
-  link_existing_issues: 'Linking Issues',
+  summarize_note: 'Summarizing Topic',
+  extract_issues: 'Extracting Tasks',
+  create_issue_from_note: 'Creating Task',
+  link_existing_issues: 'Linking Tasks',
   create_pm_block: 'Creating PM Block',
 };
 

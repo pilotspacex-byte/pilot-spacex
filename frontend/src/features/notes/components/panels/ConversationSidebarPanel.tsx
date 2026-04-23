@@ -68,7 +68,7 @@ function ThreadRow({ thread, onOpen }: { thread: ConversationThread; onOpen: () 
         'hover:bg-muted/50 transition-colors',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
       )}
-      aria-label={`Thread: ${thread.blockPreview ?? 'Note thread'}, ${thread.unreadCount} unread`}
+      aria-label={`Thread: ${thread.blockPreview ?? 'Topic thread'}, ${thread.unreadCount} unread`}
     >
       {/* Author avatar of last message */}
       {lastMsg ? (

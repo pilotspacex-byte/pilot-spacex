@@ -250,9 +250,9 @@ export const IssueModal = observer(function IssueModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEditing ? 'Edit Issue' : 'Create Issue'}</DialogTitle>
+          <DialogTitle>{isEditing ? 'Edit Task' : 'Create Task'}</DialogTitle>
           <DialogDescription>
-            {isEditing ? `Editing ${issue.identifier}` : 'Create a new issue in this project'}
+            {isEditing ? `Editing ${issue.identifier}` : 'Create a new task in this project'}
           </DialogDescription>
         </DialogHeader>
 
@@ -267,7 +267,7 @@ export const IssueModal = observer(function IssueModal({
                 id="title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Issue title..."
+                placeholder="Task title..."
                 className="pr-10"
               />
               {isLoadingEnhancement && (
@@ -405,14 +405,14 @@ export const IssueModal = observer(function IssueModal({
             <>
               <div className="flex items-center gap-2 mr-auto text-xs text-primary">
                 <CheckCircle2 className="size-4" />
-                <span>Issue created: {createdIssue.identifier ?? createdIssue.name}</span>
+                <span>Task created: {createdIssue.identifier ?? createdIssue.name}</span>
               </div>
               <Button variant="outline" onClick={handleCreateAnother}>
                 Create Another
               </Button>
               <Button onClick={handleOpenCreatedIssue}>
                 <ExternalLink className="mr-2 size-4" />
-                Open Issue
+                Open Task
               </Button>
             </>
           ) : (
@@ -429,7 +429,7 @@ export const IssueModal = observer(function IssueModal({
                 ) : isEditing ? (
                   'Save Changes'
                 ) : (
-                  'Create Issue'
+                  'Create Task'
                 )}
               </Button>
             </>

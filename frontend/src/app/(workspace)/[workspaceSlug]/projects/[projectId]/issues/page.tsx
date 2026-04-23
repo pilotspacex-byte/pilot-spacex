@@ -15,8 +15,8 @@ export default function ProjectIssuesPage() {
   return (
     <div className="flex h-full flex-col">
       <div className="border-b px-6 py-4">
-        <h1 className="text-2xl font-semibold">Issues</h1>
-        <p className="text-sm text-muted-foreground">Project issues</p>
+        <h1 className="text-2xl font-semibold">Tasks</h1>
+        <p className="text-sm text-muted-foreground">Project tasks</p>
       </div>
       <IssueViewsRoot workspaceSlug={workspaceSlug} projectId={projectId} />
     </div>

@@ -64,6 +64,28 @@ const nextConfig: NextConfig = {
         destination: '/:slug/members',
         permanent: true,
       },
+      // Phase 84: User-visible rename (Issues→Tasks, Notes→Topics). Internal identifiers unchanged.
+      // Redirects live ≥1 milestone per REQUIREMENTS TASK-02. `permanent: true` emits 308.
+      {
+        source: '/:workspaceSlug/issues',
+        destination: '/:workspaceSlug/tasks',
+        permanent: true,
+      },
+      {
+        source: '/:workspaceSlug/issues/:issueId',
+        destination: '/:workspaceSlug/tasks/:issueId',
+        permanent: true,
+      },
+      {
+        source: '/:workspaceSlug/notes',
+        destination: '/:workspaceSlug/topics',
+        permanent: true,
+      },
+      {
+        source: '/:workspaceSlug/notes/:noteId',
+        destination: '/:workspaceSlug/topics/:noteId',
+        permanent: true,
+      },
     ];
   },
 

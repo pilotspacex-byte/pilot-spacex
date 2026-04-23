@@ -337,7 +337,7 @@ export function TaskChecklist({
             disabled={selectedTasks.size === 0}
           >
             <Plus className="size-4 mr-1" />
-            Create Sub-Issues
+            Create Sub-Tasks
           </Button>
         </div>
       )}

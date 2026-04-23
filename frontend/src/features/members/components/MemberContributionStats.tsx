@@ -94,14 +94,14 @@ export function MemberContributionStats({ stats, isLoading }: MemberContribution
     <TooltipProvider delayDuration={300}>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-label="Contribution statistics">
         <StatCard
-          label="Issues Created"
+          label="Tasks Created"
           value={stats.issuesCreated}
-          tooltip="Total issues reported by this member across all projects."
+          tooltip="Total tasks reported by this member across all projects."
         />
         <StatCard
-          label="Issues Assigned"
+          label="Tasks Assigned"
           value={stats.issuesAssigned}
-          tooltip="Total issues currently or previously assigned to this member."
+          tooltip="Total tasks currently or previously assigned to this member."
         />
         <StatCard
           label="Cycle Velocity"

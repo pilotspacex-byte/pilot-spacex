@@ -63,8 +63,8 @@ export const GRAPH_NODE_STYLES: Record<GraphNodeType | 'default', NodeStyle> = {
     bgDark: '#2c5f82',
     tailwind: 'bg-[#3d7fa8]',
     text: '#fff',
-    abbr: 'IS',
-    label: 'Issue',
+    abbr: 'TA',
+    label: 'Task',
     tier: 1,
   },
   note: {
@@ -73,8 +73,8 @@ export const GRAPH_NODE_STYLES: Record<GraphNodeType | 'default', NodeStyle> = {
     bgDark: '#1d6654',
     tailwind: 'bg-[#2d8a73]',
     text: '#fff',
-    abbr: 'NO',
-    label: 'Note',
+    abbr: 'TO',
+    label: 'Topic',
     tier: 1,
   },
   cycle: {

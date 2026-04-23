@@ -256,11 +256,11 @@ export function InlineNoteHeader({
         >
           {/* Breadcrumb */}
           <Link
-            href={`/${workspaceSlug}/notes`}
+            href={`/${workspaceSlug}/topics`}
             className="hover:text-foreground transition-colors flex items-center gap-0.5 sm:gap-1"
           >
             <FileText className="h-3 w-3 sm:h-3.5 sm:w-3.5 flex-shrink-0" />
-            <span className="hidden sm:inline">Notes</span>
+            <span className="hidden sm:inline">Topics</span>
           </Link>
           <ChevronRight className="h-3 w-3 flex-shrink-0" />
           {project && (
@@ -528,7 +528,7 @@ export function InlineNoteHeader({
         <MoveNoteDialog
           workspaceId={workspaceId}
           currentProjectId={projectId ?? null}
-          confirmLabel="Move Note"
+          confirmLabel="Move Topic"
           onSelect={(newProjectId) => {
             setShowMoveDialog(false);
             onMove?.(newProjectId);

@@ -141,16 +141,16 @@ export const AssistantMessage = memo<AssistantMessageProps>(({ message, classNam
         const created = result.created_issues;
         setCreatedIssues(created);
         toast.success(
-          `Created ${result.created_count} issue${result.created_count !== 1 ? 's' : ''}`,
+          `Created ${result.created_count} task${result.created_count !== 1 ? 's' : ''}`,
           {
             description: noteId
-              ? 'Issues have been created and linked to the note.'
-              : 'Issues have been created.',
+              ? 'Tasks have been created and linked to the topic.'
+              : 'Tasks have been created.',
           }
         );
         return created;
       } catch (error) {
-        toast.error('Failed to create issues', {
+        toast.error('Failed to create tasks', {
           description: error instanceof Error ? error.message : 'An unexpected error occurred.',
         });
       } finally {

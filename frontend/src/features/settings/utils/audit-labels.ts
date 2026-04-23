@@ -10,8 +10,8 @@
  */
 const RESOURCE_TYPE_LABELS: Record<string, string> = {
   // Uppercase variants (written by most backend services)
-  ISSUE: 'Issue',
-  NOTE: 'Note',
+  ISSUE: 'Task',
+  NOTE: 'Topic',
   MEMBER: 'Member',
   WORKSPACE_MEMBER: 'Member',
   WORKSPACE: 'Workspace',
@@ -24,8 +24,8 @@ const RESOURCE_TYPE_LABELS: Record<string, string> = {
   COMMENT: 'Comment',
   LABEL: 'Label',
   // Lowercase variants (forward-compat / legacy)
-  issue: 'Issue',
-  note: 'Note',
+  issue: 'Task',
+  note: 'Topic',
   member: 'Member',
   workspace: 'Workspace',
   role: 'Role',
@@ -37,12 +37,12 @@ const RESOURCE_TYPE_LABELS: Record<string, string> = {
  * Map raw dot-notation action strings to UI-friendly labels.
  */
 const ACTION_LABELS: Record<string, string> = {
-  'issue.create': 'Issue Created',
-  'issue.update': 'Issue Updated',
-  'issue.delete': 'Issue Deleted',
-  'note.create': 'Note Created',
-  'note.update': 'Note Updated',
-  'note.delete': 'Note Deleted',
+  'issue.create': 'Task Created',
+  'issue.update': 'Task Updated',
+  'issue.delete': 'Task Deleted',
+  'note.create': 'Topic Created',
+  'note.update': 'Topic Updated',
+  'note.delete': 'Topic Deleted',
   'member.invite': 'Member Invited',
   'member.remove': 'Member Removed',
   'role.assign': 'Role Assigned',

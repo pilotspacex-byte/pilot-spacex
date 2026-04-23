@@ -229,8 +229,8 @@ function ReviewCard({
         onChange={(e) => onTitleChange(issue.index, e.target.value)}
         disabled={!approved}
         className="h-8 text-sm font-medium"
-        aria-label="Issue title"
-        placeholder="Issue title"
+        aria-label="Task title"
+        placeholder="Task title"
       />
 
       {/* Description */}
@@ -385,8 +385,8 @@ export function ExtractionReviewPanel({
       const count = result.created_issues.length;
       onCreated?.(result.created_issues.map((i) => i.id));
       onOpenChange(false);
-      toast.success(`${count} issue${count !== 1 ? 's' : ''} created`, {
-        description: 'View them in the Issues board.',
+      toast.success(`${count} task${count !== 1 ? 's' : ''} created`, {
+        description: 'View them in the Tasks board.',
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create issues';
@@ -409,7 +409,7 @@ export function ExtractionReviewPanel({
         <SheetHeader className="px-4 pt-4 pb-3 border-b border-border gap-0">
           <div className="flex items-center justify-between">
             <SheetTitle className="text-base">
-              Extracted Issues
+              Extracted Tasks
               {totalCount > 0 && (
                 <span className="ml-1 text-muted-foreground font-normal">({totalCount} found)</span>
               )}
@@ -428,7 +428,7 @@ export function ExtractionReviewPanel({
             )}
           </div>
           <p id="extraction-panel-description" className="sr-only">
-            Review AI-extracted issues and choose which ones to create.
+            Review AI-extracted tasks and choose which ones to create.
           </p>
         </SheetHeader>
 
@@ -444,7 +444,7 @@ export function ExtractionReviewPanel({
               className="flex items-center gap-2 text-xs text-muted-foreground px-4 py-2 border-b border-border"
             >
               <Loader2 className="h-3 w-3 motion-safe:animate-spin" aria-hidden="true" />
-              <span>Extracting more issues...</span>
+              <span>Extracting more tasks...</span>
             </div>
           )}
 
@@ -474,7 +474,7 @@ export function ExtractionReviewPanel({
           {!isExtracting && !error && reviewItems.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground px-4">
               <CheckCircle2 className="h-8 w-8 mb-3 opacity-40" />
-              <p className="text-sm text-center">No actionable issues found in this note.</p>
+              <p className="text-sm text-center">No actionable tasks found in this topic.</p>
             </div>
           )}
 
@@ -520,7 +520,7 @@ export function ExtractionReviewPanel({
                   Creating...
                 </>
               ) : (
-                `Create ${approvedCount} Issue${approvedCount !== 1 ? 's' : ''}`
+                `Create ${approvedCount} Task${approvedCount !== 1 ? 's' : ''}`
               )}
             </Button>
           </SheetFooter>

@@ -78,7 +78,7 @@ export function NoteLinkComponent({ node, extension, editor }: NodeViewProps) {
     [handleClick]
   );
 
-  const displayTitle = isBroken ? 'Note not found' : (title ?? '');
+  const displayTitle = isBroken ? 'Topic not found' : (title ?? '');
 
   return (
     <NodeViewWrapper as="span" className="inline align-middle">

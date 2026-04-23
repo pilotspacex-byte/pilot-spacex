@@ -114,7 +114,7 @@ const ANNOTATION_TYPE_CONFIG: Record<
   },
   issue_candidate: {
     icon: TicketPlus,
-    label: 'Issue',
+    label: 'Task',
     color: 'text-primary',
     bgColor: 'bg-primary-muted',
     borderColor: 'border-primary/30',
@@ -160,8 +160,8 @@ function getConfidenceLabel(type: string, confidence: number): string {
     return 'Alternative';
   }
   if (type === 'info') return 'Related';
-  if (type === 'issue_candidate') return 'Issue Found';
-  return 'Note';
+  if (type === 'issue_candidate') return 'Task Found';
+  return 'Topic';
 }
 
 /**

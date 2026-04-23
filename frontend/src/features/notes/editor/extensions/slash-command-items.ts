@@ -422,8 +422,8 @@ export function getDefaultCommands(
     },
     {
       name: 'ai-extract-issues',
-      label: 'AI: Extract Issues',
-      description: 'Find potential issues to create',
+      label: 'AI: Extract Tasks',
+      description: 'Find potential tasks to create',
       icon: 'ListTodo',
       group: 'ai',
       keywords: ['issues', 'tasks', 'tickets', 'extract'],

@@ -230,9 +230,9 @@ export function PMBlockNodeView({ node, updateAttributes, editor }: NodeViewProp
         });
         const linkedIds = (context.data.linkedIssueIds as string[]) || [];
         onDataChange({ ...context.data, linkedIssueIds: [...linkedIds, issue.id] });
-        toast.success(`Issue ${issue.identifier} created`);
+        toast.success(`Task ${issue.identifier} created`);
       } catch {
-        toast.error('Failed to create issue');
+        toast.error('Failed to create task');
       }
     },
     [workspaceStore, onDataChange]

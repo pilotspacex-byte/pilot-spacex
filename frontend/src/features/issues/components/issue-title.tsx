@@ -183,7 +183,7 @@ export function IssueTitle({ title, issueId, workspaceId, disabled = false }: Is
             onBlur={confirmAndExit}
             onKeyDown={handleKeyDown}
             maxLength={TITLE_MAX_LENGTH}
-            aria-label="Issue title"
+            aria-label="Task title"
             aria-invalid={validationError ? 'true' : undefined}
             aria-describedby={validationError ? 'issue-title-error' : undefined}
             className={cn(
@@ -193,7 +193,7 @@ export function IssueTitle({ title, issueId, workspaceId, disabled = false }: Is
               'placeholder:text-foreground-muted',
               validationError && 'border-destructive focus:border-destructive'
             )}
-            placeholder="Issue title"
+            placeholder="Task title"
           />
         ) : (
           <button

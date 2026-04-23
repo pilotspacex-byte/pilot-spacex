@@ -58,7 +58,7 @@ export const ContextIndicator = memo<ContextIndicatorProps>(
               <Badge variant="secondary" className="gap-1.5">
                 <FileText className="h-3 w-3" />
                 <span className="truncate max-w-[200px]">
-                  Note: {noteContext.noteTitle || noteContext.noteId.slice(0, 8)}
+                  Topic: {noteContext.noteTitle || noteContext.noteId.slice(0, 8)}
                   {noteContext.selectedBlockIds && noteContext.selectedBlockIds.length > 0 && (
                     <span className="ml-1 text-muted-foreground">
                       ({noteContext.selectedBlockIds.length}{' '}

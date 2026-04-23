@@ -105,15 +105,15 @@ export function useRolloverCycle({
         queryKey: cyclesKeys.velocity(workspaceId, projectId),
       });
 
-      toast.success('Issues rolled over', {
-        description: `${result.totalRolledOver} issue${result.totalRolledOver === 1 ? '' : 's'} moved to "${result.targetCycle.name}".`,
+      toast.success('Tasks rolled over', {
+        description: `${result.totalRolledOver} task${result.totalRolledOver === 1 ? '' : 's'} moved to "${result.targetCycle.name}".`,
       });
 
       onSuccess?.(result);
     },
 
     onError: (error: Error) => {
-      toast.error('Failed to rollover issues', {
+      toast.error('Failed to rollover tasks', {
         description: error.message,
       });
       onError?.(error);
@@ -151,12 +151,12 @@ export function useAddIssueToCycle({
         queryKey: cyclesKeys.burndown(workspaceId, cycleId),
       });
 
-      toast.success('Issue added to cycle');
+      toast.success('Task added to cycle');
       onSuccess?.();
     },
 
     onError: (error: Error) => {
-      toast.error('Failed to add issue to cycle', {
+      toast.error('Failed to add task to cycle', {
         description: error.message,
       });
       onError?.(error);
@@ -194,14 +194,14 @@ export function useBulkAddIssuesToCycle({
         queryKey: cyclesKeys.burndown(workspaceId, cycleId),
       });
 
-      toast.success('Issues added to cycle', {
-        description: `${result.addedCount} issue${result.addedCount === 1 ? '' : 's'} added.`,
+      toast.success('Tasks added to cycle', {
+        description: `${result.addedCount} task${result.addedCount === 1 ? '' : 's'} added.`,
       });
       onSuccess?.();
     },
 
     onError: (error: Error) => {
-      toast.error('Failed to add issues to cycle', {
+      toast.error('Failed to add tasks to cycle', {
         description: error.message,
       });
       onError?.(error);
@@ -252,7 +252,7 @@ export function useRemoveIssueFromCycle({
         queryKey: cyclesKeys.burndown(workspaceId, cycleId),
       });
 
-      toast.success('Issue removed from cycle');
+      toast.success('Task removed from cycle');
       onSuccess?.();
     },
 

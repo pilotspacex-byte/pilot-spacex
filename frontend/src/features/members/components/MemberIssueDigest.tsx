@@ -52,9 +52,9 @@ export function MemberIssueDigest({ issues, workspaceSlug }: MemberIssueDigestPr
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
           <ClipboardList className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
         </div>
-        <p className="text-sm font-medium text-muted-foreground">No assigned issues</p>
+        <p className="text-sm font-medium text-muted-foreground">No assigned tasks</p>
         <p className="max-w-[240px] text-xs text-muted-foreground/70">
-          Issues assigned to this member will appear here, grouped by state.
+          Tasks assigned to this member will appear here, grouped by state.
         </p>
       </div>
     );
@@ -63,7 +63,7 @@ export function MemberIssueDigest({ issues, workspaceSlug }: MemberIssueDigestPr
   const grouped = groupByState(issues);
 
   return (
-    <section className="space-y-4" aria-label="Issues by state">
+    <section className="space-y-4" aria-label="Tasks by state">
       {GROUP_ORDER.filter((g) => (grouped[g]?.length ?? 0) > 0).map((group) => (
         <div key={group}>
           <div className="mb-2 flex items-center gap-2">

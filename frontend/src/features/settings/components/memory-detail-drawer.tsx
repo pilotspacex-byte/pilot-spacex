@@ -74,9 +74,9 @@ function cleanContent(raw: string): string {
 
 /** Human-readable node type label + icon. */
 const NODE_TYPE_LABELS: Record<string, { label: string; Icon: React.ElementType }> = {
-  note_chunk: { label: 'Note excerpt', Icon: FileText },
-  note: { label: 'Note', Icon: FileText },
-  issue: { label: 'Issue', Icon: AlertCircle },
+  note_chunk: { label: 'Topic excerpt', Icon: FileText },
+  note: { label: 'Topic', Icon: FileText },
+  issue: { label: 'Task', Icon: AlertCircle },
   decision: { label: 'Decision', Icon: Brain },
   agent_turn: { label: 'AI conversation', Icon: MessageSquare },
   user_correction: { label: 'Correction', Icon: AlertCircle },

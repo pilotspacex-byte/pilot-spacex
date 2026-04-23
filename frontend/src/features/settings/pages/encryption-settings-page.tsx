@@ -180,7 +180,7 @@ export const EncryptionSettingsPage = observer(function EncryptionSettingsPage()
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight">Workspace Encryption</h1>
           <p className="text-sm text-muted-foreground">
-            Configure bring-your-own-key encryption for sensitive workspace data. Notes, issue
+            Configure bring-your-own-key encryption for sensitive workspace data. Topics, task
             descriptions, and AI inputs/outputs are encrypted with your key.
           </p>
         </div>

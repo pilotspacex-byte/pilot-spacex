@@ -36,7 +36,7 @@ const NAV_ITEMS: readonly {
   featureKey?: keyof WorkspaceFeatureToggles;
 }[] = [
   { label: 'Overview', icon: LayoutDashboard, segment: 'overview' },
-  { label: 'Issues', icon: ListTodo, segment: 'issues', featureKey: 'issues' },
+  { label: 'Tasks', icon: ListTodo, segment: 'issues', featureKey: 'issues' },
   { label: 'Cycles', icon: RefreshCw, segment: 'cycles', featureKey: 'issues' },
   { label: 'Knowledge', icon: Brain, segment: 'knowledge', featureKey: 'knowledge' },
   { label: 'Artifacts', icon: Paperclip, segment: 'artifacts' },

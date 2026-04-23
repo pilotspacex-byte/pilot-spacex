@@ -406,7 +406,7 @@ export const BurndownChart = observer(function BurndownChart({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="points">Points</SelectItem>
-                  <SelectItem value="issues">Issues</SelectItem>
+                  <SelectItem value="issues">Tasks</SelectItem>
                 </SelectContent>
               </Select>
             )}
@@ -441,7 +441,7 @@ export const BurndownChart = observer(function BurndownChart({
               className="text-muted-foreground"
               domain={[0, 'dataMax + 5']}
               label={{
-                value: mode === 'points' ? 'Points' : 'Issues',
+                value: mode === 'points' ? 'Points' : 'Tasks',
                 angle: -90,
                 position: 'insideLeft',
                 className: 'fill-muted-foreground text-xs',

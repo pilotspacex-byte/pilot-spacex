@@ -25,7 +25,7 @@ export function useNewNoteFlow({ onCreateNote }: UseNewNoteFlowOptions) {
     (template: NoteTemplate | null, projectId: string | null) => {
       setShowTemplatePicker(false);
       onCreateNote({
-        title: template ? `New ${template.name} Note` : 'Untitled',
+        title: template ? `New ${template.name} Topic` : 'Untitled',
         content: (template?.content ?? { type: 'doc', content: [{ type: 'paragraph' }] }) as JSONContent,
         ...(projectId ? { projectId } : {}),
       });

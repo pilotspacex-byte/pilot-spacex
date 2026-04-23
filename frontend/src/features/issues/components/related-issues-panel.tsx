@@ -91,13 +91,13 @@ function LinkIssueCombobox({ workspaceId, issueId, onSelect }: LinkIssueCombobox
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0" align="start">
         <Command shouldFilter={false}>
-          <CommandInput placeholder="Search issues..." value={search} onValueChange={setSearch} />
+          <CommandInput placeholder="Search tasks..." value={search} onValueChange={setSearch} />
           <CommandList>
             <CommandEmpty>
-              {search.length === 0 ? 'Type to search issues…' : 'No issues found'}
+              {search.length === 0 ? 'Type to search tasks…' : 'No tasks found'}
             </CommandEmpty>
             {results.length > 0 && (
-              <CommandGroup heading="Issues">
+              <CommandGroup heading="Tasks">
                 {results
                   .filter((issue) => issue.id !== issueId)
                   .map((issue) => (
@@ -147,7 +147,7 @@ export const RelatedIssuesPanel = observer(function RelatedIssuesPanel({
 
   return (
     <CollapsibleSection
-      title="Related Issues"
+      title="Related Tasks"
       icon={<Link2 className="size-4 text-muted-foreground" />}
       defaultOpen={true}
       count={totalCount > 0 ? totalCount : undefined}
@@ -187,9 +187,9 @@ export const RelatedIssuesPanel = observer(function RelatedIssuesPanel({
 
       {/* ---- Linked Issues ---- */}
       <div>
-        <p className="mb-1.5 text-xs font-medium text-muted-foreground">Linked Issues</p>
+        <p className="mb-1.5 text-xs font-medium text-muted-foreground">Linked Tasks</p>
         {relatedLinks.length === 0 && (
-          <p className="py-1 text-xs text-muted-foreground">No linked issues</p>
+          <p className="py-1 text-xs text-muted-foreground">No linked tasks</p>
         )}
         {relatedLinks.map((link) => (
           <div key={link.id} className="flex items-center justify-between gap-2 py-1.5 text-sm">

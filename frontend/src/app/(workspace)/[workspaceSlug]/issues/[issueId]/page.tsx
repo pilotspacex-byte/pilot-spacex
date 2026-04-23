@@ -135,7 +135,7 @@ const IssueDetailPage = observer(function IssueDetailPage() {
   const params = useParams();
   const router = useRouter();
   const workspaceSlug = params.workspaceSlug as string;
-  const issueId = params.issueId as string;
+  const issueId = (params.issueId ?? params.taskId) as string;
 
   const { workspaceStore, issueStore, aiStore } = useStore();
   const pilotSpace = aiStore.pilotSpace as unknown as IssuePagePilotSpaceAPI;

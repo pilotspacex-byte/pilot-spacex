@@ -28,7 +28,7 @@ export interface ProjectContextHeaderProps {
 
 const TABS = [
   { id: 'overview' as const, label: 'Overview' },
-  { id: 'issues' as const, label: 'Issues' },
+  { id: 'issues' as const, label: 'Tasks' },
   { id: 'cycles' as const, label: 'Cycles' },
 ];
 

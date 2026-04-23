@@ -162,12 +162,12 @@ describe('Sidebar Navigation', () => {
   });
 
   describe('section structure', () => {
-    it('renders Main section items (Home, Notes, Issues, Projects, Members, Knowledge)', () => {
+    it('renders Main section items (Home, Topics, Tasks, Projects, Members, Knowledge)', () => {
       renderSidebar();
 
       expect(screen.getByTestId('nav-home')).toBeInTheDocument();
-      expect(screen.getByTestId('nav-notes')).toBeInTheDocument();
-      expect(screen.getByTestId('nav-issues')).toBeInTheDocument();
+      expect(screen.getByTestId('nav-topics')).toBeInTheDocument();
+      expect(screen.getByTestId('nav-tasks')).toBeInTheDocument();
       expect(screen.getByTestId('nav-projects')).toBeInTheDocument();
       expect(screen.getByTestId('nav-members')).toBeInTheDocument();
       expect(screen.getByTestId('nav-knowledge')).toBeInTheDocument();
@@ -299,22 +299,22 @@ describe('Sidebar Navigation', () => {
       expect(homeLink).toHaveAttribute('aria-current', 'page');
     });
 
-    it('highlights Notes on nested note path', () => {
-      mockPathname.mockReturnValue('/test-ws/notes/some-note-id');
+    it('highlights Topics on nested topic path', () => {
+      mockPathname.mockReturnValue('/test-ws/topics/some-topic-id');
       renderSidebar();
 
-      const notesLink = screen.getByTestId('nav-notes');
-      expect(notesLink.className).toContain('bg-sidebar-accent');
-      expect(notesLink).toHaveAttribute('aria-current', 'page');
+      const topicsLink = screen.getByTestId('nav-topics');
+      expect(topicsLink.className).toContain('bg-sidebar-accent');
+      expect(topicsLink).toHaveAttribute('aria-current', 'page');
     });
 
-    it('does not false-match prefix overlaps (e.g. /issues vs /issues-archive)', () => {
-      mockPathname.mockReturnValue('/test-ws/issues-archive');
+    it('does not false-match prefix overlaps (e.g. /tasks vs /tasks-archive)', () => {
+      mockPathname.mockReturnValue('/test-ws/tasks-archive');
       renderSidebar();
 
-      const issuesLink = screen.getByTestId('nav-issues');
-      expect(issuesLink).not.toHaveAttribute('aria-current');
-      expect(issuesLink.className).not.toMatch(/\bbg-sidebar-accent\b(?!\/)/);
+      const tasksLink = screen.getByTestId('nav-tasks');
+      expect(tasksLink).not.toHaveAttribute('aria-current');
+      expect(tasksLink.className).not.toMatch(/\bbg-sidebar-accent\b(?!\/)/);
     });
   });
 });

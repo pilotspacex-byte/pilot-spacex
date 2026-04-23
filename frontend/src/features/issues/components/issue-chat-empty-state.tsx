@@ -110,7 +110,7 @@ export const IssueChatEmptyState = observer(function IssueChatEmptyState({
       {hasNoteLinks && (
         <div className="flex flex-col gap-2">
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-            Related Notes
+            Related Topics
           </span>
           <div className="flex flex-col gap-1.5">
             {noteLinks.map((link) => (
@@ -130,7 +130,7 @@ export const IssueChatEmptyState = observer(function IssueChatEmptyState({
       {hasRelatedIssues && (
         <div className="flex flex-col gap-2">
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-            Related Issues
+            Related Tasks
           </span>
           <div className="flex flex-col gap-1.5">
             {aiContextResult.relatedIssues.map((rel) => (

@@ -243,7 +243,7 @@ function SummaryPreview({
       <Separator className="my-3" />
 
       <div className="flex items-center justify-between text-sm">
-        <span className="text-muted-foreground">Issues to rollover:</span>
+        <span className="text-muted-foreground">Tasks to rollover:</span>
         <span className="font-medium">
           {selectedCount} of {totalCount}
         </span>
@@ -335,10 +335,10 @@ export const CycleRolloverModal = observer(function CycleRolloverModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ArrowUpRight className="size-5" />
-            Rollover Issues
+            Rollover Tasks
           </DialogTitle>
           <DialogDescription>
-            Move incomplete issues from {sourceCycle?.name ?? 'this cycle'} to another cycle.
+            Move incomplete tasks from {sourceCycle?.name ?? 'this cycle'} to another cycle.
           </DialogDescription>
         </DialogHeader>
 
@@ -354,7 +354,7 @@ export const CycleRolloverModal = observer(function CycleRolloverModal({
             {availableCycles.length === 0 && (
               <p className="text-sm text-amber-600 flex items-center gap-1">
                 <AlertCircle className="size-4" />
-                Create a new cycle first to rollover issues
+                Create a new cycle first to rollover tasks
               </p>
             )}
           </div>
@@ -363,7 +363,7 @@ export const CycleRolloverModal = observer(function CycleRolloverModal({
           <div className="flex-1 overflow-hidden flex flex-col">
             <div className="flex items-center justify-between mb-2">
               <label className="text-sm font-medium">
-                Issues to Rollover ({selectedIssueIds.size})
+                Tasks to Rollover ({selectedIssueIds.size})
               </label>
               <Button variant="ghost" size="sm" onClick={handleSelectAll}>
                 {selectedIssueIds.size === incompleteIssues.length ? (
@@ -389,7 +389,7 @@ export const CycleRolloverModal = observer(function CycleRolloverModal({
                 ) : incompleteIssues.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-8 text-center">
                     <CheckSquare className="size-12 text-green-500/50 mb-2" />
-                    <p className="text-muted-foreground">No incomplete issues in this cycle</p>
+                    <p className="text-muted-foreground">No incomplete tasks in this cycle</p>
                   </div>
                 ) : (
                   incompleteIssues.map((issue) => (
@@ -446,7 +446,7 @@ export const CycleRolloverModal = observer(function CycleRolloverModal({
                     ) : (
                       <>
                         <ArrowUpRight className="size-4" />
-                        Rollover {selectedIssueIds.size} Issues
+                        Rollover {selectedIssueIds.size} Tasks
                       </>
                     )}
                   </Button>

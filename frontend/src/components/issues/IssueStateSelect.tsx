@@ -88,7 +88,7 @@ const stateConfig: Record<
  */
 function StateOptionsList({ value, onChange }: Pick<IssueStateSelectProps, 'value' | 'onChange'>) {
   return (
-    <div className="flex flex-col" role="listbox" aria-label="Issue state">
+    <div className="flex flex-col" role="listbox" aria-label="Task state">
       {states.slice(0, 4).map((state) => {
         const config = stateConfig[state];
         const Icon = config.icon;

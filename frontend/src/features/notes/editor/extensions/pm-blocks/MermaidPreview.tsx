@@ -489,7 +489,7 @@ export function MermaidPreview({
                   data-testid="mermaid-link-to-issue"
                 >
                   <Link2 className="size-3" />
-                  Link to Issue
+                  Link to Task
                 </button>
               )}
             </div>

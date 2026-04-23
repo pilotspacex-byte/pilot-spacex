@@ -90,8 +90,8 @@ const navigationSections: NavSection[] = [
     label: 'Main',
     items: [
       { name: 'Home', path: '', icon: Home, testId: 'nav-home' },
-      { name: 'Notes', path: 'notes', icon: FileText, testId: 'nav-notes', featureKey: 'notes' },
-      { name: 'Issues', path: 'issues', icon: LayoutGrid, testId: 'nav-issues', featureKey: 'issues' },
+      { name: 'Topics', path: 'topics', icon: FileText, testId: 'nav-topics', featureKey: 'notes' },
+      { name: 'Tasks', path: 'tasks', icon: LayoutGrid, testId: 'nav-tasks', featureKey: 'issues' },
       { name: 'Projects', path: 'projects', icon: FolderKanban, testId: 'nav-projects', featureKey: 'projects' },
       { name: 'Members', path: 'members', icon: Users, testId: 'nav-members', featureKey: 'members' },
       { name: 'Knowledge', path: 'knowledge', icon: Network, testId: 'nav-knowledge', featureKey: 'knowledge' },
@@ -327,7 +327,7 @@ export const Sidebar = observer(function Sidebar() {
   const createNote = useCreateNote({
     workspaceId: resolvedWorkspaceId ?? '',
     onSuccess: (note) => {
-      router.push(`/${workspaceSlug}/notes/${note.id}`);
+      router.push(`/${workspaceSlug}/topics/${note.id}`);
     },
   });
 
@@ -385,7 +385,7 @@ export const Sidebar = observer(function Sidebar() {
       id: note.id,
       title: note.title,
       projectId: note.projectId,
-      href: `/${workspaceSlug}/notes/${note.id}`,
+      href: `/${workspaceSlug}/topics/${note.id}`,
     }));
   }, [rawPinnedNotes, workspaceSlug]);
 

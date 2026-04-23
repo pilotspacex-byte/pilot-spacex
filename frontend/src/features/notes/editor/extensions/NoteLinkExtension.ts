@@ -67,7 +67,7 @@ function createNoteLinkListElement(props: {
   const container = document.createElement('div');
   container.className = 'note-link-suggestion-list';
   container.setAttribute('role', 'listbox');
-  container.setAttribute('aria-label', 'Note search results');
+  container.setAttribute('aria-label', 'Topic search results');
 
   if (props.isLoading) {
     const loading = document.createElement('div');

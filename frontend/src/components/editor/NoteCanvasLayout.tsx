@@ -361,7 +361,7 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
       <div
         ref={editorContainerRef}
         role="main"
-        aria-label="Note editor"
+        aria-label="Topic editor"
         className="relative flex-1 overflow-auto bg-background"
       >
         {/* Fixed exit focus mode affordance — only visible when header is hidden */}
@@ -540,7 +540,7 @@ export function NoteCanvasLayout(props: NoteCanvasProps) {
         isOpen={sidebar.isOpen}
         activePanel={sidebar.activePanel}
         tabs={SIDEBAR_TABS}
-        title="Note Panels"
+        title="Topic Panels"
         width={sidebar.width}
         onTabChange={sidebar.openSidebar}
         onClose={sidebar.closeSidebar}

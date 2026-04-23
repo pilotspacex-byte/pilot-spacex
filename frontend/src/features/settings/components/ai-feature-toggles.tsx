@@ -158,8 +158,8 @@ export const AIFeatureToggles = observer(function AIFeatureToggles() {
         <Separator />
         <FeatureToggle
           icon={Lightbulb}
-          label="Issue Extraction"
-          description="Extract actionable issues from notes using AI"
+          label="Task Extraction"
+          description="Extract actionable tasks from topics using AI"
           checked={settings.settings?.features?.issueExtractionEnabled ?? false}
           disabled={isDisabled}
           onCheckedChange={(checked) => handleToggle('issue_extraction_enabled', checked)}

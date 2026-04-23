@@ -239,11 +239,11 @@ function EmptyState({ onCreate }: { onCreate?: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center p-6 text-center">
       <FolderOpen className="h-8 w-8 text-muted-foreground/30 mb-2" />
-      <p className="text-sm text-muted-foreground mb-3">No notes yet</p>
+      <p className="text-sm text-muted-foreground mb-3">No topics yet</p>
       {onCreate && (
         <Button size="sm" onClick={onCreate}>
           <Plus className="mr-1.5 h-3.5 w-3.5" />
-          Create Note
+          Create Topic
         </Button>
       )}
     </div>
@@ -348,7 +348,7 @@ export const OutlineTree = observer(function OutlineTree({
             onClick={onCreateNote}
           >
             <Plus className="mr-2 h-4 w-4" />
-            New Note
+            New Topic
           </Button>
         </div>
       )}

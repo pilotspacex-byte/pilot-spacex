@@ -77,7 +77,7 @@ export function useUpdateNote({
       });
 
       if (showToast) {
-        toast.success('Note saved');
+        toast.success('Topic saved');
       }
 
       onSuccess?.(note);

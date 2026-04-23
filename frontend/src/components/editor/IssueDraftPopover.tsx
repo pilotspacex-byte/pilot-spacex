@@ -133,7 +133,7 @@ export function IssueDraftPopover({
             id="issue-title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Issue title"
+            placeholder="Task title"
             className="mt-1 h-8 text-sm"
             maxLength={255}
             autoFocus
@@ -148,7 +148,7 @@ export function IssueDraftPopover({
             id="issue-description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Issue description"
+            placeholder="Task description"
             className="mt-1 min-h-[60px] text-sm"
             rows={3}
             maxLength={2000}
@@ -212,7 +212,7 @@ export function IssueDraftPopover({
                 Creating…
               </>
             ) : (
-              'Create Issue'
+              'Create Task'
             )}
           </Button>
         </div>

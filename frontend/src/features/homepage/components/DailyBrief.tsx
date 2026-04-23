@@ -334,10 +334,10 @@ export const DailyBrief = observer(function DailyBrief({ workspaceSlug }: DailyB
                 >
                   Settings → Features
                 </Link>{' '}
-                and turn on Notes, Issues, Projects, or AI Skills.
+                and turn on Topics, Tasks, Projects, or AI Skills.
               </>
             ) : (
-              'Ask a workspace admin to enable Notes, Issues, Projects, or AI Skills in Settings → Features.'
+              'Ask a workspace admin to enable Topics, Tasks, Projects, or AI Skills in Settings → Features.'
             )}
           </p>
         </section>
@@ -346,11 +346,11 @@ export const DailyBrief = observer(function DailyBrief({ workspaceSlug }: DailyB
           {/* Recent Notes */}
           {showNotesSection && (
             <>
-              <section aria-label="Recent notes">
+              <section aria-label="Recent topics">
                 <div className="mb-3 flex items-center gap-2">
                   <FileText className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                   <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Recent Notes
+                    Recent Topics
                   </h2>
                 </div>
 
@@ -358,7 +358,7 @@ export const DailyBrief = observer(function DailyBrief({ workspaceSlug }: DailyB
                   <NoteSkeleton />
                 ) : notes.length === 0 ? (
                   <p className="py-6 text-center text-sm text-muted-foreground">
-                    No notes yet. Start writing!
+                    No topics yet. Start writing!
                   </p>
                 ) : (
                   <div

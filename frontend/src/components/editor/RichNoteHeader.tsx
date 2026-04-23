@@ -238,10 +238,10 @@ export const RichNoteHeader = observer(function RichNoteHeader({
         ) : (
           <>
             <Link
-              href={`/${workspaceSlug}/notes`}
+              href={`/${workspaceSlug}/topics`}
               className="hover:text-foreground transition-colors"
             >
-              Notes
+              Topics
             </Link>
             <ChevronRight className="h-4 w-4" />
           </>

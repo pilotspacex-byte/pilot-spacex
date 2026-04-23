@@ -112,7 +112,7 @@ export function MemberActivityFeed({
           Activity Timeline
         </TabsTrigger>
         <TabsTrigger value="issues" className="flex-1">
-          Issue Digest
+          Task Digest
         </TabsTrigger>
       </TabsList>
 

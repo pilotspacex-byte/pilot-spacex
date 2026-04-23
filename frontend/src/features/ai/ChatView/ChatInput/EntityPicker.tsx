@@ -133,7 +133,7 @@ export const EntityPicker = memo<EntityPickerProps>(
 
               {/* Zone 2: Notes */}
               {notes.length > 0 && (
-                <CommandGroup heading="Notes">
+                <CommandGroup heading="Topics">
                   {notes.slice(0, MAX_ITEMS_PER_GROUP).map((note) => (
                     <CommandItem
                       key={`note-${note.id}`}
@@ -167,7 +167,7 @@ export const EntityPicker = memo<EntityPickerProps>(
 
               {/* Zone 2: Issues */}
               {issues.length > 0 && (
-                <CommandGroup heading="Issues">
+                <CommandGroup heading="Tasks">
                   {issues.slice(0, MAX_ITEMS_PER_GROUP).map((issue) => (
                     <CommandItem
                       key={`issue-${issue.id}`}

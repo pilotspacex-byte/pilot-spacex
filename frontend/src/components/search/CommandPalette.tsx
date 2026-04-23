@@ -451,7 +451,7 @@ export const CommandPalette = observer(function CommandPalette() {
             {/* Notes group */}
             {!isLoading && results.notes.length > 0 && (
               <>
-                <CommandGroup heading="Notes">
+                <CommandGroup heading="Topics">
                   {results.notes.map((note) => (
                     <CommandItem
                       key={note.id}
@@ -468,7 +468,7 @@ export const CommandPalette = observer(function CommandPalette() {
 
             {/* Issues group */}
             {!isLoading && results.issues.length > 0 && (
-              <CommandGroup heading="Issues">
+              <CommandGroup heading="Tasks">
                 {results.issues.map((issue) => (
                   <CommandItem
                     key={issue.id}

@@ -153,7 +153,7 @@ export const IssueToolbar = observer(function IssueToolbar({
           {onCreateIssue && (
             <Button onClick={onCreateIssue} size="sm" className="h-7 gap-1.5 text-xs">
               <Plus className="size-3.5" />
-              <span className="hidden sm:inline">New Issue</span>
+              <span className="hidden sm:inline">New Task</span>
             </Button>
           )}
         </div>

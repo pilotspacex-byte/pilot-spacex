@@ -30,10 +30,10 @@ export const ContextNotesResultCard = memo<ContextNotesResultCardProps>(
     return (
       <div className={cn('flex flex-col gap-2', className)}>
         <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-          Related Notes
+          Related Topics
         </span>
         {notes.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No related notes found</p>
+          <p className="text-xs text-muted-foreground">No related topics found</p>
         ) : (
           <div className="flex flex-col gap-1.5">
             {notes.map((note, idx) => (
@@ -82,10 +82,10 @@ export const ContextIssuesResultCard = memo<ContextIssuesResultCardProps>(
     return (
       <div className={cn('flex flex-col gap-2', className)}>
         <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-          Related Issues
+          Related Tasks
         </span>
         {issues.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No related issues found</p>
+          <p className="text-xs text-muted-foreground">No related tasks found</p>
         ) : (
           <div className="flex flex-col gap-1.5">
             {issues.map((issue, idx) => (

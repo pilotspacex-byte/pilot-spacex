@@ -52,8 +52,8 @@ export interface SkillExample {
 export const ROLE_EXAMPLES: Record<SDLCRoleType, SkillExample[]> = {
   developer: [
     {
-      title: 'Reviewing an Issue',
-      prompt: 'Review this issue about adding caching',
+      title: 'Reviewing a Task',
+      prompt: 'Review this task about adding caching',
       without: [
         'Consider what data to cache',
         'Think about cache invalidation',

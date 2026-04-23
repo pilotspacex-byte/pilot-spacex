@@ -95,12 +95,12 @@ export function DeleteConfirmDialog({
             <Trash2 className="text-destructive" />
           </AlertDialogMedia>
           <AlertDialogTitle>
-            Delete {issueCount} Issue{issueCount !== 1 ? 's' : ''}?
+            Delete {issueCount} Task{issueCount !== 1 ? 's' : ''}?
           </AlertDialogTitle>
           <AlertDialogDescription>
             {issueCount === 1
-              ? `This will permanently delete "${issues[0]?.name ?? 'this issue'}".`
-              : `This will permanently delete ${issueCount} issues.`}
+              ? `This will permanently delete "${issues[0]?.name ?? 'this task'}".`
+              : `This will permanently delete ${issueCount} tasks.`}
           </AlertDialogDescription>
         </AlertDialogHeader>
 
@@ -108,7 +108,7 @@ export function DeleteConfirmDialog({
           {/* Issue list preview */}
           {issueCount > 1 && (
             <div className="rounded-md border bg-muted/50 p-3">
-              <p className="mb-2 text-sm font-medium">Issues to delete:</p>
+              <p className="mb-2 text-sm font-medium">Tasks to delete:</p>
               <ul className="space-y-1 text-sm text-muted-foreground">
                 {previewIssues.map((issue) => (
                   <li key={issue.id} className="truncate">

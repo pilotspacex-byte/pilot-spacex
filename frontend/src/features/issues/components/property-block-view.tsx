@@ -160,7 +160,7 @@ export const PropertyBlockView = observer(function PropertyBlockView() {
     <NodeViewWrapper className="mb-5" data-testid="property-block">
       <div
         role="group"
-        aria-label="Issue properties"
+        aria-label="Task properties"
         className={cn(
           'rounded-[10px] border border-border bg-muted/40',
           'px-3 py-2',

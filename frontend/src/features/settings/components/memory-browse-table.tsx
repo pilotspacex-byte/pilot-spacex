@@ -26,9 +26,9 @@ import type { MemoryListParams, MemoryListItem } from '../hooks/use-ai-memory';
 
 /** Human-readable node type labels for the table. */
 const NODE_TYPE_DISPLAY: Record<string, string> = {
-  note_chunk: 'Note excerpt',
-  note: 'Note',
-  issue: 'Issue',
+  note_chunk: 'Topic excerpt',
+  note: 'Topic',
+  issue: 'Task',
   decision: 'Decision',
   agent_turn: 'AI conversation',
   user_correction: 'Correction',

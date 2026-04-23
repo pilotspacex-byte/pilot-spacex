@@ -70,12 +70,12 @@ interface TypeConfig {
 const typeConfig: Record<RelatedItemType, TypeConfig> = {
   issue: {
     icon: Bug,
-    label: 'Issue',
+    label: 'Task',
     color: 'text-orange-600 dark:text-orange-400',
   },
   note: {
     icon: FileText,
-    label: 'Note',
+    label: 'Topic',
     color: 'text-blue-600 dark:text-blue-400',
   },
   page: {

@@ -64,8 +64,8 @@ export function useDeleteNote({ workspaceId, onSuccess, onError }: UseDeleteNote
     },
 
     onSuccess: (_data, _noteId, context) => {
-      const title = context?.noteToDelete?.title ?? 'Note';
-      toast.success('Note deleted', {
+      const title = context?.noteToDelete?.title ?? 'Topic';
+      toast.success('Topic deleted', {
         description: `"${title}" has been deleted.`,
       });
       onSuccess?.();
@@ -79,7 +79,7 @@ export function useDeleteNote({ workspaceId, onSuccess, onError }: UseDeleteNote
         });
       }
 
-      toast.error('Failed to delete note', {
+      toast.error('Failed to delete topic', {
         description: error.message,
       });
 

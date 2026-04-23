@@ -93,11 +93,11 @@ export const SectionMenu = memo<SectionMenuProps>(
             <CommandList className="max-h-[280px]">
               <CommandEmpty>
                 {headings.length === 0
-                  ? 'No headings in this note. Add headings to create sections.'
+                  ? 'No headings in this topic. Add headings to create sections.'
                   : 'No matching sections.'}
               </CommandEmpty>
 
-              <CommandGroup heading="Note Sections">
+              <CommandGroup heading="Topic Sections">
                 {headings.map((heading) => {
                   const Icon = HEADING_ICONS[heading.level] ?? Heading1;
                   return (

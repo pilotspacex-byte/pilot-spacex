@@ -126,9 +126,9 @@ function NoteNotFound({ workspaceSlug }: { workspaceSlug: string }) {
 // during MobX notification, which conflicts with TipTap's EditorContent lifecycle.
 // All MobX interactions here are effect-based writes (runInAction), not render reads.
 function NoteDetailPage() {
-  const params = useParams<{ workspaceSlug: string; noteId: string }>();
+  const params = useParams<{ workspaceSlug: string; noteId?: string; topicId?: string }>();
   const workspaceSlug = params.workspaceSlug ?? '';
-  const noteId = params.noteId ?? '';
+  const noteId = (params.noteId ?? params.topicId ?? '') as string;
   const router = useRouter();
   const queryClient = useQueryClient();
   const noteStore = useNoteStore();

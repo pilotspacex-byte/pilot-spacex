@@ -12,7 +12,7 @@ interface ProjectStatsProps {
 const STATS_CONFIG = [
   {
     key: 'total',
-    label: 'Total Issues',
+    label: 'Total Tasks',
     icon: Circle,
     getValue: (s: ProjectStatsProps) => s.totalIssues,
     color: 'text-foreground',

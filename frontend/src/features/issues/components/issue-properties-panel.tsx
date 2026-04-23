@@ -294,7 +294,7 @@ export const IssuePropertiesPanel = observer(function IssuePropertiesPanel({
 
   return (
     <aside
-      aria-label="Issue properties"
+      aria-label="Task properties"
       className="flex flex-col gap-0 rounded-[14px] border border-border bg-background"
     >
       {/* ---- Properties ---- */}

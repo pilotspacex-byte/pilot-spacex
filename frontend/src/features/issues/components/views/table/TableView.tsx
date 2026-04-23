@@ -140,10 +140,10 @@ export const TableView = observer(function TableView({
         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary-muted">
           <Inbox className="size-6 text-primary" />
         </div>
-        <h3 className="mt-4 text-sm font-medium text-foreground">No issues yet</h3>
+        <h3 className="mt-4 text-sm font-medium text-foreground">No tasks yet</h3>
         <p className="mt-1 max-w-xs text-center text-xs text-muted-foreground">
-          Issues track work across your team. Create one manually or let AI extract them from your
-          notes.
+          Tasks track work across your team. Create one manually or let AI extract them from your
+          topics.
         </p>
       </div>
     );

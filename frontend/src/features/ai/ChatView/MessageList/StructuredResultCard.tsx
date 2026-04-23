@@ -188,7 +188,7 @@ function ExtractionResultCard({
       <div className="flex items-center gap-2">
         <CheckCircle2 className="h-4 w-4 text-primary" />
         <span className="text-sm font-medium">
-          Extracted {issues.length} Issue{issues.length !== 1 ? 's' : ''}
+          Extracted {issues.length} Task{issues.length !== 1 ? 's' : ''}
         </span>
       </div>
 
@@ -379,7 +379,7 @@ function ExtractionResultCard({
             )}
             {isCreatingIssues
               ? 'Creating...'
-              : `Create ${selectedIds.size} Issue${selectedIds.size !== 1 ? 's' : ''}`}
+              : `Create ${selectedIds.size} Task${selectedIds.size !== 1 ? 's' : ''}`}
           </button>
         )}
       </div>

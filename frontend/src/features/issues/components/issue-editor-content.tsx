@@ -143,7 +143,7 @@ export function IssueEditorContent({
           'prose-strong:text-foreground prose-code:text-foreground',
           'prose-a:text-primary prose-a:no-underline hover:prose-a:underline'
         ),
-        'aria-label': 'Issue content',
+        'aria-label': 'Task content',
       },
     },
   });
@@ -226,7 +226,7 @@ export function IssueEditorContent({
     <div className="flex flex-col min-w-0 overflow-hidden h-full">
       <div
         role="main"
-        aria-label="Issue editor"
+        aria-label="Task editor"
         className="relative flex-1 overflow-hidden bg-background"
       >
         {editor && (

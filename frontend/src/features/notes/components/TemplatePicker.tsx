@@ -303,13 +303,13 @@ export function TemplatePicker({ workspaceId, isAdmin, onConfirm, onClose }: Tem
   );
 
   const createLabel =
-    selected === 'blank' ? 'Create Blank Note' : `Create ${selectedTemplate?.name ?? ''} Note`;
+    selected === 'blank' ? 'Create Blank Topic' : `Create ${selectedTemplate?.name ?? ''} Topic`;
 
   return (
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Create New Note — choose a template"
+      aria-label="Create New Topic — choose a template"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -322,7 +322,7 @@ export function TemplatePicker({ workspaceId, isAdmin, onConfirm, onClose }: Tem
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <h2 className="text-sm font-semibold text-foreground">Create New Note</h2>
+          <h2 className="text-sm font-semibold text-foreground">Create New Topic</h2>
           <button
             type="button"
             className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -340,7 +340,7 @@ export function TemplatePicker({ workspaceId, isAdmin, onConfirm, onClose }: Tem
             ref={blankRef}
             role="radio"
             aria-checked={selected === 'blank'}
-            aria-label="Blank Note — start from scratch"
+            aria-label="Blank Topic — start from scratch"
             tabIndex={0}
             className={cn(
               'flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-all duration-150',
@@ -364,7 +364,7 @@ export function TemplatePicker({ workspaceId, isAdmin, onConfirm, onClose }: Tem
               aria-hidden="true"
             />
             <div className="flex-1">
-              <p className="text-sm font-medium text-foreground">Blank Note</p>
+              <p className="text-sm font-medium text-foreground">Blank Topic</p>
               <p className="text-xs text-muted-foreground">Start from scratch</p>
             </div>
             {selected === 'blank' && (

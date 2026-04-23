@@ -234,7 +234,7 @@ export function getSyncIndicatorConfig(event: IssueSyncEvent | undefined): {
     default:
       return {
         visible: true,
-        label: 'Issue updated',
+        label: 'Task updated',
         variant: 'default',
       };
   }

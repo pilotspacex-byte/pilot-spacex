@@ -77,7 +77,7 @@ function PriorityOptionsList({
   };
 
   return (
-    <div className="flex flex-col" role="listbox" aria-label="Issue priority">
+    <div className="flex flex-col" role="listbox" aria-label="Task priority">
       {priorities.map((priority) => {
         const config = priorityConfig[priority];
         const Icon = config.icon;

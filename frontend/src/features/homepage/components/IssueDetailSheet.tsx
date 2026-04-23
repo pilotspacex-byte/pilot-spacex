@@ -88,9 +88,9 @@ export function IssueDetailSheet({
               <SheetTitle className="text-lg font-semibold leading-tight">{issue.name}</SheetTitle>
             </>
           ) : isError ? (
-            <SheetTitle className="text-destructive">Failed to load issue</SheetTitle>
+            <SheetTitle className="text-destructive">Failed to load task</SheetTitle>
           ) : (
-            <SheetTitle>Issue not found</SheetTitle>
+            <SheetTitle>Task not found</SheetTitle>
           )}
         </SheetHeader>
 

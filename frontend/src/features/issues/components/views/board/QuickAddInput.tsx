@@ -62,13 +62,13 @@ export function QuickAddInput({ onSubmit, className }: QuickAddInputProps) {
       onChange={(e) => setValue(e.target.value)}
       onKeyDown={handleKeyDown}
       onBlur={handleSubmit}
-      placeholder="Issue title..."
+      placeholder="Task title..."
       className={cn(
         'w-full rounded-md border bg-background px-2 py-1.5 text-xs',
         'focus:outline-none focus:ring-2 focus:ring-ring',
         className
       )}
-      aria-label="New issue title"
+      aria-label="New task title"
     />
   );
 }

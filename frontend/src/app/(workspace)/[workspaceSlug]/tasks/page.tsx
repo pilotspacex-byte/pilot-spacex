@@ -4,10 +4,11 @@ import { useParams } from 'next/navigation';
 import { IssueViewsRoot } from '@/features/issues/components/views/IssueViewsRoot';
 
 /**
- * Workspace-level Issues page — renders the tri-view issue management system.
- * Shows all issues across projects in the workspace.
+ * Workspace-level Tasks page (user-visible alias for /issues).
+ * Internal identifiers (IssueViewsRoot, issues feature module) preserved.
+ * See .planning/PROJECT.md → "Out of Scope — Task/Topic Rename Cascade".
  */
-export default function IssuesPage() {
+export default function TasksPage() {
   const params = useParams();
   const workspaceSlug = params.workspaceSlug as string;
 

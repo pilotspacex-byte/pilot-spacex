@@ -179,7 +179,7 @@ export const IssueCard = observer(function IssueCard({
         draggable={!!onDragStart}
         tabIndex={onClick ? 0 : undefined}
         role={onClick ? 'button' : undefined}
-        aria-label={`Issue ${issue.identifier}: ${issue.name}`}
+        aria-label={`Task ${issue.identifier}: ${issue.name}`}
       >
         <Circle className={cn('size-2.5 shrink-0', priorityConfig[effectivePriority].dotColor)} />
         <span className="shrink-0 text-[10px] font-medium text-muted-foreground">
@@ -208,7 +208,7 @@ export const IssueCard = observer(function IssueCard({
           draggable={!!onDragStart}
           tabIndex={onClick ? 0 : undefined}
           role={onClick ? 'button' : undefined}
-          aria-label={`Issue ${issue.identifier}: ${issue.name}`}
+          aria-label={`Task ${issue.identifier}: ${issue.name}`}
         >
           {/* Header row: type + identifier + title | priority + AI */}
           <div className="mb-1 flex items-center gap-1.5">
@@ -295,7 +295,7 @@ export const IssueCard = observer(function IssueCard({
         draggable={!!onDragStart}
         tabIndex={onClick ? 0 : undefined}
         role={onClick ? 'button' : undefined}
-        aria-label={`Issue ${issue.identifier}: ${issue.name}`}
+        aria-label={`Task ${issue.identifier}: ${issue.name}`}
       >
         {/* Header: Identifier + Priority + AI indicator */}
         <div className="mb-2 flex items-center justify-between">

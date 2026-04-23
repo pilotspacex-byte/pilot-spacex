@@ -68,7 +68,7 @@ export function IssueDescriptionEditor({
           'prose-strong:text-foreground prose-code:text-foreground',
           'prose-a:text-primary prose-a:no-underline hover:prose-a:underline'
         ),
-        'aria-label': 'Issue description',
+        'aria-label': 'Task description',
       },
     },
   });

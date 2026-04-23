@@ -48,17 +48,17 @@ type ActionBadgeProps = { icon: LucideIcon; label: string };
 function getActionBadgeProps(actionType: string): ActionBadgeProps {
   switch (actionType) {
     case 'create_issue':
-      return { icon: PlusCircle, label: 'Create Issue' };
+      return { icon: PlusCircle, label: 'Create Task' };
     case 'update_issue':
-      return { icon: Pencil, label: 'Update Issue' };
+      return { icon: Pencil, label: 'Update Task' };
     case 'enhance_issue':
-      return { icon: Pencil, label: 'Enhance Issue' };
+      return { icon: Pencil, label: 'Enhance Task' };
     case 'add_label':
       return { icon: Tag, label: 'Add Label' };
     case 'link_issue':
-      return { icon: Link, label: 'Link Issue' };
+      return { icon: Link, label: 'Link Task' };
     case 'extract_issues':
-      return { icon: FileSearch, label: 'Extract Issues' };
+      return { icon: FileSearch, label: 'Extract Tasks' };
     case 'improve_writing':
     case 'summarize':
     case 'decompose_tasks':

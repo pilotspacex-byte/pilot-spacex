@@ -316,7 +316,7 @@ export function DecisionRenderer({
           <button
             type="button"
             className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-medium hover:bg-accent transition-colors"
-            aria-label="Create issue from decision"
+            aria-label="Create task from decision"
             onClick={() =>
               onCreateIssue?.({
                 blockType: 'decision',
@@ -325,7 +325,7 @@ export function DecisionRenderer({
             }
           >
             <Plus className="size-3" />
-            Create Issue
+            Create Task
           </button>
         </div>
       )}

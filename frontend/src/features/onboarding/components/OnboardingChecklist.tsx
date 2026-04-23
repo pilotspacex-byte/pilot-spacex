@@ -74,9 +74,9 @@ const STEP_CONFIG: Record<
     icon: 'wand',
   },
   first_note: {
-    title: 'Create Your First Note',
+    title: 'Create Your First Topic',
     description: 'Start capturing ideas with our guided template',
-    actionLabel: 'Create Note',
+    actionLabel: 'Create Topic',
     icon: 'note',
   },
 };

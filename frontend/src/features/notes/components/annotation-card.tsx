@@ -81,7 +81,7 @@ interface ActionConfig {
 
 const actionConfigs: Partial<Record<AnnotationType, ActionConfig>> = {
   issue_candidate: {
-    label: 'Extract Issue',
+    label: 'Extract Task',
     loadingLabel: 'Working...',
     icon: ArrowUpFromLine,
     colorClass:

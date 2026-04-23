@@ -239,14 +239,14 @@ export function FAB({ onSearch, disabled = false, className }: FABProps) {
                           size="sm"
                           className="h-7 text-xs border-ai-border text-ai hover:bg-ai hover:text-ai-foreground"
                         >
-                          Create Note
+                          Create Topic
                         </Button>
                         <Button
                           variant="outline"
                           size="sm"
                           className="h-7 text-xs border-ai-border text-ai hover:bg-ai hover:text-ai-foreground"
                         >
-                          Create Issue
+                          Create Task
                         </Button>
                       </div>
                     </>

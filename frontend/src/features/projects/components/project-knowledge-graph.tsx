@@ -33,8 +33,8 @@ export interface ProjectKnowledgeGraphProps {
 }
 
 const FILTER_CHIPS: FilterChip[] = [
-  { label: 'Issues', nodeType: 'issue' },
-  { label: 'Notes', nodeType: 'note' },
+  { label: 'Tasks', nodeType: 'issue' },
+  { label: 'Topics', nodeType: 'note' },
   { label: 'Cycles', nodeType: 'cycle' },
   { label: 'PRs', nodeType: 'pull_request' },
   { label: 'Commits', nodeType: 'commit' },

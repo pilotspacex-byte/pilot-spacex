@@ -48,13 +48,13 @@ interface CategoryMeta {
 const CATEGORY_META: Record<DigestCategory, CategoryMeta> = {
   stale_issues: {
     icon: AlertTriangle,
-    label: 'Stale Issues',
+    label: 'Stale Tasks',
     colorClass: 'border-amber-200 dark:border-amber-800/40',
     iconColorClass: 'text-amber-500',
   },
   unlinked_notes: {
     icon: FileText,
-    label: 'Unlinked Notes',
+    label: 'Unlinked Topics',
     colorClass: 'border-blue-200 dark:border-blue-800/40',
     iconColorClass: 'text-blue-500',
   },

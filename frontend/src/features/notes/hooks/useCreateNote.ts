@@ -37,7 +37,7 @@ export function useCreateNote({ workspaceId, onSuccess, onError }: UseCreateNote
       // Add note to cache
       queryClient.setQueryData(notesKeys.detail(workspaceId, note.id), note);
 
-      toast.success('Note created', {
+      toast.success('Topic created', {
         description: `"${note.title || 'Untitled'}" has been created.`,
       });
 
@@ -45,7 +45,7 @@ export function useCreateNote({ workspaceId, onSuccess, onError }: UseCreateNote
     },
 
     onError: (error: Error) => {
-      toast.error('Failed to create note', {
+      toast.error('Failed to create topic', {
         description: error.message,
       });
       onError?.(error);

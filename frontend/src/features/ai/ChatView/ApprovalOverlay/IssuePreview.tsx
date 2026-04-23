@@ -39,7 +39,7 @@ const TYPE_COLORS: Record<string, string> = {
 
 export const IssuePreview = memo<IssuePreviewProps>(({ issue, className }) => {
   // Safely extract values with type guards
-  const title = typeof issue.title === 'string' ? issue.title : 'Untitled Issue';
+  const title = typeof issue.title === 'string' ? issue.title : 'Untitled Task';
   const priority = typeof issue.priority === 'string' ? issue.priority : undefined;
   const type = typeof issue.type === 'string' ? issue.type : undefined;
   const description = typeof issue.description === 'string' ? issue.description : undefined;
