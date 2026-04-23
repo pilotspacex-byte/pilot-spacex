@@ -198,7 +198,7 @@ class TestExtractAndPersistOllamaPath:
         from unittest.mock import MagicMock
         from uuid import uuid4
 
-        from pilot_space.ai.agents.pilotspace_intent_pipeline import (
+        from pilot_space.ai.agents.pilotspace_agent import (
             extract_and_persist_to_graph,
         )
 
@@ -219,7 +219,7 @@ class TestExtractAndPersistOllamaPath:
         from unittest.mock import AsyncMock, MagicMock, patch
         from uuid import uuid4
 
-        from pilot_space.ai.agents.pilotspace_intent_pipeline import (
+        from pilot_space.ai.agents.pilotspace_agent import (
             extract_and_persist_to_graph,
         )
 

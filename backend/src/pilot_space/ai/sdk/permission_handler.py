@@ -252,6 +252,20 @@ class PermissionHandler:
         "merge_pr": ActionClassification.CRITICAL_REQUIRE_APPROVAL,
         "close_issue": ActionClassification.CRITICAL_REQUIRE_APPROVAL,
         "archive_workspace": ActionClassification.CRITICAL_REQUIRE_APPROVAL,
+        # --- Merged from ActionType enum (Phase 80, APPR-03) ---
+        # Critical require approval (destructive, non-configurable)
+        "delete_workspace": ActionClassification.CRITICAL_REQUIRE_APPROVAL,
+        "delete_project": ActionClassification.CRITICAL_REQUIRE_APPROVAL,
+        "delete_note": ActionClassification.CRITICAL_REQUIRE_APPROVAL,
+        "bulk_delete": ActionClassification.CRITICAL_REQUIRE_APPROVAL,
+        # Default require approval (configurable)
+        "create_sub_issues": ActionClassification.DEFAULT_REQUIRE_APPROVAL,
+        "publish_docs": ActionClassification.DEFAULT_REQUIRE_APPROVAL,
+        "post_pr_comments": ActionClassification.DEFAULT_REQUIRE_APPROVAL,
+        # Auto-execute (safe operations)
+        "suggest_labels": ActionClassification.AUTO_EXECUTE,
+        "suggest_priority": ActionClassification.AUTO_EXECUTE,
+        "auto_transition_state": ActionClassification.AUTO_EXECUTE,
     }
 
     def __init__(

@@ -46,7 +46,6 @@ from pilot_space.api.v1.routers import (
     homepage_notes_from_chat_router,
     homepage_router,
     integrations_router,
-    intents_router,
     invitation_router,
     invitations_public_router,
     issue_implement_router,
@@ -107,6 +106,7 @@ from pilot_space.api.v1.routers.user_skills import router as user_skills_router
 from pilot_space.api.v1.routers.workspace_action_buttons import (
     router as workspace_action_buttons_router,
 )
+from pilot_space.api.v1.routers.workspace_hooks import router as workspace_hooks_router
 from pilot_space.api.v1.routers.workspace_plugins import router as workspace_plugins_router
 from pilot_space.api.v1.routers.workspace_role_skills import router as workspace_role_skills_router
 from pilot_space.api.v1.routers.workspace_scim_settings import workspace_scim_settings_router
@@ -170,7 +170,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Start digest worker for homepage digest generation
     digest_worker_task: asyncio.Task[None] | None = None
     digest_worker = None
-    # T-069: Start memory worker for memory engine jobs (intent_dedup, embedding, DLQ)
+    # T-069: Start memory worker for memory engine jobs (embedding, DLQ)
     memory_worker_task: asyncio.Task[None] | None = None
     memory_worker = None
     # T-030: Start notification worker for persisting queued notifications
@@ -345,6 +345,10 @@ app.include_router(
     prefix=f"{API_V1_PREFIX}/workspaces/{{workspace_id}}/ai/permissions",
 )
 app.include_router(
+    workspace_hooks_router,
+    prefix=f"{API_V1_PREFIX}/workspaces/{{workspace_id}}/hooks",
+)
+app.include_router(
     ai_memory_telemetry_router,
     prefix=f"{API_V1_PREFIX}/workspaces/{{workspace_id}}/ai/memory/telemetry",
 )
@@ -396,7 +400,6 @@ app.include_router(note_templates_router, prefix=f"{API_V1_PREFIX}")
 app.include_router(note_versions_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(note_yjs_state_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(workspace_tasks_router, prefix=f"{API_V1_PREFIX}/workspaces")
-app.include_router(intents_router, prefix=f"{API_V1_PREFIX}/workspaces")
 app.include_router(knowledge_graph_router, prefix=API_V1_PREFIX)
 app.include_router(knowledge_graph_issues_router, prefix=API_V1_PREFIX)
 app.include_router(knowledge_graph_projects_router, prefix=API_V1_PREFIX)

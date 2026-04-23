@@ -1,7 +1,7 @@
-"""Prompt assembly pipeline for PilotSpace AI agent.
+"""Prompt assembly pipeline with static/dynamic split for KV-cache eligibility.
 
-Provides a 6-layer dynamic prompt builder that assembles system prompts
-based on user intent, role, workspace context, and conversation state.
+Assembles system prompts from static templates (identity, safety, role) and
+dynamic per-request context (workspace, skills, features, mentions).
 
 Usage::
 

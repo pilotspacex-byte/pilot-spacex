@@ -174,7 +174,9 @@ class ApprovalService:
     Thread-safe for concurrent request creation and resolution.
     """
 
-    # Classification of actions by approval requirement
+    # Legacy classification sets -- PermissionHandler.ACTION_CLASSIFICATIONS is
+    # the single authoritative source for DD-003 classifications (Phase 80).
+    # These sets are kept for backward compatibility with check_approval_required().
     ALWAYS_REQUIRE_ACTIONS: Final[set[ActionType]] = {
         ActionType.DELETE_WORKSPACE,
         ActionType.DELETE_PROJECT,

@@ -38,18 +38,14 @@ import { DestructiveApprovalModal } from './ApprovalOverlay/DestructiveApprovalM
 import { ChatHeader } from './ChatHeader';
 import { ChatInput } from './ChatInput/ChatInput';
 import { ChatViewErrorBoundary } from './ChatViewErrorBoundary';
-import { ConfirmAllButton } from './ConfirmAllButton';
 import { ApprovalCardGroup } from './MessageList/ApprovalCardGroup';
 import { ConversationLoadingSkeleton } from './MessageList/ConversationLoadingSkeleton';
 import { InlineApprovalCard } from './MessageList/InlineApprovalCard';
-import { IntentMessageRenderer } from './MessageList/IntentMessageRenderer';
 import { MessageList } from './MessageList/MessageList';
-import { QueueDepthIndicator } from './QueueDepthIndicator';
 import { TaskPanel } from './TaskPanel/TaskPanel';
 import { WaitingIndicator } from './WaitingIndicator';
 import { useApprovals } from './hooks/useApprovals';
 import { useAttachmentPreview } from './hooks/useAttachmentPreview';
-import { useIntentRehydration } from './hooks/useIntentRehydration';
 import { SkillCreatorCard } from './MessageList/SkillCreatorCard';
 import { userSkillsApi } from '@/services/api/user-skills';
 import { toast } from 'sonner';
@@ -159,9 +155,6 @@ const ChatViewInternal = observer<ChatViewProps>(
 
     // Initialize SessionListStore (T075-T079)
     const [sessionListStore] = useState(() => new SessionListStore(store));
-
-    // T-062: Rehydrate active intents + pending approvals on mount/workspace change
-    useIntentRehydration(store);
 
     // Auto-send initialPrompt once when ChatView mounts with an empty conversation.
     // INVARIANT: `store.messages.length === 0` is the primary re-fire guard.
@@ -452,9 +445,6 @@ const ChatViewInternal = observer<ChatViewProps>(
 
         {/* Main content area - relative for floating abort button */}
         <div className="flex-1 flex flex-col overflow-hidden relative min-h-0">
-          {/* T-060: Queue depth indicator — sticky top of message area */}
-          <QueueDepthIndicator store={store} />
-
           {/* Messages or loading skeleton */}
           {isResumingSession ? (
             <ConversationLoadingSkeleton />
@@ -515,11 +505,6 @@ const ChatViewInternal = observer<ChatViewProps>(
               </motion.div>
             )}
           </AnimatePresence>
-
-          {/* T-056/T-057: Intent lifecycle message renderer */}
-          {store.intents.size > 0 && (
-            <IntentMessageRenderer store={store} onPrefillInput={setInputValue} />
-          )}
 
           {/* Task panel */}
           {store.tasks.size > 0 && (
@@ -591,9 +576,6 @@ const ChatViewInternal = observer<ChatViewProps>(
         )}
 
         {/* Streaming phase is now shown inline in MessageList */}
-
-        {/* T-059: ConfirmAll button — above ChatInput when >= 2 pending intents */}
-        <ConfirmAllButton store={store} />
 
         {/* Skill creator card — pinned above input for easy Save/Test access.
             Hidden while streaming so it disappears during updates and reappears

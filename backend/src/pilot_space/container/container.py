@@ -58,15 +58,12 @@ from pilot_space.application.services.homepage import (
     GetActivityService,
     GetDigestService,
 )
+from pilot_space.application.services.hooks.hook_rule_service import HookRuleService
 from pilot_space.application.services.integration import (
     AutoTransitionService,
     ConnectGitHubService,
     LinkCommitService,
     ProcessGitHubWebhookService,
-)
-from pilot_space.application.services.intent import (
-    IntentDetectionService,
-    IntentService,
 )
 from pilot_space.application.services.issue import (
     ActivityService,
@@ -258,7 +255,6 @@ class Container(SkillContainer, PluginContainer):
             "pilot_space.api.v1.dependencies",
             "pilot_space.api.v1.dependencies_pilot",
             "pilot_space.api.v1.repository_deps",
-            "pilot_space.api.v1.intent_deps",
             "pilot_space.api.v1.dependencies_workspace_skills",
             "pilot_space.api.v1.routers.project_artifacts",
             "pilot_space.api.v1.routers.artifact_annotations",
@@ -268,7 +264,6 @@ class Container(SkillContainer, PluginContainer):
             "pilot_space.application.services.note.contextual_enrichment",
             "pilot_space.application.services.extraction.extract_issues_service",
             "pilot_space.application.services.memory.graph_extraction_service",
-            "pilot_space.application.services.intent.detection_service",
             "pilot_space.application.services.role_skill.generate_role_skill_service",
             "pilot_space.application.services.version.digest_service",
             "pilot_space.ai.jobs.digest_job",
@@ -924,26 +919,11 @@ class Container(SkillContainer, PluginContainer):
         issue_repository=InfraContainer.issue_repository,
     )
 
-    # Intent Services
-    intent_detection_service = providers.Factory(
-        IntentDetectionService,
-        session=providers.Callable(get_current_session),
-        intent_repository=InfraContainer.work_intent_repository,
-        redis_client=InfraContainer.redis_client,
-        llm_gateway=llm_gateway,
-    )
-
     # Override SkillContainer's generate_role_skill_service to inject llm_gateway
     generate_role_skill_service = providers.Factory(
         GenerateRoleSkillService,
         session=providers.Callable(get_current_session),
         llm_gateway=llm_gateway,
-    )
-
-    intent_service = providers.Factory(
-        IntentService,
-        session=providers.Callable(get_current_session),
-        intent_repository=InfraContainer.work_intent_repository,
     )
 
     # Note Write Lock (C-3) — Redis-backed mutex, one per process
@@ -1136,6 +1116,12 @@ class Container(SkillContainer, PluginContainer):
     permission_service = providers.Singleton(
         PermissionService,
         cache=permission_cache,
+        redis_client=InfraContainer.redis_client,
+    )
+
+    # Phase 83 -- Workspace Hook Rules
+    hook_rule_service = providers.Singleton(
+        HookRuleService,
         redis_client=InfraContainer.redis_client,
     )
 

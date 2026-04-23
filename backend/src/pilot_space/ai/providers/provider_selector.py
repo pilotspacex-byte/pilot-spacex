@@ -61,7 +61,6 @@ class TaskType(Enum):
     # Knowledge graph / contextual tasks (Claude Haiku — lightweight extraction)
     CONTEXTUAL_RETRIEVAL = "contextual_retrieval"
     GRAPH_EXTRACTION = "graph_extraction"
-    INTENT_DETECTION = "intent_detection"
     ROLE_SKILL_GENERATION = "role_skill_generation"
 
     # Latency-sensitive tasks (Claude Haiku)
@@ -247,13 +246,6 @@ class ProviderSelector:
             reason="Lightweight graph knowledge extraction from conversations",
             fallback_provider=Provider.ANTHROPIC.value,
             fallback_model=ANTHROPIC_SONNET,
-        ),
-        TaskType.INTENT_DETECTION: ProviderConfig(
-            provider=Provider.ANTHROPIC.value,
-            model=ANTHROPIC_SONNET,
-            reason="Structured intent detection with few-shot reasoning",
-            fallback_provider=Provider.ANTHROPIC.value,
-            fallback_model=ANTHROPIC_HAIKU,
         ),
         TaskType.ROLE_SKILL_GENERATION: ProviderConfig(
             provider=Provider.ANTHROPIC.value,

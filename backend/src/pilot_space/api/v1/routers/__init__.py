@@ -46,7 +46,6 @@ from pilot_space.api.v1.routers.homepage import (
     router as homepage_router,
 )
 from pilot_space.api.v1.routers.integrations import router as integrations_router
-from pilot_space.api.v1.routers.intents import router as intents_router
 from pilot_space.api.v1.routers.invitations_public import router as invitations_public_router
 from pilot_space.api.v1.routers.issue_implement import router as issue_implement_router
 from pilot_space.api.v1.routers.issues import router as issues_router
@@ -195,7 +194,6 @@ __all__ = [
     "homepage_notes_from_chat_router",
     "homepage_router",
     "integrations_router",
-    "intents_router",
     "invitation_router",
     "invitations_public_router",
     "issue_implement_router",

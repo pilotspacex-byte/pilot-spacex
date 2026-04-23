@@ -12,17 +12,14 @@ from typing import Any
 
 from sqlalchemy import (
     Enum as SQLEnum,
-    ForeignKey,
     Index,
     Text,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from pilot_space.infrastructure.database.base import BaseModel
 from pilot_space.infrastructure.database.types import JSONBCompat
-
-from .work_intent import WorkIntent
 
 
 class SkillApprovalStatus(StrEnum):
@@ -51,10 +48,9 @@ class SkillExecution(BaseModel):
 
     __tablename__ = "skill_executions"  # type: ignore[assignment]
 
-    # Parent intent
+    # Parent intent (FK enforced at DB level; ORM model removed in Phase 79)
     intent_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("work_intents.id", ondelete="CASCADE"),
         nullable=False,
     )
 
@@ -89,12 +85,6 @@ class SkillExecution(BaseModel):
         JSONBCompat,
         nullable=True,
         default=None,
-    )
-
-    # Relationship back to intent
-    intent: Mapped[WorkIntent] = relationship(
-        "WorkIntent",
-        lazy="joined",
     )
 
     __table_args__ = (

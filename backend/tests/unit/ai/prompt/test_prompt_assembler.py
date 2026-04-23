@@ -1,4 +1,4 @@
-"""Unit tests for the 6-layer prompt assembler."""
+"""Unit tests for the static/dynamic prompt assembler."""
 
 from __future__ import annotations
 
@@ -39,16 +39,6 @@ class TestMinimalAssembly:
         assert "Safety reasoning" in result.prompt
         assert "identity" in result.layers_loaded
         assert "safety_tools_style" in result.layers_loaded
-
-    @pytest.mark.asyncio
-    async def test_general_intent_for_hello(self) -> None:
-        config = PromptLayerConfig(base_prompt="fallback", user_message="hello")
-        result = await assemble_system_prompt(config)
-
-        # "hello" matches no patterns → GENERAL → no rules loaded
-        assert result.rules_loaded == []
-        # Should have "Available Rule Domains" section
-        assert "Available Rule Domains" in result.prompt
 
     @pytest.mark.asyncio
     async def test_estimated_tokens_reasonable(self) -> None:
@@ -117,7 +107,7 @@ class TestRoleLayer:
 
 
 class TestWorkspaceLayer:
-    """Tests for layer 4 (workspace context)."""
+    """Tests for workspace context (dynamic suffix)."""
 
     @pytest.mark.asyncio
     async def test_with_workspace_name(self) -> None:
@@ -151,141 +141,8 @@ class TestWorkspaceLayer:
         assert "workspace" not in result.layers_loaded
 
 
-class TestIntentRulesLayer:
-    """Tests for layer 5 (intent-based rules)."""
-
-    @pytest.mark.asyncio
-    async def test_issue_message_loads_issues_rule(self) -> None:
-        config = PromptLayerConfig(
-            base_prompt="fallback",
-            user_message="create an issue for the login bug",
-        )
-        result = await assemble_system_prompt(config)
-
-        assert "issues.md" in result.rules_loaded
-        assert "Operational Rules" in result.prompt
-
-    @pytest.mark.asyncio
-    async def test_pm_blocks_loads_multiple_rules(self) -> None:
-        config = PromptLayerConfig(
-            base_prompt="fallback",
-            user_message="write a decision record",
-        )
-        result = await assemble_system_prompt(config)
-
-        assert "pm_blocks.md" in result.rules_loaded
-        assert "notes.md" in result.rules_loaded
-
-    @pytest.mark.asyncio
-    async def test_note_writing_loads_notes_rule(self) -> None:
-        config = PromptLayerConfig(
-            base_prompt="fallback",
-            user_message="draft a document about API design",
-        )
-        result = await assemble_system_prompt(config)
-
-        assert "notes.md" in result.rules_loaded
-
-    @pytest.mark.asyncio
-    async def test_multi_intent_loads_all_relevant_rules(self) -> None:
-        config = PromptLayerConfig(
-            base_prompt="fallback",
-            user_message="write content and create an issue for the bug",
-        )
-        result = await assemble_system_prompt(config)
-
-        # Should load rules for both note_writing and issue_mgmt
-        loaded = set(result.rules_loaded)
-        assert len(loaded) >= 2
-
-    @pytest.mark.asyncio
-    async def test_unloaded_rules_have_summaries(self) -> None:
-        config = PromptLayerConfig(
-            base_prompt="fallback",
-            user_message="draft a document",
-        )
-        result = await assemble_system_prompt(config)
-
-        # notes.md loaded, so issues.md and pm_blocks.md summaries shown
-        assert "Available Rule Domains" in result.prompt
-        assert "issues.md" in result.prompt
-
-
-class TestSessionLayer:
-    """Tests for layer 6 (session state)."""
-
-    @pytest.mark.asyncio
-    async def test_memory_entries(self) -> None:
-        config = PromptLayerConfig(
-            base_prompt="fallback",
-            user_message="hello",
-            memory_entries=[
-                {"source_type": "note", "content": "Auth uses JWT tokens"},
-                {"source_type": "issue", "content": "Login bug reported"},
-            ],
-        )
-        result = await assemble_system_prompt(config)
-
-        assert "Workspace Memory Context" in result.prompt
-        assert "[note] Auth uses JWT tokens" in result.prompt
-        assert "[issue] Login bug reported" in result.prompt
-        assert "session" in result.layers_loaded
-
-    @pytest.mark.asyncio
-    async def test_conversation_summary(self) -> None:
-        config = PromptLayerConfig(
-            base_prompt="fallback",
-            user_message="hello",
-            conversation_summary="Discussed API design for auth module.",
-        )
-        result = await assemble_system_prompt(config)
-
-        assert "Conversation Summary" in result.prompt
-        assert "Discussed API design" in result.prompt
-
-    @pytest.mark.asyncio
-    async def test_pending_approvals(self) -> None:
-        config = PromptLayerConfig(
-            base_prompt="fallback",
-            user_message="hello",
-            pending_approvals=3,
-        )
-        result = await assemble_system_prompt(config)
-
-        assert "3 pending approvals awaiting your response" in result.prompt
-
-    @pytest.mark.asyncio
-    async def test_pending_approval_singular(self) -> None:
-        config = PromptLayerConfig(
-            base_prompt="fallback",
-            user_message="hello",
-            pending_approvals=1,
-        )
-        result = await assemble_system_prompt(config)
-
-        assert "1 pending approval awaiting your response" in result.prompt
-
-    @pytest.mark.asyncio
-    async def test_budget_warning(self) -> None:
-        config = PromptLayerConfig(
-            base_prompt="fallback",
-            user_message="hello",
-            budget_warning="90% of token budget used",
-        )
-        result = await assemble_system_prompt(config)
-
-        assert "Budget: 90% of token budget used" in result.prompt
-
-    @pytest.mark.asyncio
-    async def test_no_session_state_skips_layer(self) -> None:
-        config = PromptLayerConfig(base_prompt="fallback", user_message="hello")
-        result = await assemble_system_prompt(config)
-
-        assert "session" not in result.layers_loaded
-
-
 class TestSkillsLayer:
-    """Tests for skills layer (between workspace and session)."""
+    """Tests for skills layer (dynamic suffix)."""
 
     @pytest.mark.asyncio
     async def test_with_user_skills(self) -> None:
@@ -344,20 +201,18 @@ class TestSkillsLayer:
             workspace_name="my-team",
             user_message="hello",
             user_skills=[{"name": "Skill A", "description": "Desc A"}],
-            memory_entries=[{"source_type": "note", "content": "Some memory"}],
         )
         result = await assemble_system_prompt(config)
 
         workspace_pos = result.prompt.find("Workspace Context")
         skills_pos = result.prompt.find("Your Skills")
-        memory_pos = result.prompt.find("Workspace Memory Context")
 
-        # Skills must appear after workspace context and before session/memory
-        assert workspace_pos < skills_pos < memory_pos
+        # Skills must appear after workspace context in dynamic suffix
+        assert workspace_pos < skills_pos
 
 
 class TestFullAssembly:
-    """Tests for backward-compatible full assembly."""
+    """Tests for full assembly with all dynamic layers."""
 
     @pytest.mark.asyncio
     async def test_all_layers_loaded(self) -> None:
@@ -367,11 +222,6 @@ class TestFullAssembly:
             workspace_name="pilot-team",
             project_names=["pilot-space"],
             user_message="create an issue for the auth bug",
-            has_note_context=True,
-            memory_entries=[{"source_type": "note", "content": "Auth spec"}],
-            pending_approvals=2,
-            budget_warning="80% used",
-            conversation_summary="Prior discussion about auth.",
             user_skills=[
                 {"name": "Python Expert", "description": "Advanced Python development"},
             ],
@@ -382,20 +232,17 @@ class TestFullAssembly:
         assert "Safety reasoning" in result.prompt
         assert "Your User's Role" in result.prompt
         assert "Workspace: pilot-team" in result.prompt
-        assert "Operational Rules" in result.prompt
-        assert "Workspace Memory Context" in result.prompt
-        assert "Conversation Summary" in result.prompt
-        assert "pending approval" in result.prompt
-        assert "Budget: 80% used" in result.prompt
         assert "Your Skills" in result.prompt
+
+        assert result.static_prefix != ""
+        assert result.dynamic_suffix != ""
+        assert result.prompt.startswith(result.static_prefix)
 
         assert "identity" in result.layers_loaded
         assert "safety_tools_style" in result.layers_loaded
         assert "role:developer" in result.layers_loaded
         assert "workspace" in result.layers_loaded
-        assert "session" in result.layers_loaded
         assert "skills" in result.layers_loaded
-        assert len(result.rules_loaded) > 0
         assert result.estimated_tokens > 0
 
 
@@ -459,3 +306,200 @@ class TestMentionContextLayer:
         config = PromptLayerConfig(user_message="hello", has_mention_context=False)
         result = await assemble_system_prompt(config)
         assert "Never expose raw" in result.prompt
+
+
+class TestStaticDynamicSplit:
+    """Tests for static/dynamic prompt boundary (PROM-01)."""
+
+    @pytest.mark.asyncio
+    async def test_static_prefix_contains_identity_and_safety(self) -> None:
+        config = PromptLayerConfig(base_prompt="fallback", user_message="hello")
+        result = await assemble_system_prompt(config)
+        assert "PilotSpace AI" in result.static_prefix
+        assert "Safety reasoning" in result.static_prefix
+
+    @pytest.mark.asyncio
+    async def test_static_prefix_contains_role(self) -> None:
+        config = PromptLayerConfig(
+            base_prompt="fallback", role_type="developer", user_message="hello"
+        )
+        result = await assemble_system_prompt(config)
+        assert "Your User's Role" in result.static_prefix
+
+    @pytest.mark.asyncio
+    async def test_dynamic_suffix_contains_workspace(self) -> None:
+        config = PromptLayerConfig(
+            base_prompt="fallback",
+            workspace_name="my-team",
+            user_message="hello",
+        )
+        result = await assemble_system_prompt(config)
+        assert "Workspace: my-team" in result.dynamic_suffix
+        assert "Workspace: my-team" not in result.static_prefix
+
+    @pytest.mark.asyncio
+    async def test_static_prefix_identical_across_requests(self) -> None:
+        """PROM-01: Static prefix must be identical for same workspace+role."""
+        config1 = PromptLayerConfig(
+            role_type="developer",
+            workspace_name="team-a",
+            user_message="write a note",
+            user_skills=[{"name": "Python", "description": "dev"}],
+        )
+        config2 = PromptLayerConfig(
+            role_type="developer",
+            workspace_name="team-b",
+            user_message="create an issue",
+            user_skills=[],
+        )
+        result1 = await assemble_system_prompt(config1)
+        result2 = await assemble_system_prompt(config2)
+        # Static prefix depends only on role_type, not workspace or message
+        assert result1.static_prefix == result2.static_prefix
+
+    @pytest.mark.asyncio
+    async def test_combined_prompt_is_static_plus_dynamic(self) -> None:
+        config = PromptLayerConfig(
+            base_prompt="fallback",
+            workspace_name="my-team",
+            user_message="hello",
+        )
+        result = await assemble_system_prompt(config)
+        expected = f"{result.static_prefix}\n\n{result.dynamic_suffix}"
+        assert result.prompt == expected
+
+    @pytest.mark.asyncio
+    async def test_no_dynamic_content_prompt_equals_static(self) -> None:
+        config = PromptLayerConfig(base_prompt="fallback", user_message="hello")
+        result = await assemble_system_prompt(config)
+        assert result.dynamic_suffix == ""
+        assert result.prompt == result.static_prefix
+
+
+class TestLayerRemoval:
+    """Tests that Layer 5 and Layer 6 content is no longer assembled (PROM-02)."""
+
+    @pytest.mark.asyncio
+    async def test_no_operational_rules_in_prompt(self) -> None:
+        config = PromptLayerConfig(
+            base_prompt="fallback",
+            user_message="create an issue for the login bug",
+        )
+        result = await assemble_system_prompt(config)
+        assert "Operational Rules" not in result.prompt
+
+    @pytest.mark.asyncio
+    async def test_no_rule_domains_summary(self) -> None:
+        config = PromptLayerConfig(base_prompt="fallback", user_message="hello")
+        result = await assemble_system_prompt(config)
+        assert "Available Rule Domains" not in result.prompt
+
+    @pytest.mark.asyncio
+    async def test_no_session_layer(self) -> None:
+        config = PromptLayerConfig(base_prompt="fallback", user_message="hello")
+        result = await assemble_system_prompt(config)
+        assert "session" not in result.layers_loaded
+        assert "Workspace Memory Context" not in result.prompt
+        assert "Conversation Summary" not in result.prompt
+        assert "pending approval" not in result.prompt
+
+    @pytest.mark.asyncio
+    async def test_no_rules_loaded_attribute(self) -> None:
+        config = PromptLayerConfig(base_prompt="fallback", user_message="hello")
+        result = await assemble_system_prompt(config)
+        assert not hasattr(result, "rules_loaded")
+
+
+class TestEmptySectionSkipping:
+    """Tests that empty layers produce no output (PROM-03)."""
+
+    @pytest.mark.asyncio
+    async def test_no_skills_no_section(self) -> None:
+        config = PromptLayerConfig(
+            base_prompt="fallback", user_message="hello", user_skills=[]
+        )
+        result = await assemble_system_prompt(config)
+        assert "Your Skills" not in result.prompt
+        assert "skills" not in result.layers_loaded
+
+    @pytest.mark.asyncio
+    async def test_no_disabled_features_no_section(self) -> None:
+        config = PromptLayerConfig(
+            base_prompt="fallback", user_message="hello", feature_toggles={}
+        )
+        result = await assemble_system_prompt(config)
+        assert "Disabled Workspace Features" not in result.prompt
+        assert "disabled_features" not in result.layers_loaded
+
+    @pytest.mark.asyncio
+    async def test_all_features_enabled_no_section(self) -> None:
+        config = PromptLayerConfig(
+            base_prompt="fallback",
+            user_message="hello",
+            feature_toggles={"ai_chat": True, "memory": True},
+        )
+        result = await assemble_system_prompt(config)
+        assert "Disabled Workspace Features" not in result.prompt
+
+    @pytest.mark.asyncio
+    async def test_no_role_no_section(self) -> None:
+        config = PromptLayerConfig(base_prompt="fallback", user_message="hello")
+        result = await assemble_system_prompt(config)
+        assert "Your User's Role" not in result.prompt
+
+
+class TestTokenReduction:
+    """Tests that token count meets the 40-70% reduction target (PROM-04)."""
+
+    @pytest.mark.asyncio
+    async def test_typical_request_under_2500_tokens(self) -> None:
+        """Pre-milestone typical was ~5,337 tokens. Target: ~1,850 (65% reduction)."""
+        config = PromptLayerConfig(
+            base_prompt="fallback",
+            role_type="developer",
+            workspace_name="pilot-team",
+            user_message="write a note about API design",
+        )
+        result = await assemble_system_prompt(config)
+        # Must be well under the pre-milestone 5,337 tokens
+        assert result.estimated_tokens < 2500, (
+            f"Typical request should be under 2500 tokens, got {result.estimated_tokens}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_worst_case_under_3000_tokens(self) -> None:
+        """Pre-milestone worst case was ~8,137 tokens. Target: ~2,506 (69% reduction)."""
+        config = PromptLayerConfig(
+            base_prompt="fallback",
+            role_type="developer",
+            workspace_name="pilot-team",
+            project_names=["proj-a", "proj-b"],
+            user_message="check @[Issue:abc-123]",
+            has_mention_context=True,
+            user_skills=[
+                {"name": "Python Expert", "description": "Advanced Python development"},
+                {"name": "TDD Coach", "description": "Test-driven development practices"},
+            ],
+            feature_toggles={"legacy_feature": False},
+        )
+        result = await assemble_system_prompt(config)
+        assert result.estimated_tokens < 3000, (
+            f"Worst case should be under 3000 tokens, got {result.estimated_tokens}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_reduction_percentage_from_baseline(self) -> None:
+        """Verify 40%+ reduction from pre-milestone baseline analytically."""
+        config = PromptLayerConfig(
+            base_prompt="fallback",
+            role_type="developer",
+            workspace_name="pilot-team",
+            user_message="hello",
+        )
+        result = await assemble_system_prompt(config)
+        pre_milestone_typical = 5337  # Pre-milestone baseline from RESEARCH.md
+        reduction_pct = (1 - result.estimated_tokens / pre_milestone_typical) * 100
+        assert reduction_pct >= 40, (
+            f"Expected 40%+ reduction, got {reduction_pct:.1f}% "
+            f"({result.estimated_tokens} vs baseline {pre_milestone_typical})"
+        )

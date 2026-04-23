@@ -44,7 +44,6 @@ TASK_TYPE_MODEL_MAP: Final[dict[TaskType, str]] = {
     # Knowledge graph / contextual tasks
     TaskType.CONTEXTUAL_RETRIEVAL: "anthropic/claude-3-5-haiku-20241022",
     TaskType.GRAPH_EXTRACTION: "anthropic/claude-3-5-haiku-20241022",
-    TaskType.INTENT_DETECTION: "anthropic/claude-sonnet-4-20250514",
     TaskType.ROLE_SKILL_GENERATION: "anthropic/claude-sonnet-4-20250514",
     # Latency-sensitive tasks -> Claude 3.5 Haiku
     TaskType.GHOST_TEXT: "anthropic/claude-3-5-haiku-20241022",

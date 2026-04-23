@@ -127,10 +127,6 @@ from pilot_space.infrastructure.database.models.user_role_skill import (
     UserRoleSkill,
 )
 from pilot_space.infrastructure.database.models.user_skill import UserSkill
-from pilot_space.infrastructure.database.models.work_intent import (
-    IntentArtifact,
-    WorkIntent,
-)
 from pilot_space.infrastructure.database.models.workspace import Workspace
 from pilot_space.infrastructure.database.models.workspace_ai_policy import WorkspaceAIPolicy
 from pilot_space.infrastructure.database.models.workspace_api_key import WorkspaceAPIKey
@@ -140,6 +136,9 @@ from pilot_space.infrastructure.database.models.workspace_encryption_key import 
 )
 from pilot_space.infrastructure.database.models.workspace_github_credential import (
     WorkspaceGithubCredential,
+)
+from pilot_space.infrastructure.database.models.workspace_hook_config import (
+    WorkspaceHookConfig,
 )
 from pilot_space.infrastructure.database.models.workspace_invitation import (
     InvitationStatus,
@@ -203,7 +202,6 @@ __all__ = [
     "IntegrationLink",
     "IntegrationLinkType",
     "IntegrationProvider",
-    "IntentArtifact",
     "InvitationStatus",
     "Issue",
     "IssueLink",
@@ -258,13 +256,13 @@ __all__ = [
     "UserRoleSkill",
     "UserSkill",
     "VersionTrigger",
-    "WorkIntent",
     "Workspace",
     "WorkspaceAIPolicy",
     "WorkspaceAPIKey",
     "WorkspaceDigest",
     "WorkspaceEncryptionKey",
     "WorkspaceGithubCredential",
+    "WorkspaceHookConfig",
     "WorkspaceInvitation",
     "WorkspaceMcpServer",
     "WorkspaceMember",

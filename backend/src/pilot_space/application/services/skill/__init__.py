@@ -11,20 +11,12 @@ from pilot_space.application.services.skill.skill_definition import (
     SkillDefinitionError,
     SkillDefinitionParser,
 )
-from pilot_space.application.services.skill.skill_execution_service import (
-    ExecuteSkillPayload,
-    SkillExecutionService,
-    SkillOutputValidationError,
-)
 
 __all__ = [
     "ApprovalMode",
-    "ExecuteSkillPayload",
     "RequiredApprovalRole",
     "SkillConcurrencyManager",
     "SkillDefinition",
     "SkillDefinitionError",
     "SkillDefinitionParser",
-    "SkillExecutionService",
-    "SkillOutputValidationError",
 ]

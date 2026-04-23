@@ -36,13 +36,6 @@ export type SSEEventType =
   | 'tool_input_delta'
   | 'focus_block'
   | 'error'
-  // Feature 015: AI Workforce Platform intent lifecycle events
-  | 'intent_detected'
-  | 'intent_confirmed'
-  | 'intent_executing'
-  | 'intent_completed'
-  | 'queue_update'
-  | 'skill_completed'
   // Phase 64: Chat-first skill refinement events
   | 'skill_preview'
   | 'test_result'
@@ -711,17 +704,6 @@ export interface SkillSavedEvent extends SSEEvent {
   };
 }
 
-// Feature 015: Intent/skill lifecycle events extracted to events-workforce.ts.
-// Re-exported here for backward compatibility.
-export type {
-  IntentDetectedEvent,
-  IntentConfirmedEvent,
-  IntentExecutingEvent,
-  IntentCompletedEvent,
-  SkillCompletedEvent,
-  QueueUpdateEvent,
-} from './events-workforce';
-
 // Type guards extracted to ./event-guards.ts to keep this file under 700 lines.
 // Re-export for backward compatibility.
 export {
@@ -745,12 +727,6 @@ export {
   isMemoryUsedEvent,
   isToolInputDeltaEvent,
   isFocusBlockEvent,
-  isIntentDetectedEvent,
-  isIntentConfirmedEvent,
-  isIntentExecutingEvent,
-  isIntentCompletedEvent,
-  isSkillCompletedEvent,
-  isQueueUpdateEvent,
   // Phase 64: Chat-first skill refinement
   isSkillPreviewEvent,
   isTestResultEvent,

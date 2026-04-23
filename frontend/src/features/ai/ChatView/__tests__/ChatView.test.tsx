@@ -103,8 +103,6 @@ function createMockStore(overrides: Partial<PilotSpaceStore> = {}): PilotSpaceSt
     error: null,
     tasks: new Map(),
     agentTaskList: [],
-    intents: new Map(),
-    skillQueue: { runningCount: 0, queuedCount: 0, skills: [] },
     pendingApprovals: [],
     pendingContentUpdates: [],
     pendingToolCalls: [],

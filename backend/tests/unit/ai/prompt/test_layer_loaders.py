@@ -2,18 +2,13 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-from unittest.mock import patch
-
 import pytest
 
 from pilot_space.ai.prompt.layer_loaders import (
     _PROMPT_LAYERS_DIR,
     _ROLE_TEMPLATES_DIR,
-    _RULES_DIR,
     clear_caches,
     load_role_template,
-    load_rule_file,
     load_static_layer,
 )
 
@@ -77,49 +72,12 @@ class TestLoadRoleTemplate:
         assert result is None
 
 
-class TestLoadRuleFile:
-    """Tests for load_rule_file."""
-
-    @pytest.mark.asyncio
-    async def test_loads_existing_rule(self) -> None:
-        content = await load_rule_file("issues.md")
-        assert len(content) > 0
-
-    @pytest.mark.asyncio
-    async def test_caches_result(self) -> None:
-        first = await load_rule_file("issues.md")
-        second = await load_rule_file("issues.md")
-        assert first is second
-
-    @pytest.mark.asyncio
-    async def test_missing_rule_returns_empty(self) -> None:
-        result = await load_rule_file("nonexistent_rule.md")
-        assert result == ""
-
-    @pytest.mark.asyncio
-    async def test_truncation_at_4000_chars(self, tmp_path: Path) -> None:
-        """Verify files exceeding 4000 chars are truncated."""
-        long_content = "x" * 5000
-        rule_file = tmp_path / "long_rule.md"
-        rule_file.write_text(long_content)
-
-        with patch("pilot_space.ai.prompt.layer_loaders._RULES_DIR", tmp_path):
-            clear_caches()
-            result = await load_rule_file("long_rule.md")
-
-        assert len(result) < 5000
-        assert result.endswith("... (truncated)")
-        # 4000 chars + "\n... (truncated)" = 4016 chars
-        assert len(result) == 4000 + len("\n... (truncated)")
-
-
 class TestClearCaches:
     """Tests for clear_caches."""
 
     @pytest.mark.asyncio
     async def test_clears_all_caches(self) -> None:
         await load_static_layer("layer1_identity.md")
-        await load_rule_file("issues.md")
 
         clear_caches()
 
@@ -137,6 +95,3 @@ class TestPathConstants:
 
     def test_role_templates_dir_exists(self) -> None:
         assert _ROLE_TEMPLATES_DIR.is_dir()
-
-    def test_rules_dir_exists(self) -> None:
-        assert _RULES_DIR.is_dir()

@@ -27,12 +27,6 @@ import type {
   MemoryUsedEvent,
   ToolInputDeltaEvent,
   FocusBlockEvent,
-  IntentDetectedEvent,
-  IntentConfirmedEvent,
-  IntentExecutingEvent,
-  IntentCompletedEvent,
-  SkillCompletedEvent,
-  QueueUpdateEvent,
   SkillPreviewEvent,
   TestResultEvent,
   SkillSavedEvent,
@@ -215,32 +209,6 @@ export function isFocusBlockEvent(event: SSEEvent): event is FocusBlockEvent {
   return event.type === 'focus_block';
 }
 
-// Feature 015: Intent lifecycle event guards
-
-export function isIntentDetectedEvent(event: SSEEvent): event is IntentDetectedEvent {
-  return event.type === 'intent_detected';
-}
-
-export function isIntentConfirmedEvent(event: SSEEvent): event is IntentConfirmedEvent {
-  return event.type === 'intent_confirmed';
-}
-
-export function isIntentExecutingEvent(event: SSEEvent): event is IntentExecutingEvent {
-  return event.type === 'intent_executing';
-}
-
-export function isIntentCompletedEvent(event: SSEEvent): event is IntentCompletedEvent {
-  return event.type === 'intent_completed';
-}
-
-export function isSkillCompletedEvent(event: SSEEvent): event is SkillCompletedEvent {
-  return event.type === 'skill_completed';
-}
-
-export function isQueueUpdateEvent(event: SSEEvent): event is QueueUpdateEvent {
-  return event.type === 'queue_update';
-}
-
 // Phase 64: Chat-first skill refinement event guards
 
 /**
@@ -287,12 +255,6 @@ const KNOWN_EVENT_TYPES = new Set([
   'citation',
   'memory_update',
   'focus_block',
-  'intent_detected',
-  'intent_confirmed',
-  'intent_executing',
-  'intent_completed',
-  'skill_completed',
-  'queue_update',
   // Phase 64: Chat-first skill refinement
   'skill_preview',
   'test_result',

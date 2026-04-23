@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/table';
 import { apiClient } from '@/services/api';
 import { useStore } from '@/stores';
+import { HookRulesTable } from '../components/hook-rules-table';
 import { ToolPermissionsTable } from '../components/tool-permissions-table';
 import { PolicyTemplatePicker } from '../components/policy-template-picker';
 import { PermissionAuditLog } from '../components/permission-audit-log';
@@ -385,6 +386,20 @@ export function AIGovernanceSettingsPage() {
           <PolicyTemplatePicker workspaceId={workspaceId} />
           <ToolPermissionsTable workspaceId={workspaceId} />
           <PermissionAuditLog workspaceId={workspaceId} />
+        </div>
+
+        {/* Phase 83 -- Workspace Hook Rules */}
+        <div className="space-y-4 border-t pt-8">
+          <div className="space-y-1">
+            <h2 className="text-lg font-semibold tracking-tight">Hook Rules</h2>
+            <p className="text-sm text-muted-foreground">
+              Declarative rules for AI tool governance. Define patterns to allow, deny, or
+              require approval for specific tools. Rules are evaluated before individual
+              tool permissions. Critical actions (DD-003) always require approval regardless
+              of hook rules.
+            </p>
+          </div>
+          <HookRulesTable workspaceId={workspaceId} />
         </div>
 
         {/* Memory admin sections moved to Settings > Memory page for better IA */}

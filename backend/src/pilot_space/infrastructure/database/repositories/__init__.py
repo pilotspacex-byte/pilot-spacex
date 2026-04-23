@@ -52,12 +52,6 @@ from pilot_space.infrastructure.database.repositories.integration_link_repositor
 from pilot_space.infrastructure.database.repositories.integration_repository import (
     IntegrationRepository,
 )
-from pilot_space.infrastructure.database.repositories.intent_artifact_repository import (
-    IntentArtifactRepository,
-)
-from pilot_space.infrastructure.database.repositories.intent_repository import (
-    WorkIntentRepository,
-)
 from pilot_space.infrastructure.database.repositories.invitation_repository import (
     InvitationRepository,
 )
@@ -129,7 +123,6 @@ __all__ = [
     "HomepageRepository",
     "IntegrationLinkRepository",
     "IntegrationRepository",
-    "IntentArtifactRepository",
     "InvitationRepository",
     "IssueActivityRow",
     "IssueFilters",
@@ -149,7 +142,6 @@ __all__ = [
     "TaskRepository",
     "TemplateRepository",
     "UserRepository",
-    "WorkIntentRepository",
     "WorkspaceRepository",
     "compute_diff",
     "write_audit_nonfatal",

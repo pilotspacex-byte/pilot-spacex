@@ -37,6 +37,10 @@ from pilot_space.ai.mcp.issue_server import (
     SERVER_NAME as ISSUE_SERVER_NAME,
     create_issue_tools_server,
 )
+from pilot_space.ai.mcp.memory_server import (
+    SERVER_NAME as MEMORY_SERVER_NAME,
+    create_memory_server,
+)
 from pilot_space.ai.mcp.note_content_server import (
     SERVER_NAME as NOTE_CONTENT_SERVER_NAME,
     create_note_content_server,
@@ -173,6 +177,12 @@ def build_mcp_servers(
         publisher,
         tool_context=tool_context,
         skills_dir=None,  # TODO: pass from agent config when SpaceManager available
+    )
+
+    # Memory recall tool — registered unconditionally (core agent capability).
+    # Allows agent to fetch workspace memories on-demand instead of pre-loading.
+    servers[MEMORY_SERVER_NAME] = create_memory_server(
+        tool_context=tool_context,
     )
 
     return servers, ref_map

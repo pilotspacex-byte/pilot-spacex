@@ -232,12 +232,27 @@ async def resolve_approval(
     if approval_request.status != "pending":
         raise ConflictError(f"Request already {approval_request.status}")
 
-    # Resolve the request
+    # Resolve the request in the database
     await approval_service.resolve(
         request_id=approval_id,
         resolved_by=current_user_id,
         approved=body.approved,
         resolution_note=body.note,
+    )
+
+    # Notify in-process Bus so the waiting hook callback resumes
+    from pilot_space.ai.sdk.approval_bus import get_approval_bus
+
+    bus = get_approval_bus()
+    claimed = bus.resolve(
+        approval_id,
+        "approved" if body.approved else "rejected",
+    )
+    logger.info(
+        "approval_bus_resolved",
+        approval_id=str(approval_id),
+        decision="approved" if body.approved else "rejected",
+        claimed=claimed,
     )
 
     result: dict[str, Any] = {"approved": body.approved, "action_result": None}
@@ -279,7 +294,7 @@ async def _execute_approved_action(
     Returns:
         Execution result.
     """
-    from pilot_space.ai.sdk.approval_waiter import ApprovalActionExecutor
+    from pilot_space.ai.sdk.approval_bus import ApprovalActionExecutor
 
     executor = ApprovalActionExecutor(session)
     return await executor.execute(

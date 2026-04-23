@@ -20,7 +20,7 @@ from uuid import uuid4
 
 import pytest
 
-from pilot_space.ai.agents.pilotspace_intent_pipeline import recall_graph_context
+from pilot_space.ai.agents.pilotspace_agent import recall_graph_context
 from pilot_space.ai.prompt.prompt_assembler import format_graph_context
 from pilot_space.application.services.memory.memory_recall_service import (
     MemoryItem,

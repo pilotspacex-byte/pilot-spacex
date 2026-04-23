@@ -384,53 +384,6 @@ export const aiApi = {
     });
   },
 
-  // ============================================================
-  // Feature 015: Intent API (T-014, M2)
-  // ============================================================
-
-  /**
-   * Confirm a detected intent.
-   * Optionally pass sessionId to signal the ConfirmationBus (T-018).
-   */
-  confirmIntent: (workspaceId: string, intentId: string, sessionId?: string) =>
-    apiClient.post<IntentResponse>(`/workspaces/${workspaceId}/intents/${intentId}/confirm`, {
-      session_id: sessionId ?? null,
-    }),
-
-  /**
-   * Reject an intent.
-   */
-  rejectIntent: (workspaceId: string, intentId: string, sessionId?: string) =>
-    apiClient.post<IntentResponse>(`/workspaces/${workspaceId}/intents/${intentId}/reject`, {
-      session_id: sessionId ?? null,
-    }),
-
-  /**
-   * Edit intent fields before confirmation.
-   */
-  editIntent: (
-    workspaceId: string,
-    intentId: string,
-    patch: { new_what?: string; new_why?: string; new_constraints?: string[] }
-  ) => apiClient.post<IntentResponse>(`/workspaces/${workspaceId}/intents/${intentId}/edit`, patch),
-
-  /**
-   * Batch confirm top-N eligible intents.
-   */
-  confirmAllIntents: (workspaceId: string, minConfidence = 0.7, maxCount = 10) =>
-    apiClient.post<ConfirmAllResponse>(`/workspaces/${workspaceId}/intents/confirm-all`, {
-      min_confidence: minConfidence,
-      max_count: maxCount,
-    }),
-
-  /**
-   * List intents by status.
-   */
-  listIntents: (workspaceId: string, status = 'detected') =>
-    apiClient.get<IntentResponse[]>(`/workspaces/${workspaceId}/intents`, {
-      params: { intent_status: status },
-    }),
-
   /**
    * Approve a skill output pending approval.
    */
@@ -446,28 +399,3 @@ export const aiApi = {
     }),
 };
 
-// Intent response types (matches IntentResponse schema from backend — EntitySchema → camelCase)
-export interface IntentResponse {
-  id: string;
-  workspaceId: string;
-  what: string;
-  why?: string;
-  constraints?: unknown[];
-  acceptance?: unknown[];
-  status: string;
-  dedupStatus: string;
-  confidence: number;
-  owner?: string;
-  sourceBlockId?: string;
-  parentIntentId?: string;
-  dedupHash?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface ConfirmAllResponse {
-  confirmed: IntentResponse[];
-  confirmedCount: number;
-  remainingCount: number;
-  deduplicatingCount: number;
-}
