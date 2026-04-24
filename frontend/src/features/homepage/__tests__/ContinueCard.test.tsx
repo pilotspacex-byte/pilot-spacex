@@ -125,7 +125,7 @@ describe('ContinueCard (Phase 88 Plan 04 — Task 2)', () => {
     expect(pillContainer).toHaveAttribute('aria-hidden', 'true');
   });
 
-  it('renders the section label "CONTINUE WHERE YOU LEFT OFF"', () => {
+  it('renders the section label "Continue where you left off" (CSS uppercase)', () => {
     sessionMock.session = {
       id: 'sess-abc',
       title: 'Random title',
@@ -136,6 +136,10 @@ describe('ContinueCard (Phase 88 Plan 04 — Task 2)', () => {
 
     render(<ContinueCard workspaceId="ws-1" workspaceSlug="workspace" />);
 
-    expect(screen.getByText('CONTINUE WHERE YOU LEFT OFF')).toBeInTheDocument();
+    // Visual uppercasing comes from `uppercase` CSS class — assert the
+    // underlying text + the class so the test survives a non-CSS render.
+    const label = screen.getByText(/continue where you left off/i);
+    expect(label).toBeInTheDocument();
+    expect(label.className).toMatch(/uppercase/);
   });
 });
