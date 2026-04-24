@@ -16,6 +16,7 @@ import { IssueViewStore } from './features/issues/IssueViewStore';
 import { ArtifactStore } from './features/artifacts/ArtifactStore';
 import { FileStore } from '@/features/code/stores/FileStore';
 import { GitStore } from '@/features/code/stores/GitStore';
+import { ProposalsStore } from './proposals';
 import { workspacesApi } from '@/services/api/workspaces';
 
 export class RootStore {
@@ -34,6 +35,7 @@ export class RootStore {
   artifacts: ArtifactStore;
   files: FileStore;
   git: GitStore;
+  proposals: ProposalsStore;
 
   constructor() {
     this.auth = new AuthStore();
@@ -51,6 +53,7 @@ export class RootStore {
     this.artifacts = new ArtifactStore();
     this.files = new FileStore();
     this.git = new GitStore();
+    this.proposals = new ProposalsStore();
 
     // Wire cross-store references
     this.workspace.setAuthStore(this.auth);
@@ -72,6 +75,7 @@ export class RootStore {
     this.artifacts.reset();
     this.files.reset();
     this.git.reset();
+    this.proposals.reset();
   }
 
   dispose(): void {
@@ -161,6 +165,11 @@ export function useGitStore(): GitStore {
   return useStores().git;
 }
 
+/** Hook to access the ProposalsStore from context. */
+export function useProposalsStore(): ProposalsStore {
+  return useStores().proposals;
+}
+
 /**
  * Convenient hook to access multiple stores at once.
  * Returns an object with named stores for destructuring.
@@ -181,5 +190,6 @@ export function useStore() {
     roleSkillStore: store.roleSkill,
     taskStore: store.tasks,
     issueViewStore: store.issueView,
+    proposalsStore: store.proposals,
   };
 }

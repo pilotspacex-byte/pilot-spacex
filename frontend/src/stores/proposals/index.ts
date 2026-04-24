@@ -1,0 +1,1 @@
+export { ProposalsStore } from './proposalsStore';
