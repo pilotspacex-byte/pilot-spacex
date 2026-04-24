@@ -207,7 +207,7 @@ describe('UserMessage — v3 row anatomy (Phase 87)', () => {
             attachmentId: 'a1',
             filename: 'spec.pdf',
             mimeType: 'application/pdf',
-            source: 'upload',
+            source: 'local',
             sizeBytes: 1024,
           },
         ],

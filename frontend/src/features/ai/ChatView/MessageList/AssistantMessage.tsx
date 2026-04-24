@@ -5,9 +5,11 @@
 
 import { memo, useState, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { ChatMessage, ContentBlock } from '@/stores/ai/types/conversation';
+import type { ChatMode } from '../ChatInput/types';
 import type { ExtractedIssue } from '@/stores/ai/types/events';
 import { useStore } from '@/stores';
 import { aiApi } from '@/services/api/ai';
@@ -27,6 +29,17 @@ import type { SkillPreviewEvent, TestResultEvent } from '@/stores/ai/types/event
 
 /** Schema types handled by inline skill cards — excluded from StructuredResultCard */
 const SKILL_SCHEMA_TYPES = new Set(['skill_preview', 'test_result', 'mermaid_graph']);
+
+/**
+ * Phase 87 Plan 03 — Mode badge color tokens (UI-SPEC §2 above-reply variant).
+ * Color = brand-dark variant; bg = mode tint at 10–12% alpha.
+ */
+const MODE_BADGE_STYLE: Record<ChatMode, { color: string; bg: string }> = {
+  plan: { color: '#64748b', bg: 'rgba(100,116,139,0.10)' },
+  act: { color: '#1d7a63', bg: 'rgba(41,163,134,0.12)' },
+  research: { color: '#5b21b6', bg: 'rgba(139,92,246,0.12)' },
+  draft: { color: '#92400e', bg: 'rgba(217,119,6,0.12)' },
+};
 
 /** Check if a thinking block is the last thinking block in the content blocks sequence */
 function isLastThinkingBlock(block: ContentBlock, blocks: ContentBlock[]): boolean {
@@ -161,21 +174,52 @@ export const AssistantMessage = memo<AssistantMessageProps>(({ message, classNam
   );
 
   return (
-    <div className={cn('px-4 py-3', className)} data-testid="message-assistant">
-      <div className="flex items-baseline gap-2 mb-2.5">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-2 w-2 rounded-full bg-primary" aria-hidden="true" />
-          <span className="text-[15px] font-semibold text-primary">PilotSpace Agent</span>
-        </span>
-        <time className="text-[11px] text-muted-foreground/70">
-          {message.timestamp.toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-          })}
-        </time>
+    <div
+      className={cn('flex gap-4 px-6 py-3', className)}
+      data-message-role="assistant"
+      data-testid="message-assistant"
+    >
+      <div
+        aria-hidden="true"
+        data-message-avatar=""
+        className="h-8 w-8 rounded-full bg-white border border-border flex items-center justify-center flex-shrink-0"
+      >
+        <div
+          data-message-avatar-inner=""
+          className="h-5 w-5 rounded-full bg-[#29a386] flex items-center justify-center"
+        >
+          <Sparkles className="h-3 w-3 text-white" />
+        </div>
       </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-baseline gap-2 mb-1">
+          <span data-message-name="" className="text-[13px] font-semibold text-foreground">
+            AI
+          </span>
+          {message.mode && (
+            <span
+              data-mode-badge={message.mode}
+              className="font-mono text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded"
+              style={{
+                color: MODE_BADGE_STYLE[message.mode].color,
+                background: MODE_BADGE_STYLE[message.mode].bg,
+              }}
+            >
+              {message.mode.toUpperCase()}
+            </span>
+          )}
+          <time className="font-mono text-[10px] text-muted-foreground">
+            {message.timestamp.toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </time>
+        </div>
 
-      <div className="space-y-3 overflow-hidden">
+        <div
+          data-message-body=""
+          className="space-y-3 overflow-hidden text-[14px] leading-[1.55] font-normal text-foreground"
+        >
         {/* Ordered content blocks: render in server-received order when available */}
         {message.contentBlocks ? (
           <GroupedContentBlocks contentBlocks={message.contentBlocks} message={message} />
@@ -246,6 +290,7 @@ export const AssistantMessage = memo<AssistantMessageProps>(({ message, classNam
             )}
           </>
         )}
+      </div>
       </div>
     </div>
   );
