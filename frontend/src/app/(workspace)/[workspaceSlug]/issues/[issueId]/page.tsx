@@ -31,6 +31,7 @@ import {
 } from '@/features/issues/components';
 import { ProjectContextHeader } from '@/components/editor/ProjectContextHeader';
 import { IssueEditorContent } from '@/features/issues/components/issue-editor-content';
+import { QuoteToChatPill } from '@/components/chat/QuoteToChatPill';
 import { DeleteConfirmDialog } from '@/components/issues/DeleteConfirmDialog';
 import {
   useIssueDetail,
@@ -226,6 +227,14 @@ const IssueDetailPage = observer(function IssueDetailPage() {
 
   const handleChatOpen = useCallback(() => setIsChatOpen(true), []);
   const handleChatClose = useCallback(() => setIsChatOpen(false), []);
+
+  // Phase 87 Plan 05 — quote-to-chat: when the QuoteToChatPill fires while
+  // the chat is closed, open it and yield a tick so the composer can mount
+  // and drain `window.__pilotPendingQuotes`.
+  const handleEnsureChatMounted = useCallback(async () => {
+    setIsChatOpen(true);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }, []);
 
   const handleExportContext = useCallback(
     async (format: ExportFormat): Promise<string | null> => {
@@ -450,6 +459,20 @@ const IssueDetailPage = observer(function IssueDetailPage() {
           onChatClose={handleChatClose}
           emptyStateSlot={chatEmptyState}
           initialPrompt={initialPrompt}
+        />
+
+        {/*
+          Phase 87 Plan 05 — QuoteToChatPill mounts as a SIBLING of
+          IssueEditorContent (per .claude/rules/tiptap.md, IssueEditorContent
+          stays plain to avoid React 19 flushSync errors). The pill portals
+          to document.body so DOM placement is independent of this React tree
+          location; what matters is that the React-tree owner is the page,
+          not the editor.
+        */}
+        <QuoteToChatPill
+          sourceArtifactId={issue.id}
+          artifactTitle={issue.name ?? 'Untitled note'}
+          onEnsureChatMounted={handleEnsureChatMounted}
         />
 
         <Sheet open={mobilePropertiesOpen} onOpenChange={setMobilePropertiesOpen}>

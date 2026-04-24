@@ -22,27 +22,21 @@ function makeDetail(text = 'hello', sectionLabel = 'Section'): QuoteEventDetail 
 }
 
 function makeMockEditor() {
-  const insertContentAt = vi.fn().mockReturnThis();
-  const focus = vi.fn().mockReturnThis();
+  const insertContentAt = vi.fn();
+  const focus = vi.fn();
   const run = vi.fn();
   const chain = vi.fn(() => ({
-    focus: () => ({ insertContentAt: (...args: unknown[]) => ({ run: () => run(...args) }) }),
+    focus: () => {
+      focus();
+      return {
+        insertContentAt: (pos: number, content: unknown) => {
+          insertContentAt(pos, content);
+          return { run };
+        },
+      };
+    },
   }));
-  // Re-wire so insertContentAt is actually the spy we can assert on
-  chain.mockImplementation(() => ({
-    focus: () => ({
-      insertContentAt: (pos: number, content: unknown) => {
-        insertContentAt(pos, content);
-        return { run };
-      },
-    }),
-  }));
-  return { chain, insertContentAt, focus, run } as unknown as {
-    chain: ReturnType<typeof vi.fn>;
-    insertContentAt: ReturnType<typeof vi.fn>;
-    focus: ReturnType<typeof vi.fn>;
-    run: ReturnType<typeof vi.fn>;
-  };
+  return { chain, insertContentAt, focus, run };
 }
 
 describe('useQuoteToChat', () => {
@@ -112,7 +106,7 @@ describe('useQuoteToChat', () => {
     const div = document.createElement('div');
     const initialChild = document.createTextNode('user typing');
     div.appendChild(initialChild);
-    const ref: RefObject<HTMLDivElement> = createRef();
+    const ref: RefObject<HTMLDivElement | null> = createRef<HTMLDivElement | null>();
     // Force the ref to point at our div for the test
     Object.defineProperty(ref, 'current', { value: div, writable: true });
     const onChange = vi.fn();

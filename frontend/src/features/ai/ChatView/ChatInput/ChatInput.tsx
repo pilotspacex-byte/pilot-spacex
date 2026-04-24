@@ -42,6 +42,21 @@ import { ModeSelector } from './ModeSelector';
 import type { ChatMode } from './types';
 import { SlashMenu } from './SlashMenu';
 import type { SlashCommand } from './extensions/slash-extension';
+// Phase 87 Plan 05 — quote-to-chat. QuoteBlock TipTap node is imported here
+// so the future TipTap migration only needs to register it in a useEditor
+// extensions array; today the runtime uses createQuoteBlockElement +
+// serializeQuoteBlocksFromContainer for the contenteditable composer.
+import {
+  QuoteBlock,
+  serializeQuoteBlocksFromContainer,
+  serializeDocWithQuoteBlocks,
+} from './extensions/quote-block-node';
+import { useQuoteToChat } from '@/hooks/use-quote-to-chat';
+// Reference QuoteBlock + serializeDocWithQuoteBlocks so static analysis treats
+// them as used — they are part of the public API surface this file exposes
+// for the upcoming TipTap migration.
+void QuoteBlock;
+void serializeDocWithQuoteBlocks;
 
 /**
  * Recursively walks a contenteditable node tree to produce a serialized string.
@@ -255,6 +270,26 @@ export const ChatInput = observer<ChatInputProps>(
         editableRef.current.focus();
       }
     }, [autoFocus]);
+
+    // Phase 87 Plan 05 — quote-to-chat composer wiring.
+    // 1. Mark composer as mounted so the QuoteToChatPill knows it can dispatch
+    //    the event directly instead of queueing to window.__pilotPendingQuotes.
+    useEffect(() => {
+      const w = window as unknown as { __pilotChatComposerMounted?: boolean };
+      w.__pilotChatComposerMounted = true;
+      return () => {
+        w.__pilotChatComposerMounted = false;
+      };
+    }, []);
+
+    // 2. Listen for `pilot:quote-to-chat` events (and drain pending queue).
+    //    The hook prepends a `data-quote-block` element into the contenteditable
+    //    and triggers onChange so MobX/parent state stays in sync.
+    useQuoteToChat({
+      ref: editableRef,
+      onChange,
+      serialize: (root) => getSerializedValue(root),
+    });
 
     // Sync contenteditable DOM when value prop changes (e.g., reset to '' after submit)
     useEffect(() => {
@@ -735,9 +770,17 @@ export const ChatInput = observer<ChatInputProps>(
           !entityPickerOpen
         ) {
           e.preventDefault();
-          const serialized = editableRef.current
+          const baseSerialized = editableRef.current
             ? getSerializedValue(editableRef.current)
             : value;
+          // Phase 87 Plan 05 — lift any quote blocks into the leading
+          // `> [!quote source=... section="..."]` markdown fence before submit.
+          // serializeQuoteBlocksFromContainer prepends quote markdown and
+          // returns the original serialized value when no quote blocks exist.
+          const serialized = serializeQuoteBlocksFromContainer(
+            editableRef.current,
+            baseSerialized,
+          );
           if (serialized.trim() && !isStreaming && !isDisabled) {
             const readyAttachments = attachments
               .filter((a) => a.status === 'ready' && a.attachmentId)
@@ -748,6 +791,12 @@ export const ChatInput = observer<ChatInputProps>(
                 sizeBytes: a.sizeBytes,
                 source: a.source,
               }));
+            // If quote blocks contributed markdown, push the merged value to
+            // the parent so it ends up in the API payload (parent reads
+            // `value` to build the request body).
+            if (serialized !== baseSerialized) {
+              onChange(serialized);
+            }
             onSubmit({ attachmentIds, attachments: readyAttachments, voiceAudioUrl: pendingAudioUrl });
             setPendingAudioUrl(null);
             reset();

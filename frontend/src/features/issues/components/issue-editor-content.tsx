@@ -223,7 +223,7 @@ export function IssueEditorContent({
   }, []);
 
   return (
-    <div className="flex flex-col min-w-0 overflow-hidden h-full">
+    <div data-tiptap-editor="note" className="flex flex-col min-w-0 overflow-hidden h-full">
       <div
         role="main"
         aria-label="Task editor"
