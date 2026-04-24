@@ -23,10 +23,14 @@ from uuid import UUID
 from sqlalchemy import delete, insert, select
 from sqlalchemy.orm.attributes import flag_modified
 
-from pilot_space.ai.proposals.intent_executor import register_intent
-from pilot_space.application.services.proposal_bus import IntentExecutionOutcome
+from pilot_space.ai.proposals.intent_executor import register_intent, register_revert
+from pilot_space.application.services.proposal_bus import (
+    IntentExecutionOutcome,
+    ProposalCannotBeRevertedError,
+)
 from pilot_space.dependencies.auth import get_current_session
 from pilot_space.domain.exceptions import NotFoundError
+from pilot_space.domain.proposal import ArtifactType
 from pilot_space.infrastructure.database.models import Issue
 from pilot_space.infrastructure.database.models.issue import IssuePriority
 
@@ -250,5 +254,105 @@ async def execute_create_issue(
     result = await svc.execute(payload)
     return IntentExecutionOutcome(
         applied_version=result.issue.version_number or 1,
+        lines_changed=None,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Revert handler (Phase 89 Plan 05)
+# ---------------------------------------------------------------------------
+
+
+def _restore_from_snapshot(issue: Issue, snapshot: dict[str, Any]) -> None:
+    """Restore issue fields from a version_history snapshot, in place.
+
+    The snapshot shape mirrors ``_snapshot_issue`` in this module. Excludes id,
+    created_at, workspace_id, FK-bound relationships — only mutable,
+    user-facing fields are restored.
+    """
+    if "name" in snapshot:
+        issue.name = snapshot["name"]
+    if "description" in snapshot:
+        issue.description = snapshot["description"]
+        issue.description_html = None
+    if "priority" in snapshot and snapshot["priority"] is not None:
+        restored_p = _priority_from(snapshot["priority"])
+        if restored_p is not None:
+            issue.priority = restored_p
+    if "assignee_id" in snapshot:
+        raw = snapshot["assignee_id"]
+        if raw is None:
+            issue.assignee_id = None
+        else:
+            with contextlib.suppress(ValueError, TypeError):
+                issue.assignee_id = UUID(str(raw))
+    if "estimate_points" in snapshot:
+        issue.estimate_points = snapshot["estimate_points"]
+    if "start_date" in snapshot and snapshot["start_date"] is not None:
+        with contextlib.suppress(ValueError, TypeError):
+            issue.start_date = date_type.fromisoformat(str(snapshot["start_date"]))
+    if "target_date" in snapshot and snapshot["target_date"] is not None:
+        with contextlib.suppress(ValueError, TypeError):
+            issue.target_date = date_type.fromisoformat(str(snapshot["target_date"]))
+
+
+@register_revert(ArtifactType.ISSUE)
+async def revert_issue(
+    *,
+    workspace_id: UUID,
+    target_artifact_id: UUID,
+) -> IntentExecutionOutcome:
+    """Revert an Issue to the most recent prior snapshot.
+
+    Reads ``version_history[-1].snapshot`` (append-only — prior entries are
+    never mutated), restores the fields in the snapshot, appends a NEW history
+    entry tagged ``by:'user'`` whose ``snapshot`` captures the pre-revert
+    state (so a revert can itself be reverted, per plan symmetry).
+    """
+    session = get_current_session()
+
+    issue = (
+        await session.execute(
+            select(Issue).where(
+                Issue.id == target_artifact_id,
+                Issue.workspace_id == workspace_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if issue is None:
+        msg = f"Issue {target_artifact_id} not found"
+        raise NotFoundError(msg)
+
+    history = list(issue.version_history or [])
+    if not history:
+        raise ProposalCannotBeRevertedError(
+            f"Issue {target_artifact_id} has no version history — nothing to "
+            "revert to"
+        )
+
+    last_entry = history[-1]
+    snapshot = last_entry.get("snapshot") or {}
+    pre_revert_snapshot = _snapshot_issue(issue)
+    prev_version = issue.version_number or 1
+    reverting_to_vn = int(last_entry.get("vN", prev_version - 1))
+
+    _restore_from_snapshot(issue, snapshot)
+
+    new_version = prev_version + 1
+    new_entry = {
+        "vN": prev_version,
+        "by": "user",
+        "at": datetime.now(UTC).isoformat(),
+        "summary": f"Reverted v{prev_version} → v{reverting_to_vn}",
+        "snapshot": pre_revert_snapshot,
+    }
+    history.append(new_entry)
+    issue.version_history = history
+    issue.version_number = new_version
+    flag_modified(issue, "version_history")
+
+    await session.flush()
+    return IntentExecutionOutcome(
+        applied_version=new_version,
         lines_changed=None,
     )

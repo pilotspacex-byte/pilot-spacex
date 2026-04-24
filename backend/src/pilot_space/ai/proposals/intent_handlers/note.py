@@ -16,15 +16,26 @@ from uuid import UUID
 
 from sqlalchemy import select
 
-from pilot_space.ai.proposals.intent_executor import register_intent
-from pilot_space.application.services.proposal_bus import IntentExecutionOutcome
+from pilot_space.ai.proposals.intent_executor import register_intent, register_revert
+from pilot_space.application.services.proposal_bus import (
+    IntentExecutionOutcome,
+    ProposalCannotBeRevertedError,
+)
 from pilot_space.dependencies.auth import get_current_session
 from pilot_space.domain.exceptions import NotFoundError
+from pilot_space.domain.proposal import ArtifactType
 from pilot_space.infrastructure.database.models import (
     AnnotationStatus,
     AnnotationType,
     Note,
     NoteAnnotation,
+)
+from pilot_space.infrastructure.database.models.note_version import (
+    NoteVersion,
+    VersionTrigger,
+)
+from pilot_space.infrastructure.database.repositories.note_version_repository import (
+    NoteVersionRepository,
 )
 
 
@@ -146,3 +157,79 @@ async def execute_create_note(
     # Fresh notes start at version 1 — Note doesn't carry version_number yet.
     _ = result.note.id
     return IntentExecutionOutcome(applied_version=1, lines_changed=None)
+
+
+# ---------------------------------------------------------------------------
+# Revert handler (Phase 89 Plan 05) — reuses note_versions infra.
+# ---------------------------------------------------------------------------
+
+
+@register_revert(ArtifactType.NOTE)
+async def revert_note(
+    *,
+    workspace_id: UUID,
+    target_artifact_id: UUID,
+) -> IntentExecutionOutcome:
+    """Revert a Note to the most recent ``ai_before`` snapshot.
+
+    Reuses ``note_versions`` table via ``NoteVersionRepository`` (no JSONB
+    duplication per plan REV-89-05-A). Restores ``note.content`` from the
+    snapshot and appends a NEW NoteVersion row with trigger=MANUAL and
+    label="user revert" — prior NoteVersion rows are NEVER mutated
+    (append-only invariant).
+
+    Raises ``ProposalCannotBeRevertedError`` if no prior ``ai_before``
+    snapshot exists (nothing to revert to).
+    """
+    session = get_current_session()
+
+    note = (
+        await session.execute(
+            select(Note).where(
+                Note.id == target_artifact_id,
+                Note.workspace_id == workspace_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if note is None:
+        msg = f"Note {target_artifact_id} not found"
+        raise NotFoundError(msg)
+
+    nv_repo = NoteVersionRepository(session)
+    ai_before = await nv_repo.get_latest_ai_before(
+        note_id=target_artifact_id,
+        workspace_id=workspace_id,
+    )
+    if ai_before is None:
+        raise ProposalCannotBeRevertedError(
+            f"Note {target_artifact_id} has no ai_before snapshot — nothing "
+            "to revert to"
+        )
+
+    # Compute next version_number for the new snapshot row.
+    latest = await nv_repo.get_latest_for_note(
+        note_id=target_artifact_id,
+        workspace_id=workspace_id,
+    )
+    next_version = (latest.version_number + 1) if latest is not None else 1
+
+    # Restore note content in place — this is the mutation the user sees.
+    note.content = ai_before.content
+
+    # Append a new NoteVersion row recording the revert. MANUAL trigger is
+    # used (not a new enum value) to avoid a migration — label carries intent.
+    user_revert = NoteVersion(
+        note_id=target_artifact_id,
+        workspace_id=workspace_id,
+        trigger=VersionTrigger.MANUAL,
+        content=ai_before.content,
+        label="user revert",
+        version_number=next_version,
+    )
+    session.add(user_revert)
+    await session.flush()
+
+    return IntentExecutionOutcome(
+        applied_version=next_version,
+        lines_changed=None,
+    )

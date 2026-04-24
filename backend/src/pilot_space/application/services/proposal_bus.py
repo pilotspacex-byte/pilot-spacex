@@ -38,6 +38,11 @@ from pilot_space.domain.proposal import (
     ProposalStatus,
 )
 
+# 10-minute revert window (Phase 89 Plan 05 REV-89-05-A). Server is the
+# authoritative source of truth — frontend mirrors as UX hint only.
+_REVERT_WINDOW_SECONDS = 600
+
+
 # ---------------------------------------------------------------------------
 # Exceptions (AppError subclasses — global handler converts to RFC 7807)
 # ---------------------------------------------------------------------------
@@ -60,6 +65,14 @@ class ProposalIntentExecutionError(AppError):
 
     error_code = "proposal_intent_execution_failed"
     http_status = 502
+
+
+class ProposalCannotBeRevertedError(ConflictError):
+    """Revert preconditions failed — proposal is not APPLIED or the 10-minute
+    revert window has expired. Phase 89 Plan 05.
+    """
+
+    error_code = "proposal_cannot_be_reverted"
 
 
 # ---------------------------------------------------------------------------
@@ -89,6 +102,21 @@ class ProposalApplyResult:
     lines_changed: int | None
 
 
+@dataclass(frozen=True)
+class RevertResult:
+    """Return value of ``ProposalBus.revert_proposal`` (Phase 89 Plan 05).
+
+    ``new_history_entry`` is a plain dict mirroring the ``version_history[-1]``
+    shape agreed in Plan 01 (``{vN, by, at, summary, snapshot}``). For Note
+    reverts the entry is synthesised from the new ``note_versions`` row — the
+    Note artifact does not carry a ``version_history`` JSONB column.
+    """
+
+    proposal: Proposal
+    new_version_number: int
+    new_history_entry: dict[str, Any]
+
+
 # ---------------------------------------------------------------------------
 # Seam protocols — replaced in later plans
 # ---------------------------------------------------------------------------
@@ -107,6 +135,13 @@ class SSEPublisherProtocol(Protocol):
     async def publish_proposal_retried(
         self, p: Proposal, hint: str | None
     ) -> None: ...
+    async def publish_proposal_reverted(
+        self,
+        p: Proposal,
+        *,
+        new_version_number: int,
+        reverted_from_version: int,
+    ) -> None: ...
 
 
 class IntentExecutorProtocol(Protocol):
@@ -120,6 +155,14 @@ class IntentExecutorProtocol(Protocol):
         workspace_id: UUID,
         target_artifact_type: ArtifactType,
         target_artifact_id: UUID,
+    ) -> IntentExecutionOutcome: ...
+
+    async def execute_revert(
+        self,
+        *,
+        target_artifact_type: ArtifactType,
+        target_artifact_id: UUID,
+        workspace_id: UUID,
     ) -> IntentExecutionOutcome: ...
 
 
@@ -150,6 +193,15 @@ class _NullSSEPublisher:
     ) -> None:
         return None
 
+    async def publish_proposal_reverted(
+        self,
+        p: Proposal,
+        *,
+        new_version_number: int,
+        reverted_from_version: int,
+    ) -> None:
+        return None
+
 
 class _NullIntentExecutor:
     """Placeholder executor. Real implementation lands in Plan 03."""
@@ -166,6 +218,19 @@ class _NullIntentExecutor:
         msg = (
             "IntentExecutor not yet wired (Plan 03). "
             f"Refusing to execute tool={intent_tool!r}."
+        )
+        raise NotImplementedError(msg)
+
+    async def execute_revert(
+        self,
+        *,
+        target_artifact_type: ArtifactType,
+        target_artifact_id: UUID,
+        workspace_id: UUID,
+    ) -> IntentExecutionOutcome:
+        msg = (
+            "IntentExecutor.execute_revert not yet wired. "
+            f"Refusing revert for {target_artifact_type!r}."
         )
         raise NotImplementedError(msg)
 
@@ -309,6 +374,84 @@ class ProposalBus:
         await self._sse.publish_proposal_retried(retried, hint)
         return retried
 
+    # ----------------------------- revert ----------------------------------
+
+    async def revert_proposal(
+        self, proposal_id: UUID, *, decided_by: UUID
+    ) -> RevertResult:
+        """Revert an APPLIED proposal within the 10-minute window.
+
+        Phase 89 Plan 05. Revert is itself a versioned mutation on the
+        artifact (append-only history), NOT a state change on the proposal
+        row — so the proposal's ``status`` stays APPLIED after this call.
+
+        Raises:
+            ProposalNotFoundError (404): unknown id
+            ProposalCannotBeRevertedError (409): status != APPLIED OR
+                ``decided_at + 10min < now``
+        """
+        p = await self._repo.get_by_id(proposal_id)
+        if p is None:
+            raise ProposalNotFoundError(f"Proposal {proposal_id} not found")
+        if p.status is not ProposalStatus.APPLIED:
+            raise ProposalCannotBeRevertedError(
+                f"Proposal {proposal_id} cannot be reverted "
+                f"(status={p.status.value}, only APPLIED is revertible)"
+            )
+        if p.decided_at is None:
+            raise ProposalCannotBeRevertedError(
+                f"Proposal {proposal_id} has no decided_at — cannot evaluate "
+                "revert window"
+            )
+        # Normalise decided_at to UTC-aware — SQLite round-trips tz-aware
+        # datetimes as naive, but PostgreSQL preserves TZ. Handle both.
+        decided_at = p.decided_at
+        if decided_at.tzinfo is None:
+            decided_at = decided_at.replace(tzinfo=UTC)
+        age = datetime.now(UTC) - decided_at
+        if age.total_seconds() > _REVERT_WINDOW_SECONDS:
+            raise ProposalCannotBeRevertedError(
+                f"Revert window expired (10 minutes) for proposal {proposal_id}"
+            )
+
+        # Dispatch to the per-artifact revert handler. Handler failures
+        # propagate as-is — revert does NOT flip the proposal into ERRORED
+        # (that would conflate intent-execution failures with revert failures,
+        # and the proposal's already-APPLIED state is still correct).
+        outcome = await self._executor.execute_revert(
+            target_artifact_type=p.target_artifact_type,
+            target_artifact_id=p.target_artifact_id,
+            workspace_id=p.workspace_id,
+        )
+
+        new_version = outcome.applied_version
+        reverted_from_version = max(new_version - 1, 1)
+
+        await self._sse.publish_proposal_reverted(
+            p,
+            new_version_number=new_version,
+            reverted_from_version=reverted_from_version,
+        )
+
+        # The ``new_history_entry`` is reconstructed from known shape — the
+        # actual persisted entry lives inside the artifact's version_history
+        # (for Issue) or a new note_versions row (for Note). Frontend consumes
+        # the RevertResult envelope, not the DB row, so this is a wire-shape
+        # convenience and can be refetched via GET /issues/{id} if needed.
+        new_entry: dict[str, Any] = {
+            "vN": reverted_from_version,
+            "by": "user",
+            "at": datetime.now(UTC).isoformat(),
+            "summary": f"Reverted v{reverted_from_version + 1} → v{reverted_from_version}",
+            "snapshot": {},
+        }
+
+        return RevertResult(
+            proposal=p,
+            new_version_number=new_version,
+            new_history_entry=new_entry,
+        )
+
     # ----------------------------- helpers ---------------------------------
 
     async def _load_pending(self, proposal_id: UUID) -> Proposal:
@@ -329,7 +472,9 @@ __all__ = [
     "ProposalAlreadyDecidedError",
     "ProposalApplyResult",
     "ProposalBus",
+    "ProposalCannotBeRevertedError",
     "ProposalIntentExecutionError",
     "ProposalNotFoundError",
+    "RevertResult",
     "SSEPublisherProtocol",
 ]

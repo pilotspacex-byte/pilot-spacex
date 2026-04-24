@@ -40,6 +40,7 @@ from pilot_space.domain.exceptions import AppError
 from pilot_space.domain.proposal import ArtifactType
 
 IntentHandler = Callable[..., Awaitable[IntentExecutionOutcome]]
+RevertHandler = Callable[..., Awaitable[IntentExecutionOutcome]]
 
 
 class IntentNotRegisteredError(AppError):
@@ -50,6 +51,14 @@ class IntentNotRegisteredError(AppError):
 
 
 _REGISTRY: dict[str, IntentHandler] = {}
+
+# Revert registry — keyed by ``ArtifactType`` (NOT by tool name). Revert is
+# per-artifact (Phase 89 Plan 05): regardless of which tool created the
+# proposal, reverting an Issue is the same operation. Handlers accept
+# ``workspace_id`` + ``target_artifact_id`` kwargs and pull the DB session via
+# ``get_current_session()`` (matching the Plan 03 intent-handler pattern —
+# keeps ``IntentExecutorProtocol`` unchanged).
+_REVERT_REGISTRY: dict[ArtifactType, RevertHandler] = {}
 
 
 def register_intent(tool_name: str) -> Callable[[IntentHandler], IntentHandler]:
@@ -77,6 +86,32 @@ def register_intent(tool_name: str) -> Callable[[IntentHandler], IntentHandler]:
 def _registered_tool_names() -> list[str]:
     """Return tool names currently in the registry (test-only helper)."""
     return sorted(_REGISTRY.keys())
+
+
+def register_revert(
+    artifact_type: ArtifactType,
+) -> Callable[[RevertHandler], RevertHandler]:
+    """Decorator registering a revert handler for ``artifact_type``.
+
+    Revert is per-artifact (not per-tool) — regardless of which tool mutated
+    the artifact, reverting is the inverse of the artifact's state change.
+    Handlers receive ``workspace_id`` and ``target_artifact_id`` as keyword
+    args and return ``IntentExecutionOutcome(applied_version, lines_changed)``
+    where ``applied_version`` is the new post-revert version number.
+
+    Duplicate registration raises ``RuntimeError`` at import time (same policy
+    as ``register_intent``).
+    """
+
+    def decorator(fn: RevertHandler) -> RevertHandler:
+        existing = _REVERT_REGISTRY.get(artifact_type)
+        if existing is not None and existing is not fn:
+            msg = f"Revert handler already registered: {artifact_type} -> {existing!r}"
+            raise RuntimeError(msg)
+        _REVERT_REGISTRY[artifact_type] = fn
+        return fn
+
+    return decorator
 
 
 class IntentExecutor:
@@ -111,10 +146,42 @@ class IntentExecutor:
             target_artifact_id=target_artifact_id,
         )
 
+    async def execute_revert(
+        self,
+        *,
+        target_artifact_type: ArtifactType,
+        target_artifact_id: UUID,
+        workspace_id: UUID,
+    ) -> IntentExecutionOutcome:
+        """Dispatch an accepted revert to the per-artifact handler.
+
+        Unlike :py:meth:`execute`, revert is keyed by ``ArtifactType`` — the
+        inverse of any mutation on an Issue is the same operation regardless
+        of which tool produced the original proposal. Spec + Decision are
+        deliberately unregistered (tables deferred per Plan 01 D-89-01-02);
+        dispatching those artifact types raises
+        :class:`IntentNotRegisteredError` which the global handler maps to
+        RFC 7807 500.
+        """
+        handler = _REVERT_REGISTRY.get(target_artifact_type)
+        if handler is None:
+            msg = (
+                f"No revert handler registered for artifact type "
+                f"{target_artifact_type!r}. Known: "
+                f"{sorted(t.value for t in _REVERT_REGISTRY)}"
+            )
+            raise IntentNotRegisteredError(msg)
+        return await handler(
+            workspace_id=workspace_id,
+            target_artifact_id=target_artifact_id,
+        )
+
 
 __all__ = [
     "IntentExecutor",
     "IntentHandler",
     "IntentNotRegisteredError",
+    "RevertHandler",
     "register_intent",
+    "register_revert",
 ]
