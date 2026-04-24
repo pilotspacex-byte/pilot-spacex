@@ -11,6 +11,7 @@ from dependency_injector import containers, providers
 
 from pilot_space.ai.agents.proposal_stream_publisher import ProposalStreamPublisher
 from pilot_space.ai.infrastructure.approval import ApprovalService
+from pilot_space.ai.proposals import IntentExecutor
 from pilot_space.ai.infrastructure.cost_tracker import CostTracker
 from pilot_space.application.services.action_button import ActionButtonService
 from pilot_space.application.services.admin_dashboard import AdminDashboardService
@@ -1146,10 +1147,17 @@ class Container(SkillContainer, PluginContainer):
     proposal_stream_publisher = providers.Singleton(
         ProposalStreamPublisher,
     )
+    # Phase 89 Plan 03 — real IntentExecutor. Singleton (stateless dispatcher
+    # that owns the registry populated at import time by
+    # pilot_space.ai.proposals.intent_handlers/*). Handlers pull the
+    # request-scoped session via get_current_session(), so the executor
+    # itself carries no session state.
+    intent_executor = providers.Singleton(IntentExecutor)
     proposal_bus = providers.Factory(
         ProposalBus,
         repository=proposal_repository,
         sse_publisher=proposal_stream_publisher,
+        intent_executor=intent_executor,
     )
 
 
