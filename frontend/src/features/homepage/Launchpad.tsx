@@ -32,11 +32,13 @@
 
 import { useCallback, useRef } from 'react';
 
-import { HomepageGreeting } from './components/HomepageGreeting';
+import { ContinueCard } from './components/ContinueCard';
 import {
   HomeComposer,
   type HomeComposerHandle,
 } from './components/HomeComposer';
+import { HomepageGreeting } from './components/HomepageGreeting';
+import { RedFlagStrip } from './components/RedFlagStrip';
 import { SuggestedPromptsRow } from './components/SuggestedPromptsRow';
 
 interface LaunchpadProps {
@@ -71,17 +73,14 @@ export function Launchpad({ workspaceId, workspaceSlug }: LaunchpadProps) {
       </div>
 
       {/*
-        TODO(88-03): <RedFlagStrip
-          workspaceId={workspaceId}
-          workspaceSlug={workspaceSlug}
-        />
-
-        Plan 03 (Wave 3) drops the strip in here. When the strip renders zero
-        flags it MUST return null so the rhythm collapses to the next gap. The
-        wrapper below holds the 32px gap (mt-8) regardless — the empty strip
-        adds no height, so this still reads as "32px composer → prompts".
+        Red flag strip (Phase 88 Plan 03 — wired by Plan 04). The strip
+        returns null when there are zero flags, so the mt-8 wrapper still
+        holds the 32px gap regardless of state ("32px composer → prompts"
+        when empty; banners absorb that gap visually when present).
       */}
-      <div className="mt-8" />
+      <div className="mt-8">
+        <RedFlagStrip workspaceId={workspaceId} workspaceSlug={workspaceSlug} />
+      </div>
 
       {/* Suggested prompts — 24px from red-flag strip slot */}
       <div className="mt-6">
@@ -89,19 +88,12 @@ export function Launchpad({ workspaceId, workspaceSlug }: LaunchpadProps) {
       </div>
 
       {/*
-        TODO(88-04): <ContinueCard
-          workspaceId={workspaceId}
-          workspaceSlug={workspaceSlug}
-        />
-
-        Plan 04 (Wave 4) drops the card in here AND owns:
-          - The `frontend/src/features/homepage/index.ts` barrel swap
-            (export Launchpad, drop HomepageHub).
-          - The `app/(workspace)/[workspaceSlug]/page.tsx` page swap.
-          - The chat-page `?prefill=...&mode=...&from=home` query handler.
-        ContinueCard returns null when there is no prior session.
+        Continue card (Phase 88 Plan 04). Returns null when there is no
+        prior chat session, collapsing the 32px gap to nothing.
       */}
-      <div className="mt-8" />
+      <div className="mt-8">
+        <ContinueCard workspaceId={workspaceId} workspaceSlug={workspaceSlug} />
+      </div>
     </section>
   );
 }
