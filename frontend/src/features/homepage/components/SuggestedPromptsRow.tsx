@@ -25,9 +25,7 @@ export interface SuggestedPromptsRowProps {
   onPick: (text: string) => void;
 }
 
-export function SuggestedPromptsRow({
-  onPick,
-}: SuggestedPromptsRowProps): JSX.Element {
+export function SuggestedPromptsRow({ onPick }: SuggestedPromptsRowProps) {
   return (
     <div
       role="group"

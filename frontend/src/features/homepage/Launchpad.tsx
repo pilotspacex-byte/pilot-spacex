@@ -44,10 +44,7 @@ interface LaunchpadProps {
   workspaceSlug: string;
 }
 
-export function Launchpad({
-  workspaceId,
-  workspaceSlug,
-}: LaunchpadProps): JSX.Element {
+export function Launchpad({ workspaceId, workspaceSlug }: LaunchpadProps) {
   const composerRef = useRef<HomeComposerHandle>(null);
 
   // Suggested-prompt chips populate the draft (do NOT submit).

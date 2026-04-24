@@ -48,7 +48,7 @@ function resolveFirstName(
   return first || 'there';
 }
 
-export function HomepageGreeting(): JSX.Element {
+export function HomepageGreeting() {
   const authStore = useAuthStore();
   const user = authStore.user;
   const userDisplayName = authStore.userDisplayName ?? '';
