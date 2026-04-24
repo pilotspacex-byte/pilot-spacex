@@ -20,6 +20,7 @@ import type {
 import { MessageGroup } from './MessageGroup';
 import { StreamingContent } from './StreamingContent';
 import { InlineStreamingIndicator } from './InlineStreamingIndicator';
+import { SystemMessage } from './SystemMessage';
 
 const DEFAULT_SUGGESTED_PROMPTS = [
   'Extract issues from this note',
@@ -128,6 +129,28 @@ export const MessageList = observer<MessageListProps>(
     const virtuosoRef = useRef<VirtuosoHandle>(null);
     const [showScrollButton, setShowScrollButton] = useState(false);
     const [atBottom, setAtBottom] = useState(true);
+    // Phase 87 Plan 03 — transient system rows emitted by Plan 02 slash-stub fallbacks.
+    // Listens to window CustomEvent("pilot:chat-system-message", { detail: { text } }).
+    const [transientSystemMessages, setTransientSystemMessages] = useState<
+      Array<{ id: string; text: string; timestamp: Date }>
+    >([]);
+
+    useEffect(() => {
+      const onSysMsg = (e: Event) => {
+        const detail = (e as CustomEvent<{ text?: string }>).detail;
+        if (!detail?.text) return;
+        setTransientSystemMessages((prev) => [
+          ...prev,
+          {
+            id: `sys-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            text: detail.text!,
+            timestamp: new Date(),
+          },
+        ]);
+      };
+      window.addEventListener('pilot:chat-system-message', onSysMsg);
+      return () => window.removeEventListener('pilot:chat-system-message', onSysMsg);
+    }, []);
     // Track pending scroll request to execute after render
     const pendingScrollRef = useRef(false);
     const lastTriggerRef = useRef(0);
@@ -256,11 +279,13 @@ export const MessageList = observer<MessageListProps>(
       (thinkingBlocks && thinkingBlocks.length > 0) ||
       (pendingToolCalls && pendingToolCalls.length > 0);
     const hasStreamingFooter = isStreaming && (hasStreamingContent || streamingPhase);
-    const totalCount = messageGroups.length + (hasStreamingFooter ? 1 : 0);
+    const transientCount = transientSystemMessages.length;
+    const totalCount =
+      messageGroups.length + (hasStreamingFooter ? 1 : 0) + transientCount;
 
     return (
       <div
-        className={cn('relative flex-1 min-h-0', className)}
+        className={cn('relative flex-1 min-h-0 space-y-5', className)}
         role="log"
         aria-live="polite"
         aria-label="Chat messages"
@@ -333,6 +358,22 @@ export const MessageList = observer<MessageListProps>(
                 ) : null,
             }}
             itemContent={(index) => {
+              // Transient system messages render after groups + optional streaming footer
+              const transientStart = messageGroups.length + (hasStreamingFooter ? 1 : 0);
+              if (transientCount > 0 && index >= transientStart) {
+                const sm = transientSystemMessages[index - transientStart];
+                if (!sm) return null;
+                return (
+                  <SystemMessage
+                    message={{
+                      id: sm.id,
+                      role: 'system',
+                      content: sm.text,
+                      timestamp: sm.timestamp,
+                    }}
+                  />
+                );
+              }
               // Streaming footer is the last item
               if (hasStreamingFooter && index === messageGroups.length) {
                 return (
