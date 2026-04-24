@@ -14,6 +14,7 @@ import contextlib
 import json
 import re
 from collections.abc import AsyncIterator, Callable
+from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
 from claude_agent_sdk import McpServerConfig
@@ -74,6 +75,50 @@ if TYPE_CHECKING:
     from pilot_space.infrastructure.database.models.workspace_mcp_server import WorkspaceMcpServer
 
 logger = get_logger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# StreamEvent — centralised registry of SSE event names emitted by the agent.
+# Historically these were raw string literals scattered across the codebase
+# (e.g. ``f"event: text_delta\ndata: ..."``). Phase 89 Plan 02 introduces the
+# enum so the Edit Proposal pipeline has a single source of truth for event
+# names and a ``build_sse_frame`` helper that produces wire-format frames.
+# Existing callers can migrate incrementally; the enum values match the
+# string literals already in use so both forms stay wire-compatible.
+# ---------------------------------------------------------------------------
+
+
+class StreamEvent(StrEnum):
+    """Canonical names of SSE events emitted onto the chat stream."""
+
+    # Pre-existing literals (kept stable for compatibility with current emitters).
+    TEXT_DELTA = "text_delta"
+    THINKING_DELTA = "thinking_delta"
+    TOOL_USE = "tool_use"
+    TOOL_RESULT = "tool_result"
+    TOOL_CALL = "tool_call"
+    CONTENT_BLOCK_START = "content_block_start"
+    MESSAGE_STOP = "message_stop"
+    ERROR = "error"
+
+    # Phase 89 — Edit Proposal pipeline (Plan 02).
+    PROPOSAL_REQUEST = "proposal_request"
+    PROPOSAL_APPLIED = "proposal_applied"
+    PROPOSAL_REJECTED = "proposal_rejected"
+    PROPOSAL_RETRIED = "proposal_retried"
+
+
+def build_sse_frame(event: StreamEvent | str, data: dict[str, Any]) -> str:
+    """Build a wire-format SSE frame.
+
+    Produces ``event: <name>\\ndata: <json>\\n\\n`` matching the raw
+    f-string pattern used throughout the codebase. Accepts either a
+    :class:`StreamEvent` enum value or a raw event-name string for
+    forward-compatibility with handlers that pre-date the enum.
+    """
+    name = event.value if isinstance(event, StreamEvent) else event
+    return f"event: {name}\ndata: {json.dumps(data)}\n\n"
+
 
 _original_parse_message = _sdk_parser.parse_message
 
