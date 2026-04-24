@@ -723,6 +723,7 @@ import type {
   ProposalRejectedEventData,
   ProposalRequestEventData,
   ProposalRetriedEventData,
+  ProposalRevertedEventData,
 } from '@/features/ai/proposals/types';
 
 /** `proposal_request` — AI wants to perform a mutation; frontend renders an EditProposalCard. */
@@ -747,6 +748,16 @@ export interface ProposalRejectedEvent extends SSEEvent {
 export interface ProposalRetriedEvent extends SSEEvent {
   type: 'proposal_retried';
   data: ProposalRetriedEventData;
+}
+
+/**
+ * Phase 89 Plan 05/06 — `proposal_reverted` SSE frame. Emitted after
+ * POST /proposals/{id}/revert completes. Frontend swaps AppliedReceipt
+ * to the reverted variant of RejectedPill via applyRevertedEvent.
+ */
+export interface ProposalRevertedEvent extends SSEEvent {
+  type: 'proposal_reverted';
+  data: ProposalRevertedEventData;
 }
 
 // Type guards extracted to ./event-guards.ts to keep this file under 700 lines.
@@ -781,4 +792,5 @@ export {
   isProposalAppliedEvent,
   isProposalRejectedEvent,
   isProposalRetriedEvent,
+  isProposalRevertedEvent,
 } from './event-guards';

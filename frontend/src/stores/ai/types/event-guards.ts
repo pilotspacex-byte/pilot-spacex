@@ -34,6 +34,7 @@ import type {
   ProposalAppliedEvent,
   ProposalRejectedEvent,
   ProposalRetriedEvent,
+  ProposalRevertedEvent,
 } from './events';
 
 /**
@@ -252,6 +253,9 @@ export function isProposalRejectedEvent(event: SSEEvent): event is ProposalRejec
 export function isProposalRetriedEvent(event: SSEEvent): event is ProposalRetriedEvent {
   return event.type === 'proposal_retried';
 }
+export function isProposalRevertedEvent(event: SSEEvent): event is ProposalRevertedEvent {
+  return event.type === 'proposal_reverted';
+}
 
 const KNOWN_EVENT_TYPES = new Set([
   'message_start',
@@ -282,6 +286,7 @@ const KNOWN_EVENT_TYPES = new Set([
   'proposal_applied',
   'proposal_rejected',
   'proposal_retried',
+  'proposal_reverted',
 ]);
 
 /**

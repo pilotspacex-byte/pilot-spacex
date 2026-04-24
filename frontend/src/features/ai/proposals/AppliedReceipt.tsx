@@ -13,15 +13,21 @@
 
 'use client';
 
-import { memo, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { Check, Undo2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useRevertProposal } from './useProposalActions';
 import type { ProposalEnvelope } from './types';
 
 interface AppliedReceiptProps {
   envelope: ProposalEnvelope;
   linesChanged?: number | null;
-  /** Plan 06 wiring seam — click handler for the Revert link. */
+  /**
+   * Optional override — tests pass this to assert click behavior without the
+   * mutation firing. Production callers omit it; the component wires
+   * `useRevertProposal` internally (mirrors RejectedPill's useRetryProposal).
+   */
   onRevert?: (proposalId: string) => void;
   /** Click handler for the "View diff" link. */
   onViewDiff?: (artifactType: string, artifactId: string) => void;
@@ -55,6 +61,22 @@ export const AppliedReceipt = memo<AppliedReceiptProps>(function AppliedReceipt(
   const decidedAtMs = envelope.decidedAt ? new Date(envelope.decidedAt).getTime() : nowMs;
   const elapsedMs = nowMs - decidedAtMs;
   const revertWindowOpen = elapsedMs <= REVERT_WINDOW_MS;
+
+  // Phase 89 Plan 06 — internal revert mutation. Tests pass `onRevert`
+  // to observe click behavior; production callers omit it.
+  const revert = useRevertProposal();
+  const handleRevertClick = useCallback(() => {
+    if (onRevert) {
+      onRevert(envelope.id);
+      return;
+    }
+    revert.mutate(envelope.id, {
+      onError: (err) => {
+        const msg = err instanceof Error ? err.message : 'Revert failed';
+        toast.error('Could not revert', { description: msg });
+      },
+    });
+  }, [onRevert, envelope.id, revert]);
 
   const versionLabel = useMemo(() => {
     if (envelope.appliedVersion == null) return '';
@@ -127,16 +149,17 @@ export const AppliedReceipt = memo<AppliedReceiptProps>(function AppliedReceipt(
             View diff
           </button>
         )}
-        {revertWindowOpen && onRevert && (
+        {revertWindowOpen && (
           <button
             type="button"
-            onClick={() => onRevert(envelope.id)}
+            onClick={handleRevertClick}
+            disabled={!onRevert && revert.isPending}
             data-testid="revert-button"
             aria-label={`Revert this change. Shortcut Command Z`}
-            className="text-xs font-medium text-[#4b5563] hover:text-[#D9534F] inline-flex items-center gap-1"
+            className="text-xs font-medium text-[#4b5563] hover:text-[#D9534F] inline-flex items-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <Undo2 className="h-3 w-3" aria-hidden="true" />
-            <span>Revert</span>
+            <span>{!onRevert && revert.isPending ? 'Reverting…' : 'Revert'}</span>
             <kbd className="font-mono text-[10px] font-semibold bg-white/60 border border-[#e5e7eb] px-1 py-0.5 rounded">
               ⌘Z
             </kbd>

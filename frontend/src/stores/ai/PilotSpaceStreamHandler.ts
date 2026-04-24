@@ -30,6 +30,7 @@ import type {
   ProposalAppliedEvent,
   ProposalRejectedEvent,
   ProposalRetriedEvent,
+  ProposalRevertedEvent,
 } from './types/events';
 import type { ProposalsStore } from '@/stores/proposals/proposalsStore';
 import {
@@ -60,6 +61,7 @@ import {
   isProposalAppliedEvent,
   isProposalRejectedEvent,
   isProposalRetriedEvent,
+  isProposalRevertedEvent,
 } from './types/events';
 import type { PilotSpaceStore } from './PilotSpaceStore';
 import { PilotSpaceToolCallHandler } from './PilotSpaceToolCallHandler';
@@ -175,7 +177,8 @@ export class PilotSpaceStreamHandler {
         | ProposalRequestEvent
         | ProposalAppliedEvent
         | ProposalRejectedEvent
-        | ProposalRetriedEvent;
+        | ProposalRetriedEvent
+        | ProposalRevertedEvent;
 
       // Route to type-specific handler
       if (isMessageStartEvent(event)) {
@@ -237,6 +240,9 @@ export class PilotSpaceStreamHandler {
         this.proposalsStore?.applyRejectedEvent(event.data);
       } else if (isProposalRetriedEvent(event)) {
         this.proposalsStore?.applyRetriedEvent(event.data);
+      } else if (isProposalRevertedEvent(event)) {
+        // Phase 89 Plan 06 — authoritative revert frame from backend.
+        this.proposalsStore?.applyRevertedEvent(event.data);
       }
     });
   }

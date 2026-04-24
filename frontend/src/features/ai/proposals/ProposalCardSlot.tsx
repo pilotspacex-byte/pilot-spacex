@@ -14,7 +14,6 @@
 
 import { memo, useCallback } from 'react';
 import { observer } from 'mobx-react-lite';
-import { toast } from 'sonner';
 import { useProposalsStore } from '@/stores/RootStore';
 import { EditProposalCard } from './EditProposalCard';
 import { AppliedReceipt } from './AppliedReceipt';
@@ -28,14 +27,12 @@ interface ProposalCardSlotProps {
 interface ProposalRendererProps {
   proposal: ProposalEnvelope;
   linesChanged: number | null;
-  onRevert: (proposalId: string) => void;
   onViewDiff: (artifactType: string, artifactId: string) => void;
 }
 
 const ProposalRenderer = memo<ProposalRendererProps>(function ProposalRenderer({
   proposal,
   linesChanged,
-  onRevert,
   onViewDiff,
 }) {
   if (proposal.status === 'pending') {
@@ -47,17 +44,21 @@ const ProposalRenderer = memo<ProposalRendererProps>(function ProposalRenderer({
     );
   }
   if (proposal.status === 'applied') {
+    // Phase 89 Plan 06 — AppliedReceipt wires useRevertProposal internally.
+    // No onRevert prop passed in production; the component handles clicks.
     return (
       <AppliedReceipt
         envelope={proposal}
         linesChanged={linesChanged}
-        onRevert={onRevert}
         onViewDiff={onViewDiff}
       />
     );
   }
   if (proposal.status === 'rejected') {
     return <RejectedPill envelope={proposal} variant="rejected" />;
+  }
+  if (proposal.status === 'reverted') {
+    return <RejectedPill envelope={proposal} variant="reverted" />;
   }
   if (proposal.status === 'retried') {
     return (
@@ -78,18 +79,6 @@ export const ProposalCardSlot = observer<ProposalCardSlotProps>(function Proposa
   const proposalsStore = useProposalsStore();
   const proposals = proposalsStore.getByMessageId(messageId);
 
-  const onRevert = useCallback(
-    (_proposalId: string) => {
-      // Phase 89 Plan 06 seam: Plan 06 replaces this with the real revert
-      // mutation. Until then the click surfaces a toast so users see the
-      // button reacts without claiming work was done.
-      toast.message('Revert is not yet available', {
-        description: 'The revert mutation ships in Phase 89 Plan 06.',
-      });
-    },
-    []
-  );
-
   const onViewDiff = useCallback((artifactType: string, artifactId: string) => {
     // Opens the peek drawer for the target artifact.
     if (typeof window === 'undefined') return;
@@ -109,7 +98,6 @@ export const ProposalCardSlot = observer<ProposalCardSlotProps>(function Proposa
           key={p.id}
           proposal={p}
           linesChanged={proposalsStore.getLinesChanged(p.id)}
-          onRevert={onRevert}
           onViewDiff={onViewDiff}
         />
       ))}
