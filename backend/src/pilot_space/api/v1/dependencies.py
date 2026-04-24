@@ -112,6 +112,8 @@ from pilot_space.application.services.pm_block_insight_service import PMBlockIns
 from pilot_space.application.services.project_detail import ProjectDetailService
 from pilot_space.application.services.project_member import ProjectMemberService
 from pilot_space.application.services.project_rbac import ProjectRbacService
+from pilot_space.application.services.proposal_bus import ProposalBus
+from pilot_space.application.services.proposal_repository import ProposalRepository
 from pilot_space.application.services.rate_limit import RateLimitService
 from pilot_space.application.services.rbac_service import RbacService
 from pilot_space.application.services.related_issues import RelatedIssuesSuggestionService
@@ -1027,6 +1029,29 @@ def _get_memory_list_service(
 MemoryListServiceDep = Annotated[MemoryListService, Depends(_get_memory_list_service)]
 
 
+# ===== Phase 89 — Edit Proposal pipeline =====
+
+
+@inject
+def _get_proposal_bus(
+    svc: ProposalBus = Depends(Provide[Container.proposal_bus]),
+) -> ProposalBus:
+    return svc
+
+
+ProposalBusDep = Annotated[ProposalBus, Depends(_get_proposal_bus)]
+
+
+@inject
+def _get_proposal_repository(
+    svc: ProposalRepository = Depends(Provide[Container.proposal_repository]),
+) -> ProposalRepository:
+    return svc
+
+
+ProposalRepositoryDep = Annotated[ProposalRepository, Depends(_get_proposal_repository)]
+
+
 __all__ = [  # noqa: RUF022
     "ActionButtonServiceDep",
     "ActivityRepositoryDep",
@@ -1124,6 +1149,8 @@ __all__ = [  # noqa: RUF022
     "MemoryRecallServiceDep",
     "MemoryLifecycleServiceDep",
     "MemoryListServiceDep",
+    "ProposalBusDep",
+    "ProposalRepositoryDep",
 ]
 
 

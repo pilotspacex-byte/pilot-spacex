@@ -126,6 +126,8 @@ from pilot_space.application.services.pm_block_insight_service import PMBlockIns
 from pilot_space.application.services.project_detail import ProjectDetailService
 from pilot_space.application.services.project_member import ProjectMemberService
 from pilot_space.application.services.project_rbac import ProjectRbacService
+from pilot_space.application.services.proposal_bus import ProposalBus
+from pilot_space.application.services.proposal_repository import ProposalRepository
 from pilot_space.application.services.rate_limit import RateLimitService
 from pilot_space.application.services.rbac_service import RbacService
 from pilot_space.application.services.related_issues import RelatedIssuesSuggestionService
@@ -1123,6 +1125,20 @@ class Container(SkillContainer, PluginContainer):
     hook_rule_service = providers.Singleton(
         HookRuleService,
         redis_client=InfraContainer.redis_client,
+    )
+
+    # Phase 89 Plan 01 — Edit Proposal pipeline substrate.
+    # Factory (not Singleton) per REV-89-01-B / decision D-89-01-01: the bus
+    # needs a repo bound to the request-scoped session via
+    # providers.Callable(get_current_session). SSE publisher + intent executor
+    # default to no-op stubs; Plan 02 / Plan 03 inject the real implementations.
+    proposal_repository = providers.Factory(
+        ProposalRepository,
+        session=providers.Callable(get_current_session),
+    )
+    proposal_bus = providers.Factory(
+        ProposalBus,
+        repository=proposal_repository,
     )
 
 
