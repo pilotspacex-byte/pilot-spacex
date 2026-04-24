@@ -142,6 +142,13 @@ export interface ChatMessage {
    * Optional + additive; absent on legacy messages and on user messages.
    */
   mode?: import('@/features/ai/ChatView/ChatInput/types').ChatMode;
+  /**
+   * Phase 87 Plan 04 — Inline artifact references (CHAT-04).
+   * Forward-compat envelope field. When present, AssistantMessage renders
+   * one `<InlineArtifactCard>` per entry below the body, separated by 12px.
+   * Absent on legacy messages and user messages.
+   */
+  artifacts?: import('@/components/chat/InlineArtifactCard').InlineArtifactRef[];
 }
 
 /**

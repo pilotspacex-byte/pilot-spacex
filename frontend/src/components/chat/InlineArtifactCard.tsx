@@ -12,7 +12,7 @@
  *
  * Per `.claude/rules/icons.md`: Compact icon resolution uses a LOCAL Lucide
  * component map (`INLINE_TYPE_ICON`). Phase 85 `ARTIFACT_TYPE_TOKENS` does
- * NOT carry an `iconName` field — DO NOT introduce one.
+ * NOT carry an icon-name string field — DO NOT introduce one.
  *
  * Surgical-changes discipline (CLAUDE.md Rule 1.3):
  *   - DO NOT modify `ArtifactCard.tsx`
@@ -83,7 +83,7 @@ export interface InlineArtifactCardProps {
 // ---------------------------------------------------------------------------
 // Local Lucide icon map for the Compact pill.
 //
-// Phase 85 `ARTIFACT_TYPE_TOKENS` carries colour/gradient only; no iconName.
+// Phase 85 `ARTIFACT_TYPE_TOKENS` carries colour/gradient only; no icon field.
 // Per `.claude/rules/icons.md` we use Lucide component imports — never name
 // strings. Update this map (additive) when new artifact types ship.
 // ---------------------------------------------------------------------------

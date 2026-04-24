@@ -40,6 +40,22 @@ vi.mock('../ToolCallList', () => ({
   ),
 }));
 
+// Plan 04: mock InlineArtifactCard so AssistantMessage tests assert wiring
+// only — Task 1 owns card-internal behaviour.
+vi.mock('@/components/chat/InlineArtifactCard', () => ({
+  InlineArtifactCard: ({
+    artifact,
+  }: {
+    artifact: { id: string; type: string; variant?: string };
+  }) => (
+    <div
+      data-inline-card={artifact.variant ?? 'full'}
+      data-artifact-id={artifact.id}
+      data-artifact-type={artifact.type}
+    />
+  ),
+}));
+
 import { AssistantMessage } from '../AssistantMessage';
 
 function makeMessage(overrides: Partial<ChatMessage> = {}): ChatMessage {
@@ -157,5 +173,45 @@ describe('AssistantMessage — v3 row anatomy (Phase 87 Plan 03)', () => {
     const { container } = render(<AssistantMessage message={makeMessage()} />);
     const name = container.querySelector('[data-message-name]');
     expect(name?.textContent).toBe('AI');
+  });
+});
+
+describe('AssistantMessage — inline artifact cards (Phase 87 Plan 04)', () => {
+  it('Test 8: when message.artifacts is undefined → no inline cards render', () => {
+    const { container } = render(<AssistantMessage message={makeMessage()} />);
+    expect(container.querySelector('[data-inline-card]')).toBeNull();
+    expect(container.querySelector('[data-inline-card-list]')).toBeNull();
+  });
+
+  it('Test 9: with one artifact → one InlineArtifactCard renders below the body', () => {
+    const { container } = render(
+      <AssistantMessage
+        message={makeMessage({ artifacts: [{ id: 'n1', type: 'NOTE' }] })}
+      />,
+    );
+    const list = container.querySelector('[data-inline-card-list]');
+    expect(list).not.toBeNull();
+    const cards = container.querySelectorAll('[data-inline-card]');
+    expect(cards.length).toBe(1);
+    expect(cards[0]?.getAttribute('data-artifact-id')).toBe('n1');
+    expect(cards[0]?.getAttribute('data-artifact-type')).toBe('NOTE');
+  });
+
+  it('Test 10: two artifacts → two cards stacked with 12px gap (space-y-3)', () => {
+    const { container } = render(
+      <AssistantMessage
+        message={makeMessage({
+          artifacts: [
+            { id: 'a', type: 'NOTE' },
+            { id: 'b', type: 'MD', variant: 'compact', title: 'design.md' },
+          ],
+        })}
+      />,
+    );
+    const list = container.querySelector('[data-inline-card-list]');
+    expect(list).not.toBeNull();
+    expect(list?.className).toContain('mt-3');
+    expect(list?.className).toContain('space-y-3');
+    expect(container.querySelectorAll('[data-inline-card]').length).toBe(2);
   });
 });

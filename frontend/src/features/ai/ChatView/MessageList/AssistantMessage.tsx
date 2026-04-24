@@ -25,6 +25,7 @@ import { QuestionBlock, ResolvedSummary } from './QuestionBlock';
 import { SkillCreatorCard } from './SkillCreatorCard';
 import { SkillTestResultCard } from './SkillTestResultCard';
 import { SkillMermaidCard } from './SkillMermaidCard';
+import { InlineArtifactCard } from '@/components/chat/InlineArtifactCard';
 import type { SkillPreviewEvent, TestResultEvent } from '@/stores/ai/types/events';
 
 /** Schema types handled by inline skill cards — excluded from StructuredResultCard */
@@ -269,6 +270,18 @@ export const AssistantMessage = memo<AssistantMessageProps>(({ message, classNam
 
         {message.citations && message.citations.length > 0 && (
           <CitationList citations={message.citations} />
+        )}
+
+        {/* Phase 87 Plan 04 (CHAT-04) — Inline artifact cards.
+            Render each entry in `message.artifacts` as an InlineArtifactCard
+            below the message body, separated by 12px (mt-3 / space-y-3).
+            Absent → no list mounts (no empty placeholder). */}
+        {message.artifacts && message.artifacts.length > 0 && (
+          <div className="mt-3 space-y-3" data-inline-card-list="">
+            {message.artifacts.map((art) => (
+              <InlineArtifactCard key={art.id} artifact={art} />
+            ))}
+          </div>
         )}
 
         {/* Inline question: merged wizard for questionDataList, fallback to legacy questionData */}
