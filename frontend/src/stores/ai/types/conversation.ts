@@ -136,6 +136,12 @@ export interface ChatMessage {
   }>;
   /** Additional message metadata */
   metadata?: MessageMetadata;
+  /**
+   * Phase 87 Plan 03 — Conversation mode active when this message was produced.
+   * Set on assistant replies for the mode badge above-reply (per UI-SPEC §2/§5).
+   * Optional + additive; absent on legacy messages and on user messages.
+   */
+  mode?: import('@/features/ai/ChatView/ChatInput/types').ChatMode;
 }
 
 /**

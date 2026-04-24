@@ -126,3 +126,94 @@ describe('UserMessage — mention pill rendering', () => {
     expect(screen.queryByLabelText(/^Remove /)).toBeNull();
   });
 });
+
+// Phase 87 Plan 03 — v3 row anatomy
+describe('UserMessage — v3 row anatomy (Phase 87)', () => {
+  it('renders avatar with violet→emerald gradient class', () => {
+    const { container } = render(
+      <UserMessage message={makeMessage()} userName="Tin Dang" />
+    );
+    const avatar = container.querySelector('[data-message-avatar]');
+    expect(avatar).not.toBeNull();
+    expect(avatar?.className).toContain('from-violet-400');
+    expect(avatar?.className).toContain('to-emerald-400');
+  });
+
+  it('avatar shows uppercase first character of userName', () => {
+    const { container } = render(
+      <UserMessage message={makeMessage()} userName="tin dang" />
+    );
+    const avatar = container.querySelector('[data-message-avatar]');
+    expect(avatar?.textContent).toBe('T');
+  });
+
+  it('avatar falls back to "?" when userName empty', () => {
+    const { container } = render(
+      <UserMessage message={makeMessage()} userName="" />
+    );
+    const avatar = container.querySelector('[data-message-avatar]');
+    expect(avatar?.textContent).toBe('?');
+  });
+
+  it('header row contains author name in 13/600 element', () => {
+    const { container } = render(
+      <UserMessage message={makeMessage()} userName="Tin Dang" />
+    );
+    const name = container.querySelector('[data-message-name]');
+    expect(name).not.toBeNull();
+    expect(name?.textContent).toBe('Tin Dang');
+    expect(name?.className).toContain('text-[13px]');
+    expect(name?.className).toContain('font-semibold');
+  });
+
+  it('header row contains timestamp in mono 10/400 muted element', () => {
+    const { container } = render(<UserMessage message={makeMessage()} />);
+    const time = container.querySelector('time');
+    expect(time).not.toBeNull();
+    expect(time?.className).toContain('font-mono');
+    expect(time?.className).toContain('text-[10px]');
+    expect(time?.className).toContain('text-muted-foreground');
+  });
+
+  it('body wrapper uses 14/1.55 leading classes', () => {
+    const { container } = render(<UserMessage message={makeMessage()} />);
+    const body = container.querySelector('[data-message-body]');
+    expect(body).not.toBeNull();
+    expect(body?.className).toContain('text-[14px]');
+    expect(body?.className).toContain('leading-[1.55]');
+  });
+
+  it('avatar carries aria-hidden (decorative)', () => {
+    const { container } = render(<UserMessage message={makeMessage()} />);
+    const avatar = container.querySelector('[data-message-avatar]');
+    expect(avatar?.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('row container uses v3 spacing (flex gap-4 px-6 py-3)', () => {
+    const { container } = render(<UserMessage message={makeMessage()} />);
+    const row = container.querySelector('[data-message-role="user"]');
+    expect(row).not.toBeNull();
+    expect(row?.className).toContain('flex');
+    expect(row?.className).toContain('gap-4');
+    expect(row?.className).toContain('px-6');
+    expect(row?.className).toContain('py-3');
+  });
+
+  it('still renders attachments when present (regression)', () => {
+    const msg = makeMessage({
+      metadata: {
+        attachments: [
+          {
+            attachmentId: 'a1',
+            filename: 'spec.pdf',
+            mimeType: 'application/pdf',
+            source: 'upload',
+            sizeBytes: 1024,
+          },
+        ],
+      },
+    });
+    render(<UserMessage message={msg} />);
+    expect(screen.getByTestId('attachment-chips')).toBeDefined();
+  });
+});

@@ -1,6 +1,8 @@
 /**
- * UserMessage - Display user messages in chat
- * Minimal design: light-gray background, no avatar
+ * UserMessage — Phase 87 Plan 03 v3 row anatomy.
+ *
+ * 32x32 violet-to-emerald gradient avatar (initial), header with name + timestamp,
+ * Inter 14/1.55 body. Markdown/mention/attachment pipelines preserved.
  */
 
 import React, { memo } from 'react';
@@ -24,12 +26,10 @@ function renderMessageContent(content: string): React.ReactNode {
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
 
-  // Reset lastIndex to ensure consistent matching across calls
   MENTION_RE.lastIndex = 0;
 
   let match: RegExpExecArray | null;
   while ((match = MENTION_RE.exec(content)) !== null) {
-    // Push text before this match
     if (match.index > lastIndex) {
       parts.push(content.slice(lastIndex, match.index));
     }
@@ -50,7 +50,6 @@ function renderMessageContent(content: string): React.ReactNode {
     lastIndex = match.index + match[0].length;
   }
 
-  // Push remaining text after last match
   if (lastIndex < content.length) {
     parts.push(content.slice(lastIndex));
   }
@@ -71,38 +70,55 @@ export const UserMessage = memo<UserMessageProps>(({ message, userName = 'You', 
     return null;
   }
 
+  const initial = (userName || '?').charAt(0).toUpperCase() || '?';
+
   return (
     <div
-      className={cn('px-4 py-3 bg-muted/100 text-primary', className)}
+      className={cn('flex gap-4 px-6 py-3', className)}
+      data-message-role="user"
       data-testid="message-user"
     >
-      <div className="flex items-baseline gap-2 mb-1.5">
-        <span className="text-[15px] font-semibold text-foreground">{userName}</span>
-        <time className="text-[11px] text-muted-foreground/70">
-          {message.timestamp.toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-          })}
-        </time>
+      <div
+        aria-hidden="true"
+        data-message-avatar=""
+        className="h-8 w-8 rounded-full bg-gradient-to-br from-violet-400 to-emerald-400 text-white flex items-center justify-center text-[13px] font-semibold flex-shrink-0"
+      >
+        {initial}
       </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-baseline gap-2">
+          <span data-message-name="" className="text-[13px] font-semibold text-foreground">
+            {userName}
+          </span>
+          <time className="font-mono text-[10px] text-muted-foreground">
+            {message.timestamp.toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </time>
+        </div>
 
-      <div className="prose prose-sm max-w-none text-foreground dark:prose-invert leading-relaxed">
-        {renderMessageContent(message.content)}
+        <div
+          data-message-body=""
+          className="mt-1 text-[14px] leading-[1.55] font-normal text-foreground"
+        >
+          {renderMessageContent(message.content)}
+        </div>
+
+        {message.metadata?.voiceAudioUrl && (
+          <div className="mt-1.5">
+            <AudioPlaybackPill audioUrl={message.metadata.voiceAudioUrl} />
+          </div>
+        )}
+
+        {(message.metadata?.attachments ?? []).length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-2" data-testid="attachment-chips">
+            {(message.metadata?.attachments ?? []).map((att) => (
+              <AttachmentChip key={att.attachmentId} attachment={att} />
+            ))}
+          </div>
+        )}
       </div>
-
-      {message.metadata?.voiceAudioUrl && (
-        <div className="mt-1.5">
-          <AudioPlaybackPill audioUrl={message.metadata.voiceAudioUrl} />
-        </div>
-      )}
-
-      {(message.metadata?.attachments ?? []).length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mt-2" data-testid="attachment-chips">
-          {(message.metadata?.attachments ?? []).map((att) => (
-            <AttachmentChip key={att.attachmentId} attachment={att} />
-          ))}
-        </div>
-      )}
     </div>
   );
 });
