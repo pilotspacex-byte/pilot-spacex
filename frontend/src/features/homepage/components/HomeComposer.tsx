@@ -19,10 +19,11 @@
  * pendingMode → first sendMessage on the new real session picks it up via
  * `getMode(null)` fallback.
  *
- * NOT wrapped in observer() — we only call MobX actions (setMode) from event
- * handlers and read getMode() once per submit. There is no continuous
- * subscription needed in this wrapper; ChatInput itself handles its own
- * mode-selector reactivity via the currentMode/onModeChange props we pass.
+ * Wrapped in observer() — we read `pilotSpace.getMode(...)` at render time
+ * and pass it down as `currentMode` prop, so we MUST re-render when the
+ * sentinel-session mode changes. Without observer, clicking a mode chip
+ * mutates the store but the UI never reflects it (verified bug 2026-04-24
+ * during browser smoke).
  *
  * @module features/homepage/components/HomeComposer
  */
@@ -37,6 +38,7 @@ import {
   useState,
 } from 'react';
 import { useRouter } from 'next/navigation';
+import { observer } from 'mobx-react-lite';
 
 import { ChatInput } from '@/features/ai/ChatView/ChatInput/ChatInput';
 import type { ChatMode } from '@/features/ai/ChatView/ChatInput/types';
@@ -61,7 +63,7 @@ interface HomeComposerProps {
   workspaceSlug: string;
 }
 
-export const HomeComposer = forwardRef<HomeComposerHandle, HomeComposerProps>(
+export const HomeComposer = observer(forwardRef<HomeComposerHandle, HomeComposerProps>(
   function HomeComposer({ workspaceId, workspaceSlug }, ref) {
     const router = useRouter();
 
@@ -141,6 +143,6 @@ export const HomeComposer = forwardRef<HomeComposerHandle, HomeComposerProps>(
       </div>
     );
   },
-);
+));
 
 HomeComposer.displayName = 'HomeComposer';
