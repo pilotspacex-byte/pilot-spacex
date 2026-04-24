@@ -54,8 +54,19 @@ vi.mock('@/features/onboarding', () => ({
   },
 }));
 
+// Phase 88 cutover: workspace home now mounts <Launchpad />, not
+// <HomepageHub />. The mock signature matches the new contract
+// (workspaceId + workspaceSlug props) so the BUG-01 assertions below
+// continue to verify that workspace.id (UUID) is threaded correctly to
+// every child mount.
 vi.mock('@/features/homepage', () => ({
-  HomepageHub: () => <div data-testid="homepage-hub" />,
+  Launchpad: (props: Record<string, unknown>) => (
+    <div
+      data-testid="launchpad"
+      data-workspace-id={props.workspaceId as string}
+      data-workspace-slug={props.workspaceSlug as string}
+    />
+  ),
 }));
 
 vi.mock('mobx-react-lite', () => ({
