@@ -16,8 +16,13 @@ describe('PilotSpaceStreamHandler — proposal_reverted dispatch', () => {
   let pilotStore: PilotSpaceStore;
   let proposalsStore: ProposalsStore;
 
+  // PilotSpaceStore requires an AIStore arg in its constructor — the
+  // stream handler itself doesn't touch it in the code paths under test,
+  // so pass a null-cast sentinel to keep the test isolated.
+  const aiStoreStub = {} as unknown as import('../AIStore').AIStore;
+
   beforeEach(() => {
-    pilotStore = new PilotSpaceStore();
+    pilotStore = new PilotSpaceStore(aiStoreStub);
     proposalsStore = new ProposalsStore();
     pilotStore.streamHandler.setProposalsStore(proposalsStore);
   });
@@ -51,7 +56,7 @@ describe('PilotSpaceStreamHandler — proposal_reverted dispatch', () => {
   });
 
   it('is silent when proposalsStore is not wired', () => {
-    const handler = new PilotSpaceStore().streamHandler;
+    const handler = new PilotSpaceStore(aiStoreStub).streamHandler;
     const frame = {
       type: 'proposal_reverted',
       data: {

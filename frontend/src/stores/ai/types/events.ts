@@ -44,7 +44,9 @@ export type SSEEventType =
   | 'proposal_request'
   | 'proposal_applied'
   | 'proposal_rejected'
-  | 'proposal_retried';
+  | 'proposal_retried'
+  // Phase 89 Plan 05/06 — revert pipeline
+  | 'proposal_reverted';
 
 /**
  * Base SSE event structure.
