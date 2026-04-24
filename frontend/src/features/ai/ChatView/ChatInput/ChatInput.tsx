@@ -156,6 +156,19 @@ interface ChatInputProps {
    */
   surface?: 'chat' | 'homepage';
   /**
+   * Phase 88 Plan 01 — collapse the left-side toolbar to the calm
+   * launchpad surface. When true:
+   *  - AttachmentButton hidden
+   *  - SkillMenu / AgentMenu / SectionMenu / SessionResumeMenu triggers hidden
+   *  - `/` slash and `@` mention keystroke triggers are no-ops
+   *  - ModeSelector + the right-side controls remain
+   *  - Toolbar height is unchanged (UI-SPEC §8 — calm whitespace, not a bug)
+   *
+   * Defaults to `false` so every existing chat-page caller keeps the full
+   * toolbar. Only `<HomeComposer>` (Phase 88 Plan 02) passes `true`.
+   */
+  slimToolbar?: boolean;
+  /**
    * Phase 87 Plan 01 — current conversation mode (per-session). When omitted
    * the mode selector is hidden (back-compat for unmigrated callers).
    */
@@ -197,6 +210,7 @@ export const ChatInput = observer<ChatInputProps>(
     sessionId,
     className,
     surface = 'chat',
+    slimToolbar = false,
     currentMode,
     onModeChange,
     workspaceSlug: workspaceSlugProp,
@@ -323,6 +337,11 @@ export const ChatInput = observer<ChatInputProps>(
           // @ trigger detection for EntityPicker (D-02)
           const textBeforeCursor = getTextBeforeCursor(div);
 
+          // Phase 88 Plan 01 — slimToolbar disables the slash + mention command
+          // surfaces entirely (homepage launchpad calm-composer contract).
+          if (slimToolbar) {
+            return;
+          }
           // Phase 87 Plan 02 — '/' at start of input opens SlashMenu (11-command
           // palette). Mid-word '/' (e.g. inside http://) does NOT trigger because
           // textBeforeCursor only starts with '/' when the slash is at position 0.
@@ -355,7 +374,7 @@ export const ChatInput = observer<ChatInputProps>(
           }
         }
       },
-      [onChange, slashMenuOpen]
+      [onChange, slashMenuOpen, slimToolbar]
     );
 
     const handlePaste = useCallback(
@@ -943,13 +962,19 @@ export const ChatInput = observer<ChatInputProps>(
                   }}
                   disabled={isDisabled || isStreaming || !workspaceId}
                 />
-                <AttachmentButton
-                  onAddFile={addFile}
-                  disabled={isDisabled || isStreaming}
-                  driveConnected={driveStatus?.connected}
-                  onConnectDrive={handleConnectDrive}
-                  onOpenDrivePicker={() => setDrivePickerOpen(true)}
-                />
+                {/* Phase 88 Plan 01 — slimToolbar gates the entire left
+                    cluster (attachments + skill / agent / section / resume
+                    menus). Toolbar height (44px) is preserved by the
+                    surrounding container; the empty space is intentional. */}
+                {!slimToolbar && (
+                  <AttachmentButton
+                    onAddFile={addFile}
+                    disabled={isDisabled || isStreaming}
+                    driveConnected={driveStatus?.connected}
+                    onConnectDrive={handleConnectDrive}
+                    onOpenDrivePicker={() => setDrivePickerOpen(true)}
+                  />
+                )}
                 {tokenBudgetPercent != null && tokenBudgetPercent > 0 && (
                   <TokenBudgetRing
                     percentage={tokenBudgetPercent}
@@ -957,6 +982,8 @@ export const ChatInput = observer<ChatInputProps>(
                     tokenBudget={tokenBudget}
                   />
                 )}
+                {!slimToolbar && (
+                  <>
                 <SkillMenu
                   open={skillMenuOpen}
                   onOpenChange={(open) => {
@@ -1053,6 +1080,8 @@ export const ChatInput = observer<ChatInputProps>(
                     <span className="sr-only">Resume session</span>
                   </Button>
                 </SessionResumeMenu>
+                  </>
+                )}
               </div>
             </div>
 

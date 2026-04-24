@@ -105,10 +105,10 @@ describe('ChatInput — slimToolbar prop (Phase 88)', () => {
 
     it('renders the skill, agent, section, and resume menu triggers', () => {
       renderChatInput();
-      expect(screen.getByLabelText('Open skill menu')).toBeInTheDocument();
-      expect(screen.getByLabelText('Open agent menu')).toBeInTheDocument();
-      expect(screen.getByLabelText('Reference note section')).toBeInTheDocument();
-      expect(screen.getByLabelText('Resume session')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Open skill menu' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Open agent menu' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Reference note section' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Resume session' })).toBeInTheDocument();
     });
 
     it('keeps the mode selector visible', () => {
@@ -127,10 +127,10 @@ describe('ChatInput — slimToolbar prop (Phase 88)', () => {
 
     it('hides the skill, agent, section, and resume menu triggers', () => {
       renderChatInput({ slimToolbar: true });
-      expect(screen.queryByLabelText('Open skill menu')).not.toBeInTheDocument();
-      expect(screen.queryByLabelText('Open agent menu')).not.toBeInTheDocument();
-      expect(screen.queryByLabelText('Reference note section')).not.toBeInTheDocument();
-      expect(screen.queryByLabelText('Resume session')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Open skill menu' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Open agent menu' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Reference note section' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Resume session' })).not.toBeInTheDocument();
     });
 
     it('keeps the mode selector visible', () => {
