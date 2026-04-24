@@ -255,9 +255,7 @@ describe('Launchpad (Phase 88 Plan 02 — assembly smoke + integration)', () => 
     // → chips → continue card.
     const order = [h1, composer, banners, chips, card];
     for (let i = 0; i < order.length - 1; i++) {
-      // eslint-disable-next-line no-bitwise
       const followsFlag = Node.DOCUMENT_POSITION_FOLLOWING;
-      // eslint-disable-next-line no-bitwise
       expect(order[i]!.compareDocumentPosition(order[i + 1]!) & followsFlag).toBeTruthy();
     }
   });

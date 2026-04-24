@@ -4,7 +4,7 @@ import { use } from 'react';
 import { observer } from 'mobx-react-lite';
 import { useWorkspace } from '@/components/workspace-guard';
 import { OnboardingChecklist } from '@/features/onboarding';
-import { HomepageHub } from '@/features/homepage';
+import { Launchpad } from '@/features/homepage';
 
 interface WorkspaceHomePageProps {
   params: Promise<{ workspaceSlug: string }>;
@@ -23,8 +23,8 @@ const WorkspaceHomePage = observer(function WorkspaceHomePage({ params }: Worksp
       {/* Onboarding Modal (renders as Dialog, no layout space) */}
       <OnboardingChecklist workspaceId={workspace.id} workspaceSlug={workspaceSlug} />
 
-      {/* Homepage Hub — 2-panel layout: DailyBrief + ChatView */}
-      <HomepageHub workspaceSlug={workspaceSlug} />
+      {/* Phase 88 cutover: chat-first launchpad replaces v2 dashboard. */}
+      <Launchpad workspaceId={workspace.id} workspaceSlug={workspaceSlug} />
     </div>
   );
 });

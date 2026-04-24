@@ -1,12 +1,34 @@
-# Homepage Hub Module
+# Homepage Module
 
 _For project overview, see main `README.md` and `frontend/README.md`_
 
 ## Purpose
 
-Primary landing page after workspace selection (US-19). Two-panel layout with DailyBrief prose document and ChatView sidebar.
+Primary landing page after workspace selection. Phase 88 (2026-04-24)
+replaced the v2 two-panel dashboard (DailyBrief + ChatView sidebar) with a
+calm chat-first **Launchpad**: greeting → composer → red-flag strip →
+suggested-prompt chips → continue-card. The v2 dashboard files
+(`HomepageHub`, `DailyBrief`, `BriefEntries`, `DevObjectIndicators`,
+`DigestInsights`, `IssueDetailSheet`, `my-projects-section`,
+`NoteContextBadge`, `SDLCSuggestionCards`, `SprintSparkline`,
+`StaleLogicAlert`) and their tests were removed in the same release.
 
-**Entry**: Login -> `/` -> resolve workspace -> `/{workspaceSlug}` -> HomepageHub.
+**Entry**: Login → `/` → resolve workspace → `/{workspaceSlug}` →
+`<Launchpad workspaceId workspaceSlug />`.
+
+```
+Launchpad (max-w-720, single column)
+├── HomepageGreeting        — h1 "Good {morning|afternoon|evening}, {Name}."
+├── HomeComposer            — navigation-submit ChatInput → /chat?prefill=&mode=
+├── RedFlagStrip            — 0–3 calm banners (stale | sprint | digest)
+├── SuggestedPromptsRow     — locked 4 chips → composer.setDraft
+└── ContinueCard            — link to last chat session (renders null when none)
+```
+
+The legacy hooks `useIssueDevObjects`, `useActiveCycleMetrics`, and
+`useStaleIssueDetection` remain on disk (no longer barrel-exported) pending
+a Phase 89+ cleanup. Backend endpoints (`/homepage/digest`,
+`/homepage/activity`) are NOT removed this phase.
 
 ---
 
