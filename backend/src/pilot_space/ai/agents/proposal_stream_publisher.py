@@ -179,5 +179,31 @@ class ProposalStreamPublisher:
             event.model_dump(by_alias=True, mode="json"),
         )
 
+    async def publish_proposal_reverted(
+        self,
+        p: Proposal,
+        *,
+        new_version_number: int,
+        reverted_from_version: int,
+    ) -> None:
+        """Emit ``proposal_reverted`` with the new + prior version numbers.
+
+        Phase 89 Plan 05 — distinct from ``proposal_applied`` so frontend
+        dispatch can swap AppliedReceipt -> RevertedPill without a flag lookup.
+        """
+        from pilot_space.api.v1.schemas.proposals import ProposalRevertedEvent
+
+        event = ProposalRevertedEvent(
+            proposal_id=p.id,
+            new_version_number=new_version_number,
+            reverted_from_version=reverted_from_version,
+            timestamp=datetime.now(UTC),
+        )
+        await self._put_frame(
+            p.session_id,
+            StreamEvent.PROPOSAL_REVERTED,
+            event.model_dump(by_alias=True, mode="json"),
+        )
+
 
 __all__ = ["ProposalStreamPublisher", "QueueResolver"]

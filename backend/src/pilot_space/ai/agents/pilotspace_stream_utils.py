@@ -106,6 +106,10 @@ class StreamEvent(StrEnum):
     PROPOSAL_APPLIED = "proposal_applied"
     PROPOSAL_REJECTED = "proposal_rejected"
     PROPOSAL_RETRIED = "proposal_retried"
+    # Plan 05 — revert flow. Distinct enum value (NOT a flag on
+    # proposal_applied) so the frontend can dispatch AppliedReceipt ->
+    # RevertedPill cleanly.
+    PROPOSAL_REVERTED = "proposal_reverted"
 
 
 def build_sse_frame(event: StreamEvent | str, data: dict[str, Any]) -> str:

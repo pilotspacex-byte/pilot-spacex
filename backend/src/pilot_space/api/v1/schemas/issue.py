@@ -164,6 +164,12 @@ class IssueResponse(BaseSchema):
     # Counts
     sub_issue_count: int = 0
 
+    # Version tracking (Phase 89 Plan 05 — surfaced so the frontend can render
+    # VersionHistoryChip + power the revert UX). Camel-case on the wire is
+    # handled by BaseSchema's alias generator.
+    version_number: int = 1
+    version_history: list[dict[str, Any]] = Field(default_factory=list)
+
     @classmethod
     def from_issue(cls, issue: Any) -> IssueResponse:
         """Create from Issue model."""
@@ -211,6 +217,8 @@ class IssueResponse(BaseSchema):
             ai_metadata=issue.ai_metadata,
             has_ai_enhancements=issue.has_ai_enhancements,
             sub_issue_count=len(issue.sub_issues) if issue.sub_issues else 0,
+            version_number=getattr(issue, "version_number", None) or 1,
+            version_history=list(getattr(issue, "version_history", None) or []),
         )
 
 

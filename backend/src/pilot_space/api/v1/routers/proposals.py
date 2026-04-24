@@ -29,6 +29,8 @@ from pilot_space.api.v1.schemas.proposals import (
     ProposalListResponse,
     RejectProposalRequest,
     RetryProposalRequest,
+    RevertResultEnvelope,
+    VersionHistoryEntry,
 )
 from pilot_space.application.services.proposal_bus import ProposalBus
 from pilot_space.application.services.proposal_repository import ProposalRepository
@@ -109,6 +111,29 @@ async def retry_proposal(
         proposal_id, decided_by=current_user, hint=body.hint
     )
     return ProposalEnvelope.from_entity(proposal)
+
+
+@router.post("/{proposal_id}/revert", response_model=RevertResultEnvelope)
+async def revert_proposal(
+    proposal_id: UUID,
+    session: SessionDep,
+    workspace_id: HeaderWorkspaceMemberId,
+    current_user: CurrentUserId,
+    bus: ProposalBus = Depends(_get_proposal_bus),
+) -> RevertResultEnvelope:
+    """Revert an APPLIED proposal within the 10-minute window (Phase 89 Plan 05).
+
+    Domain exceptions (``ProposalNotFoundError`` 404,
+    ``ProposalCannotBeRevertedError`` 409) propagate to the global RFC 7807
+    handler. The server clock is the authoritative source of truth for the
+    window — frontend mirrors it as a UX hint only.
+    """
+    result = await bus.revert_proposal(proposal_id, decided_by=current_user)
+    return RevertResultEnvelope(
+        proposal=ProposalEnvelope.from_entity(result.proposal),
+        new_version_number=result.new_version_number,
+        new_history_entry=VersionHistoryEntry.model_validate(result.new_history_entry),
+    )
 
 
 @router.get("", response_model=ProposalListResponse)

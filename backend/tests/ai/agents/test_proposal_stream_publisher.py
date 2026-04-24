@@ -177,6 +177,34 @@ class TestPublisherRetriedEvent:
         assert data["hint"] == "smaller"
 
 
+class TestPublisherRevertedEvent:
+    """Phase 89 Plan 05 — proposal_reverted SSE event."""
+
+    @pytest.mark.asyncio
+    async def test_publish_proposal_reverted_enqueues_frame_with_version_numbers(
+        self,
+    ) -> None:
+        queue: asyncio.Queue[str] = asyncio.Queue()
+        publisher = ProposalStreamPublisher(get_queue_for_session=lambda _sid: queue)
+        proposal = _make_proposal(status=ProposalStatus.APPLIED, applied_version=2)
+
+        await publisher.publish_proposal_reverted(
+            proposal,
+            new_version_number=3,
+            reverted_from_version=2,
+        )
+
+        assert queue.qsize() == 1
+        frame = queue.get_nowait()
+        name, data = _parse_frame(frame)
+        assert name == StreamEvent.PROPOSAL_REVERTED.value
+        assert name == "proposal_reverted"  # wire value frozen for frontend
+        assert data["proposalId"] == str(proposal.id)
+        assert data["newVersionNumber"] == 3
+        assert data["revertedFromVersion"] == 2
+        assert "timestamp" in data
+
+
 class TestPublisherResilience:
     @pytest.mark.asyncio
     async def test_no_registered_queue_is_a_noop(self) -> None:
@@ -192,6 +220,11 @@ class TestPublisherResilience:
         )
         await publisher.publish_proposal_rejected(proposal, reason=None)
         await publisher.publish_proposal_retried(proposal, hint=None)
+        await publisher.publish_proposal_reverted(
+            _make_proposal(status=ProposalStatus.APPLIED, applied_version=1),
+            new_version_number=2,
+            reverted_from_version=1,
+        )
 
     @pytest.mark.asyncio
     async def test_default_resolver_is_noop(self) -> None:

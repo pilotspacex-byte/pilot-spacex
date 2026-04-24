@@ -24,8 +24,11 @@ from pilot_space.api.v1.schemas.proposals import (
     ProposalRejectedEvent,
     ProposalRequestEvent,
     ProposalRetriedEvent,
+    ProposalRevertedEvent,
     RejectProposalRequest,
     RetryProposalRequest,
+    RevertResultEnvelope,
+    VersionHistoryEntry,
 )
 from pilot_space.domain.proposal import (
     ArtifactType,
@@ -249,6 +252,84 @@ class TestRequestEventInstanceOfEnvelope:
             **envelope_fields, eventTimestamp=datetime.now(UTC)
         )
         assert isinstance(event, ProposalEnvelope)
+
+
+class TestVersionHistoryEntry:
+    """Phase 89 Plan 05 — version_history element shape."""
+
+    def test_alias_vN_maps_to_v_n(self) -> None:
+        entry = VersionHistoryEntry.model_validate(
+            {
+                "vN": 2,
+                "by": "ai",
+                "at": datetime.now(UTC).isoformat(),
+                "summary": "AI updated title",
+                "snapshot": {"name": "prev"},
+            }
+        )
+        assert entry.v_n == 2
+        dumped = entry.model_dump(by_alias=True)
+        assert dumped["vN"] == 2  # round-trip preserves alias
+        assert dumped["by"] == "ai"
+
+    def test_by_field_restricted_to_ai_or_user(self) -> None:
+        with pytest.raises(ValidationError):
+            VersionHistoryEntry.model_validate(
+                {
+                    "vN": 1,
+                    "by": "system",  # invalid — only "ai" or "user"
+                    "at": datetime.now(UTC).isoformat(),
+                    "summary": "x",
+                    "snapshot": {},
+                }
+            )
+
+
+class TestProposalRevertedEvent:
+    """Wire shape frozen for Plan 06 frontend."""
+
+    def test_camel_case_by_alias_dump(self) -> None:
+        pid = uuid4()
+        now = datetime.now(UTC)
+        event = ProposalRevertedEvent(
+            proposal_id=pid,
+            new_version_number=3,
+            reverted_from_version=2,
+            timestamp=now,
+        )
+        dumped = event.model_dump(by_alias=True, mode="json")
+        assert dumped["proposalId"] == str(pid)
+        assert dumped["newVersionNumber"] == 3
+        assert dumped["revertedFromVersion"] == 2
+        assert dumped["timestamp"] == now.isoformat().replace("+00:00", "Z") or dumped[
+            "timestamp"
+        ].startswith(now.isoformat()[:19])
+
+
+class TestRevertResultEnvelope:
+    """RevertResultEnvelope — response body of POST /proposals/{id}/revert."""
+
+    def test_envelope_composes_proposal_plus_version_metadata(self) -> None:
+        proposal = _sample_proposal(status=ProposalStatus.APPLIED, applied_version=2)
+        envelope = ProposalEnvelope.from_entity(proposal)
+        result = RevertResultEnvelope(
+            proposal=envelope,
+            new_version_number=3,
+            new_history_entry=VersionHistoryEntry.model_validate(
+                {
+                    "vN": 2,
+                    "by": "user",
+                    "at": datetime.now(UTC).isoformat(),
+                    "summary": "Reverted v3 → v2",
+                    "snapshot": {},
+                }
+            ),
+        )
+        dumped = result.model_dump(by_alias=True, mode="json")
+        assert dumped["newVersionNumber"] == 3
+        assert dumped["newHistoryEntry"]["by"] == "user"
+        assert dumped["newHistoryEntry"]["vN"] == 2
+        assert dumped["proposal"]["id"] == str(proposal.id)
 
 
 # Silence unused-import warnings for auxiliary fixtures kept for readability.

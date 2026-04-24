@@ -22,7 +22,7 @@ Wire shape contract (FROZEN — consumed by Plans 04-06 and the frontend):
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import Field
@@ -139,6 +139,65 @@ class ProposalRetriedEvent(BaseSchema):
     timestamp: datetime
 
 
+class ProposalRevertedEvent(BaseSchema):
+    """SSE payload for ``proposal_reverted`` (Phase 89 Plan 05).
+
+    Flat envelope consumed by the chat-stream frontend to swap an
+    ``AppliedReceipt`` card for a ``RevertedPill`` in real time.
+    """
+
+    proposal_id: UUID
+    new_version_number: int
+    reverted_from_version: int
+    timestamp: datetime
+
+
+# ---------------------------------------------------------------------------
+# Version history + revert envelopes (Phase 89 Plan 05)
+# ---------------------------------------------------------------------------
+
+
+class VersionHistoryEntry(BaseSchema):
+    """Single ``version_history`` element.
+
+    Shape frozen in Plan 01: ``{vN, by, at, summary, snapshot}`` (the ``vN``
+    field is aliased via the parent BaseSchema's camelCase generator — the
+    Python attribute stays snake_case so callers can write
+    ``entry.v_n``).
+    """
+
+    v_n: int = Field(alias="vN")
+    by: Literal["ai", "user"]
+    at: datetime
+    summary: str
+    snapshot: dict[str, Any] = Field(default_factory=dict)
+
+
+class VersionHistoryResponse(BaseSchema):
+    """Response for ``GET /api/v1/{artifact}/{id}/version-history``.
+
+    Not wired as an endpoint here — Plan 06 frontend reads ``versionHistory``
+    directly from the artifact GET (IssueResponse adds the field). Retained
+    as a schema for future dedicated endpoints.
+    """
+
+    version_number: int
+    history: list[VersionHistoryEntry] = Field(default_factory=list)
+
+
+class RevertResultEnvelope(BaseSchema):
+    """Response body for ``POST /api/v1/proposals/{id}/revert``.
+
+    Carries the original proposal (unchanged — revert does NOT mutate its
+    status), the artifact's new version_number, and the new history entry
+    written during the revert.
+    """
+
+    proposal: ProposalEnvelope
+    new_version_number: int
+    new_history_entry: VersionHistoryEntry
+
+
 # ---------------------------------------------------------------------------
 # REST request bodies.
 # ---------------------------------------------------------------------------
@@ -185,6 +244,10 @@ __all__ = [
     "ProposalRejectedEvent",
     "ProposalRequestEvent",
     "ProposalRetriedEvent",
+    "ProposalRevertedEvent",
     "RejectProposalRequest",
     "RetryProposalRequest",
+    "RevertResultEnvelope",
+    "VersionHistoryEntry",
+    "VersionHistoryResponse",
 ]
