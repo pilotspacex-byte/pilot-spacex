@@ -117,3 +117,10 @@ export type {
   AttachmentUploadResponse,
 } from './attachments';
 export { ACCEPTED_MIME_TYPES, FILE_SIZE_LIMITS } from './attachments';
+
+export type {
+  // Skill domain (Phase 91)
+  Skill,
+  SkillDetail,
+  ReferenceFileMeta,
+} from './skill';

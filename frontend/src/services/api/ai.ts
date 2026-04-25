@@ -1,4 +1,5 @@
 import { apiClient } from './client';
+import type { Skill } from '@/types/skill';
 
 /**
  * AI API client with typed endpoints.
@@ -336,18 +337,17 @@ export const aiApi = {
 
   /**
    * List available skills from backend templates.
-   * @returns Skill definitions with UI metadata
+   *
+   * Phase 91 (Plan 91-02, D-91-02-B): the response shape is widened to use the
+   * canonical `Skill` type from `@/types/skill`, exposing the new fields
+   * (`slug`, `feature_module`, `reference_files`, `updated_at`) to chat
+   * consumers. Existing consumers (`features/ai/ChatView/hooks/useSkills.ts`
+   * → `mergeSkills`) only read name/description/category/icon/examples, so
+   * the extra fields are ignored at runtime — backwards compatible.
+   *
+   * @returns Skill definitions with UI metadata + Phase 91 detail metadata.
    */
-  listSkills: () =>
-    apiClient.get<{
-      skills: Array<{
-        name: string;
-        description: string;
-        category: string;
-        icon: string;
-        examples: string[];
-      }>;
-    }>('/skills'),
+  listSkills: () => apiClient.get<{ skills: Skill[] }>('/skills'),
 
   /**
    * Create issues from AI extraction results (auto-approve, DD-003 non-destructive).
