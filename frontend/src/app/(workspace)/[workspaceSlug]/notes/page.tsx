@@ -13,7 +13,6 @@ import {
   FileText,
   FolderKanban,
   Plus,
-  Search,
   Grid3X3,
   List,
   SortAsc,
@@ -28,7 +27,6 @@ import {
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
@@ -86,7 +84,6 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
 
   // View state
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
-  const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortBy>('updated');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [filterPinned, setFilterPinned] = useState<boolean | undefined>(undefined);
@@ -144,17 +141,7 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
 
   // Filter and sort notes
   const filteredNotes = useMemo(() => {
-    let notes = [...allNotes];
-
-    // Search filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      notes = notes.filter(
-        (note) =>
-          note.title.toLowerCase().includes(query) ||
-          note.topics?.some((t) => t.toLowerCase().includes(query))
-      );
-    }
+    const notes = [...allNotes];
 
     // Sort
     notes.sort((a, b) => {
@@ -180,7 +167,7 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
     notes.sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0));
 
     return notes;
-  }, [allNotes, searchQuery, sortBy, sortOrder]);
+  }, [allNotes, sortBy, sortOrder]);
 
   // Virtual scroll for list view
   const LIST_ITEM_HEIGHT = 72;
@@ -249,18 +236,7 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
       </div>
 
       {/* Toolbar */}
-      <div className="flex flex-col gap-2 border-b border-border px-4 py-2 sm:flex-row sm:items-center sm:gap-4 sm:px-6">
-        {/* Search */}
-        <div className="relative sm:flex-1 sm:max-w-md">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search notes..."
-            className="pl-9"
-          />
-        </div>
-
+      <div className="flex flex-col gap-2 border-b border-border px-4 py-2 sm:flex-row sm:items-center sm:justify-end sm:gap-4 sm:px-6">
         {/* View controls */}
         <div className="flex items-center gap-2">
           {/* Filter (pinned) */}

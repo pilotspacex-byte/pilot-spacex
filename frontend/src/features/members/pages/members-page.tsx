@@ -15,7 +15,6 @@
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -48,7 +47,7 @@ import { ConfirmActionDialog } from '@/features/settings/components/confirm-acti
 import { useStore } from '@/stores';
 import type { WorkspaceRole } from '@/stores/WorkspaceStore';
 import { useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, ChevronLeft, ChevronRight, Clock, Loader2, Mail, Search, Trash2 } from 'lucide-react';
+import { AlertCircle, ChevronLeft, ChevronRight, Clock, Loader2, Mail, Trash2, UsersRound } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useParams, useRouter } from 'next/navigation';
 import * as React from 'react';
@@ -121,18 +120,10 @@ export const MembersPage = observer(function MembersPage() {
 
   const isAdmin = workspaceStore.isAdmin;
 
-  const [searchQuery, setSearchQuery] = React.useState('');
   const [roleFilter, setRoleFilter] = React.useState<string>('all');
   const [projectFilter, setProjectFilter] = React.useState<string | null>(null);
   const [membersPage, setMembersPage] = React.useState(1);
   const [invitationsPage, setInvitationsPage] = React.useState(1);
-  const [debouncedSearch, setDebouncedSearch] = React.useState('');
-
-  // Debounce search by 300ms
-  React.useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
 
   const {
     data: membersData,
@@ -140,7 +131,6 @@ export const MembersPage = observer(function MembersPage() {
     error: membersError,
   } = useWorkspaceMembers(workspaceId, {
     projectId: projectFilter,
-    search: debouncedSearch,
     role: roleFilter === 'all' ? undefined : roleFilter,
     page: membersPage,
     pageSize: ITEMS_PER_PAGE,
@@ -184,7 +174,7 @@ export const MembersPage = observer(function MembersPage() {
   // Reset page when filters change
   React.useEffect(() => {
     setMembersPage(1);
-  }, [roleFilter, debouncedSearch, projectFilter]);
+  }, [roleFilter, projectFilter]);
 
   const members = React.useMemo(() => membersData?.items ?? [], [membersData?.items]);
   const membersTotalPages = Math.max(1, Math.ceil((membersData?.total ?? 0) / ITEMS_PER_PAGE));
@@ -376,16 +366,6 @@ export const MembersPage = observer(function MembersPage() {
     <>
       {/* Toolbar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative flex-1 max-w-xs">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search members..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-            aria-label="Search members"
-          />
-        </div>
         <Select value={roleFilter} onValueChange={setRoleFilter}>
           <SelectTrigger className="w-[140px]" aria-label="Filter by role">
             <SelectValue placeholder="All Roles" />
@@ -433,18 +413,17 @@ export const MembersPage = observer(function MembersPage() {
       {/* Members Table */}
           {members.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-12 text-center">
-          <Search className="h-8 w-8 text-muted-foreground/40" aria-hidden="true" />
+          <UsersRound className="h-8 w-8 text-muted-foreground/40" aria-hidden="true" />
           <p className="text-sm text-muted-foreground">
-            {searchQuery || roleFilter !== 'all' || projectFilter
+            {roleFilter !== 'all' || projectFilter
               ? 'No members matching your filters.'
               : 'No members found.'}
           </p>
-          {(searchQuery || roleFilter !== 'all' || projectFilter) && (
+          {(roleFilter !== 'all' || projectFilter) && (
             <Button
               variant="ghost"
               size="sm"
               onClick={() => {
-                setSearchQuery('');
                 setRoleFilter('all');
                 setProjectFilter(null);
               }}

@@ -2,9 +2,8 @@
 
 import { useState, useMemo, useCallback, useSyncExternalStore } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Plus, LayoutGrid, List, Search, AlertCircle, FolderKanban } from 'lucide-react';
+import { Plus, LayoutGrid, List, AlertCircle, FolderKanban } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -66,7 +65,6 @@ export default function ProjectsPage() {
   const workspaceId = workspaceStore.currentWorkspaceId ?? '';
   const isAdmin = workspaceStore.isAdmin;
 
-  const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('recent');
   const [leadFilter, setLeadFilter] = useState<string>('all');
   const viewMode = useSyncExternalStore(
@@ -91,22 +89,12 @@ export default function ProjectsPage() {
   const filteredProjects = useMemo(() => {
     let result = allProjects;
 
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      result = result.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.description?.toLowerCase().includes(q) ||
-          p.identifier.toLowerCase().includes(q)
-      );
-    }
-
     if (leadFilter !== 'all') {
       result = result.filter((p) => p.leadId === leadFilter);
     }
 
     return sortProjects(result, sortBy);
-  }, [allProjects, search, leadFilter, sortBy]);
+  }, [allProjects, leadFilter, sortBy]);
 
   const leads = useMemo(() => {
     const uniqueLeads = new Map<string, string>();
@@ -167,17 +155,7 @@ export default function ProjectsPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col gap-2 border-b border-border/50 px-4 py-2 sm:flex-row sm:items-center sm:gap-4 sm:px-6">
-        <div className="relative sm:flex-1 sm:max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search projects..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-            aria-label="Search projects"
-          />
-        </div>
+      <div className="flex flex-col gap-2 border-b border-border/50 px-4 py-2 sm:flex-row sm:items-center sm:justify-end sm:gap-4 sm:px-6">
         <div className="flex items-center gap-2">
           <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
             <SelectTrigger className="w-[140px] sm:w-[160px]">
@@ -237,14 +215,14 @@ export default function ProjectsPage() {
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <FolderKanban className="h-10 w-10 text-muted-foreground/50 mb-3" />
             <h3 className="text-lg font-medium">
-              {search || leadFilter !== 'all' ? 'No matching projects' : 'No projects yet'}
+              {leadFilter !== 'all' ? 'No matching projects' : 'No projects yet'}
             </h3>
             <p className="text-sm text-muted-foreground mb-4">
-              {search || leadFilter !== 'all'
-                ? 'Try adjusting your search or filters.'
+              {leadFilter !== 'all'
+                ? 'Try adjusting your filters.'
                 : 'Create your first project to get started.'}
             </p>
-            {!search && leadFilter === 'all' && isAdmin && (
+            {leadFilter === 'all' && isAdmin && (
               <Button onClick={() => setCreateModalOpen(true)} className="gap-2">
                 <Plus className="h-4 w-4" />
                 Create your first project

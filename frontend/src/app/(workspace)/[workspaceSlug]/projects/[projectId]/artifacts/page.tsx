@@ -18,7 +18,6 @@ import {
   Paperclip,
   Download,
   Trash2,
-  Search,
   AlertCircle,
   FileText,
   FileImage,
@@ -59,7 +58,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -150,7 +148,6 @@ const ArtifactsPage = observer(function ArtifactsPage() {
   const workspaceId = workspaceStore.currentWorkspace?.id ?? '';
 
   // Local UI state
-  const [searchQuery, setSearchQuery] = React.useState('');
   const [selectedArtifact, setSelectedArtifact] = React.useState<Artifact | null>(null);
   const [deleteTargetId, setDeleteTargetId] = React.useState<string | null>(null);
 
@@ -174,15 +171,10 @@ const ArtifactsPage = observer(function ArtifactsPage() {
   // Delete mutation — has optimistic update + error rollback + toast built-in
   const deleteMutation = useDeleteArtifact(workspaceId, params.projectId);
 
-  // Client-side derived state (MGMT-05 search, MGMT-06 sort)
+  // Client-side derived state (MGMT-06 sort)
   const filteredSorted = React.useMemo(() => {
-    let items = artifacts ?? [];
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      items = items.filter((a) => a.filename.toLowerCase().includes(q));
-    }
-    return sortArtifacts(items, sortKey);
-  }, [artifacts, searchQuery, sortKey]);
+    return sortArtifacts(artifacts ?? [], sortKey);
+  }, [artifacts, sortKey]);
 
   // Handlers
   const handleSortChange = (newSort: SortKey) => {
@@ -232,17 +224,6 @@ const ArtifactsPage = observer(function ArtifactsPage() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          {/* Search input — MGMT-05 */}
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search files..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 w-48 sm:w-64"
-              aria-label="Search artifacts by filename"
-            />
-          </div>
           {/* Sort dropdown — MGMT-06 */}
           <Select value={sortKey} onValueChange={(v) => handleSortChange(v as SortKey)}>
             <SelectTrigger className="w-[140px]" aria-label="Sort artifacts">
@@ -266,13 +247,9 @@ const ArtifactsPage = observer(function ArtifactsPage() {
           /* Empty state */
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <Paperclip className="size-12 text-muted-foreground/40 mb-4" />
-            <h3 className="text-lg font-medium mb-1">
-              {searchQuery ? 'No files match your search' : 'No artifacts yet'}
-            </h3>
+            <h3 className="text-lg font-medium mb-1">No artifacts yet</h3>
             <p className="text-sm text-muted-foreground">
-              {searchQuery
-                ? 'Try a different search term'
-                : 'Upload files in your notes to see them here'}
+              Upload files in your notes to see them here
             </p>
           </div>
         ) : (

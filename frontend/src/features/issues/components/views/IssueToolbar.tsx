@@ -6,7 +6,6 @@ import {
   LayoutGrid,
   List,
   Table2,
-  Search,
   Plus,
   Rows3,
   Rows2,
@@ -15,7 +14,6 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,7 +30,6 @@ interface IssueToolbarProps {
   labelOptions?: Array<{ value: string; label: string; color?: string }>;
   projectOptions?: Array<{ value: string; label: string }>;
   onCreateIssue?: () => void;
-  onSearch?: (query: string) => void;
 }
 
 const VIEW_MODES = [
@@ -55,35 +52,13 @@ export const IssueToolbar = observer(function IssueToolbar({
   labelOptions,
   projectOptions,
   onCreateIssue,
-  onSearch,
 }: IssueToolbarProps) {
   const viewStore = useIssueViewStore();
-  const [searchValue, setSearchValue] = React.useState('');
-  const searchRef = React.useRef<HTMLInputElement>(null);
-
-  React.useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === '/' && !e.ctrlKey && !e.metaKey) {
-        const target = e.target as HTMLElement;
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
-          return;
-        e.preventDefault();
-        searchRef.current?.focus();
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchValue(e.target.value);
-    onSearch?.(e.target.value);
-  };
 
   return (
     <div className="flex flex-col gap-3 px-4 py-3 border-b">
       <div className="flex items-center justify-between gap-3">
-        {/* Left: View toggle + Search */}
+        {/* Left: View toggle */}
         <div className="flex items-center gap-2">
           <div className="flex items-center rounded-lg border bg-muted/30 p-0.5">
             {VIEW_MODES.map(({ key, icon: ModeIcon, label }) => (
@@ -103,23 +78,6 @@ export const IssueToolbar = observer(function IssueToolbar({
                 <span className="hidden sm:inline">{label}</span>
               </button>
             ))}
-          </div>
-
-          <div className="relative">
-            <Search className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              ref={searchRef}
-              value={searchValue}
-              onChange={handleSearchChange}
-              placeholder="Search issues..."
-              className="h-7 w-40 pl-7 text-xs sm:w-56"
-              aria-label="Search issues"
-            />
-            {!searchValue && (
-              <kbd className="absolute right-2 top-1/2 -translate-y-1/2 rounded border bg-muted px-1 text-[10px] text-muted-foreground">
-                /
-              </kbd>
-            )}
           </div>
         </div>
 
