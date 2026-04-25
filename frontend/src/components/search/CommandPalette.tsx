@@ -18,7 +18,7 @@
  *   T-90-07 — render user query / titles via React text nodes only
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { createElement, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { FileText, Ticket, Sparkles, MessageSquare, Users } from 'lucide-react';
 
@@ -39,6 +39,10 @@ import { issuesApi } from '@/services/api/issues';
 import type { Note } from '@/types/note';
 import type { Issue } from '@/types/issue';
 import type { PaletteScope } from '@/stores/UIStore';
+// Phase 91 Plan 05 — palette SKILLS group rendering.
+import { useSkillCatalog } from '@/features/skills/hooks';
+import { resolveLucideIcon } from '@/features/skills/lib/skill-icon';
+import type { Skill } from '@/types/skill';
 
 import {
   detectPrefixMode,
@@ -106,6 +110,33 @@ function IssueResultItem({ issue }: { issue: Issue }) {
   );
 }
 
+// Phase 91 Plan 05 — SKILLS row, mirrors NoteResultItem composition with
+// the violet 12% icon-box from UI-SPEC §Surface 3. The icon is rendered
+// via React.createElement (mirrors SkillCard) so the
+// react-hooks/static-components lint rule doesn't flag the
+// resolve-then-uppercase-JSX pattern.
+function SkillResultItem({ skill }: { skill: Skill }) {
+  const iconComponent = resolveLucideIcon(skill.icon);
+  return (
+    <div className="flex items-center gap-2 min-w-0 w-full">
+      <span
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px]"
+        style={{ background: 'rgba(124,92,255,0.12)' }}
+      >
+        {createElement(iconComponent, {
+          className: 'h-4 w-4',
+          style: { color: '#7c5cff' },
+          'aria-hidden': true,
+        })}
+      </span>
+      <span className="truncate text-[13px] font-medium">{skill.name}</span>
+      <span className="truncate text-[13px] font-medium text-muted-foreground">
+        {skill.description}
+      </span>
+    </div>
+  );
+}
+
 function ResultSkeleton() {
   return (
     <div className="px-2 py-1.5 space-y-2">
@@ -162,6 +193,11 @@ export const CommandPalette = observer(function CommandPalette() {
     workspaceStore.currentWorkspace?.id ??
     (workspaceSlug ? workspaceStore.getWorkspaceBySlug(workspaceSlug)?.id : undefined) ??
     workspaceStore.currentWorkspaceId;
+
+  // ─── Phase 91 Plan 05 — skills catalog ───────────────────────────────────
+  // TanStack staleTime is 30min so opening the palette repeatedly does NOT
+  // refetch. The catalog is workspace-agnostic and small (~25 entries).
+  const { data: allSkills } = useSkillCatalog();
 
   // ─── Prefix detection effect ─────────────────────────────────────────────
   // Only writes to the scope when a prefix transition actually happens —
@@ -337,14 +373,42 @@ export const CommandPalette = observer(function CommandPalette() {
   // ─── Derived view-model ──────────────────────────────────────────────────
   const trimmed = effectiveQuery.trim();
   const hasQuery = trimmed.length > 0;
-  const hasResults = results.notes.length > 0 || results.issues.length > 0;
 
   const scope = uiStore.paletteScope;
   const showTopics = scope === 'all' || scope === 'topics';
   const showTasks = scope === 'all' || scope === 'tasks';
   const showChats = scope === 'all' || scope === 'chats';
   const showSpecs = scope === 'all' || scope === 'specs';
+  const showSkills = scope === 'all' || scope === 'skills';
   const showPeople = scope === 'all' || scope === 'people';
+
+  // Phase 91 Plan 05 — Skills filter. In 'skills' scope with empty query show
+  // the full catalog; otherwise filter against name/description/slug. Group is
+  // hidden in 'all' scope when query is empty (UI-SPEC: do not render empty
+  // groups; only the prefix-hint empty state shows).
+  const filteredSkills = useMemo<Skill[]>(() => {
+    if (!allSkills) return [];
+    const q = trimmed.toLowerCase();
+    if (!q && scope !== 'skills') return [];
+    const matches = q
+      ? allSkills.filter(
+          (s) =>
+            s.name.toLowerCase().includes(q) ||
+            s.description.toLowerCase().includes(q) ||
+            s.slug.toLowerCase().includes(q),
+        )
+      : allSkills;
+    return scope === 'skills' ? matches.slice(0, 50) : matches.slice(0, MAX_RESULTS_PER_GROUP);
+  }, [allSkills, trimmed, scope]);
+
+  const hasSkillResults = filteredSkills.length > 0;
+
+  // Skills count toward "has results" so the AI fallback row is suppressed
+  // when only skills match (Plan 91-05).
+  const hasResults =
+    results.notes.length > 0 ||
+    results.issues.length > 0 ||
+    (showSkills && hasSkillResults);
 
   const firstResultTitle =
     results.notes[0]?.title ?? results.issues[0]?.name ?? results.issues[0]?.title ?? undefined;
@@ -451,8 +515,9 @@ export const CommandPalette = observer(function CommandPalette() {
           </div>
         )}
 
-        {/* No-query empty state */}
-        {!isLoading && !hasQuery && (
+        {/* No-query empty state — suppressed in 'skills' scope where the
+            catalog is the empty-query view (Plan 91-05). */}
+        {!isLoading && !hasQuery && scope !== 'skills' && (
           <div className="py-12 text-center">
             <div className="text-[13px] font-medium text-[var(--text-secondary)]">
               Search everything
@@ -521,6 +586,42 @@ export const CommandPalette = observer(function CommandPalette() {
             <div className="px-2 py-3 text-[13px] text-[var(--text-muted)] flex items-center gap-2">
               <MessageSquare className="h-4 w-4" />
               <span>Chat search arrives in Phase 91.</span>
+            </div>
+          </div>
+        )}
+
+        {/* Skills group — Phase 91 Plan 05.
+            Renders when scope is 'all' (with query) or 'skills' (always).
+            Each row navigates to the detail page on select; ⌘K palette closes
+            via handleOpenChange(false). Hidden in 'all' scope when filter
+            yields zero matches (UI-SPEC: never render empty groups). */}
+        {!isLoading && showSkills && hasSkillResults && (scope === 'skills' || hasQuery) && (
+          <CommandGroup heading="SKILLS" className={GROUP_HEADING_CLS}>
+            {filteredSkills.map((skill) => (
+              <CommandItem
+                key={skill.slug}
+                value={`skill-${skill.slug}-${skill.name}-${skill.description}`}
+                onSelect={() => {
+                  if (!workspaceSlug) return;
+                  router.push(`/${workspaceSlug}/skills/${skill.slug}`);
+                  handleOpenChange(false);
+                }}
+              >
+                <SkillResultItem skill={skill} />
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+
+        {/* Skills empty state — only when user is explicitly in 'skills' scope. */}
+        {!isLoading && scope === 'skills' && !hasSkillResults && (
+          <div data-palette-group="skills" className="px-2 py-1">
+            <div className="px-2 py-1.5 font-mono text-[10px] font-semibold tracking-[0.04em] uppercase text-[var(--text-muted)]">
+              SKILLS
+            </div>
+            <div className="px-2 py-3 text-[13px] text-[var(--text-muted)] flex items-center gap-2">
+              <Sparkles className="h-4 w-4" />
+              <span>No skills available.</span>
             </div>
           </div>
         )}

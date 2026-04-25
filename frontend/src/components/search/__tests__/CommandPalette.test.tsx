@@ -57,6 +57,25 @@ vi.mock('@/services/api/issues', () => ({
   issuesApi: { list: (...args: unknown[]) => issuesListMock(...args) },
 }));
 
+// Phase 91 Plan 05 — Skills catalog mock. The CommandPalette mounts
+// useSkillCatalog directly; tests control the returned skill list via
+// `currentSkills`. Defaults to empty (most baseline tests don't need skills).
+let currentSkills: Array<{
+  name: string;
+  description: string;
+  category: string;
+  icon: string;
+  examples: string[];
+  slug: string;
+  feature_module: string[] | null;
+  reference_files: string[];
+  updated_at: string | null;
+}> = [];
+
+vi.mock('@/features/skills/hooks', () => ({
+  useSkillCatalog: () => ({ data: currentSkills, isLoading: false, error: null }),
+}));
+
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 function makeStoreOpen(): UIStore {
@@ -86,6 +105,7 @@ beforeEach(() => {
   issuesListMock.mockReset();
   notesListMock.mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 5 });
   issuesListMock.mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 5 });
+  currentSkills = [];
   setSearchParams('');
   testUIStore = makeStoreOpen();
 });
@@ -359,5 +379,82 @@ describe('CommandPalette v3', () => {
     });
     const skillsTab = screen.getByRole('tab', { name: 'Skills' });
     expect(skillsTab.getAttribute('aria-selected')).toBe('true');
+  });
+
+  // ─── Phase 91 Plan 05 — SKILLS group rendering ──────────────────────────
+
+  function makeSkill(overrides: Partial<(typeof currentSkills)[number]> = {}) {
+    return {
+      name: 'AI Context',
+      description: 'Aggregate related context for an issue',
+      category: 'planning',
+      icon: 'BookOpen',
+      examples: [],
+      slug: 'ai-context',
+      feature_module: null,
+      reference_files: [],
+      updated_at: null,
+      ...overrides,
+    };
+  }
+
+  it("'all' scope with empty query hides SKILLS group (Plan 91-05)", () => {
+    currentSkills = [makeSkill()];
+    render(<CommandPalette />);
+    expect(screen.queryByText('SKILLS')).toBeNull();
+  });
+
+  it("'all' scope with non-empty query renders matched skills (Plan 91-05)", async () => {
+    currentSkills = [
+      makeSkill({ slug: 'ai-context', name: 'AI Context', description: 'Aggregate context' }),
+      makeSkill({ slug: 'extract-issues', name: 'Extract Issues', description: 'Pull issues' }),
+    ];
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<CommandPalette />);
+    await user.type(screen.getByRole('combobox'), 'ai');
+    await flushDebounce();
+
+    expect(screen.getByText('SKILLS')).toBeDefined();
+    expect(screen.getByText('AI Context')).toBeDefined();
+    // Non-matching skill filtered out by name/description/slug.
+    expect(screen.queryByText('Extract Issues')).toBeNull();
+  });
+
+  it("'skills' scope with empty query renders the full catalog (Plan 91-05)", () => {
+    currentSkills = [
+      makeSkill({ slug: 'ai-context', name: 'AI Context' }),
+      makeSkill({ slug: 'extract-issues', name: 'Extract Issues' }),
+    ];
+    render(<CommandPalette />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Skills' }));
+    expect(screen.getByText('SKILLS')).toBeDefined();
+    expect(screen.getByText('AI Context')).toBeDefined();
+    expect(screen.getByText('Extract Issues')).toBeDefined();
+  });
+
+  it("'skills' scope with empty catalog shows 'No skills available.' (Plan 91-05)", () => {
+    currentSkills = [];
+    render(<CommandPalette />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Skills' }));
+    expect(screen.getByText('No skills available.')).toBeDefined();
+  });
+
+  it('selecting a skill row pushes /{slug}/skills/{skill.slug} and closes palette (Plan 91-05)', async () => {
+    currentSkills = [makeSkill({ slug: 'ai-context', name: 'AI Context' })];
+    render(<CommandPalette />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Skills' }));
+    const row = await screen.findByText('AI Context');
+    fireEvent.click(row);
+    expect(pushMock).toHaveBeenCalledWith('/alpha/skills/ai-context');
+    expect(testUIStore.commandPaletteOpen).toBe(false);
+  });
+
+  it('skill row icon resolves via resolveLucideIcon (Plan 91-05)', () => {
+    currentSkills = [makeSkill({ icon: 'ListTodo', slug: 'extract-issues' })];
+    render(<CommandPalette />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Skills' }));
+    const dialog = screen.getByRole('dialog');
+    // Lucide-react renders icons as <svg class="lucide lucide-list-todo …">.
+    expect(dialog.querySelector('.lucide-list-todo')).not.toBeNull();
   });
 });
