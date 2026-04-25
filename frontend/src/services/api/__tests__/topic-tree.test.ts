@@ -73,7 +73,7 @@ describe('notesApi topic-tree methods', () => {
     const result = await notesApi.listChildren('ws-1', 'note-1', 2, 25);
 
     expect(mockGet).toHaveBeenCalledTimes(1);
-    const url = mockGet.mock.calls[0][0] as string;
+    const url = mockGet.mock.calls[0]![0] as string;
     expect(url.startsWith('/workspaces/ws-1/notes/note-1/children?')).toBe(true);
     expect(url).toContain('page=2');
     expect(url).toContain('page_size=25');
@@ -85,7 +85,7 @@ describe('notesApi topic-tree methods', () => {
     const { notesApi } = await import('../notes');
     await notesApi.listChildren('ws-1', 'note-1');
 
-    const url = mockGet.mock.calls[0][0] as string;
+    const url = mockGet.mock.calls[0]![0] as string;
     expect(url).toContain('page=1');
     expect(url).toContain('page_size=20');
   });
@@ -128,7 +128,7 @@ describe('notesApi topic-tree methods', () => {
     // Specifically: the body must be { parentId: null }, not {} — backend distinguishes
     // "absent" (validation error) from "null" (root move). JSON.stringify of {parentId: null}
     // yields '{"parentId":null}' — verify the actual sent shape preserves the key.
-    const body = mockPost.mock.calls[0][1] as Record<string, unknown>;
+    const body = mockPost.mock.calls[0]![1] as Record<string, unknown>;
     expect('parentId' in body).toBe(true);
     expect(body.parentId).toBeNull();
   });

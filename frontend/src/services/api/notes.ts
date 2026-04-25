@@ -172,6 +172,43 @@ export const notesApi = {
       insert_after_id: insertAfterId,
     });
   },
+
+  // ---------------------------------------------------------------------------
+  // Topic tree (Phase 93) — endpoints introduced in Plan 93-02.
+  //
+  // The backend mounts these on the same /workspaces/{ws}/notes/{id} prefix via
+  // a sibling router (workspace_notes_topic_tree.py); the URL surface is identical.
+  // Body shape for moveTopic uses BaseSchema's camelCase alias contract:
+  //   { parentId: string | null }  ↔  MoveTopicRequest(parent_id=...)
+  // ---------------------------------------------------------------------------
+
+  listChildren(
+    workspaceId: string,
+    noteId: string,
+    page = 1,
+    pageSize = 20
+  ): Promise<PaginatedResponse<Note>> {
+    const params = new URLSearchParams({
+      page: String(page),
+      page_size: String(pageSize),
+    });
+    return apiClient.get<PaginatedResponse<Note>>(
+      `/workspaces/${workspaceId}/notes/${noteId}/children?${params.toString()}`
+    );
+  },
+
+  listAncestors(workspaceId: string, noteId: string): Promise<Note[]> {
+    return apiClient.get<Note[]>(`/workspaces/${workspaceId}/notes/${noteId}/ancestors`);
+  },
+
+  moveTopic(workspaceId: string, noteId: string, parentId: string | null): Promise<Note> {
+    // `parentId: null` is meaningful — moves the topic to the root. We must
+    // send the key explicitly (not omit it) so the backend distinguishes
+    // "absent" (validation error) from "null" (root move).
+    return apiClient.post<Note>(`/workspaces/${workspaceId}/notes/${noteId}/move`, {
+      parentId,
+    });
+  },
 };
 
 /**

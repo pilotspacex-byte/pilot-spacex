@@ -12,6 +12,11 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '/api/v1';
 
 /**
  * RFC 7807 Problem Details for HTTP APIs
+ *
+ * Note: backend `app_error_handler` and `ai_error_handler` emit a literal
+ * `error_code` (snake_case) extension field on the problem document — see
+ * `backend/src/pilot_space/api/middleware/error_handler.py:285`. The frontend
+ * reads it from this index-signature slot and surfaces it as `ApiError.errorCode`.
  */
 export interface ApiProblemDetails {
   type?: string;
@@ -20,6 +25,8 @@ export interface ApiProblemDetails {
   detail?: string;
   instance?: string;
   errors?: Array<Record<string, unknown>>;
+  /** Backend-emitted machine-readable error code (e.g. `topic_max_depth_exceeded`). */
+  error_code?: string;
   [key: string]: unknown;
 }
 
@@ -31,6 +38,12 @@ export class ApiError extends Error {
   public readonly type: string;
   public readonly detail?: string;
   public readonly errors?: Array<Record<string, unknown>>;
+  /**
+   * Machine-readable error code from the backend RFC 7807 extension
+   * (snake_case wire field `error_code`). Used by typed-error mappers — e.g.
+   * useMoveTopic discriminates on `topic_max_depth_exceeded` vs `topic_cycle_rejected`.
+   */
+  public readonly errorCode?: string;
   public readonly isRetryable: boolean;
 
   constructor(problem: ApiProblemDetails) {
@@ -40,6 +53,7 @@ export class ApiError extends Error {
     this.type = problem.type ?? 'about:blank';
     this.detail = problem.detail;
     this.errors = problem.errors;
+    this.errorCode = problem.error_code;
     this.isRetryable = this.determineRetryable(problem.status);
   }
 

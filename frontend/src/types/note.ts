@@ -38,6 +38,16 @@ export interface Note {
   position?: number;
   /** Optional emoji icon for page visual identity */
   iconEmoji?: string | null;
+  /**
+   * Topic tree parent (Phase 93). camelCase alias of backend `parent_topic_id`.
+   * `null` indicates a root topic. Always emitted by the backend (NoteResponse 93-02).
+   */
+  parentTopicId?: string | null;
+  /**
+   * Topic tree depth (Phase 93). camelCase alias of backend `topic_depth`.
+   * Root topics are depth 0; max enforced at 5 by the backend service.
+   */
+  topicDepth?: number;
   owner?: User;
   collaborators?: User[];
   linkedIssues: LinkedIssueBrief[];
