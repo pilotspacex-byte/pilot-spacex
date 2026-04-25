@@ -69,7 +69,7 @@ describe('buildSkillGraph', () => {
     ]);
     const fileNodes = result.nodes.filter((n) => n.kind === 'file');
     expect(fileNodes).toHaveLength(1);
-    expect(fileNodes[0].data.parentSkillSlugs).toEqual(['alpha', 'beta']);
+    expect(fileNodes[0]?.data.parentSkillSlugs).toEqual(['alpha', 'beta']);
     expect(result.edges).toHaveLength(2);
   });
 
@@ -133,7 +133,7 @@ describe('buildSkillGraph', () => {
     ]);
     const fileNodes = result.nodes.filter((n) => n.kind === 'file');
     expect(fileNodes).toHaveLength(1);
-    expect(fileNodes[0].id).toBe('file:real.md');
+    expect(fileNodes[0]?.id).toBe('file:real.md');
     expect(result.edges).toHaveLength(1);
     // refCount counts only meaningful entries
     const skill = result.nodes.find((n) => n.id === 'skill:alpha')!;
@@ -176,7 +176,7 @@ describe('buildSkillGraph', () => {
         reference_files: ['nested/dir/file.md'],
       }),
     ]);
-    expect(result.edges[0]).toMatchObject({
+    expect(result.edges[0]).toEqual({
       id: 'edge:skill:alpha->file:nested/dir/file.md',
       source: 'skill:alpha',
       target: 'file:nested/dir/file.md',

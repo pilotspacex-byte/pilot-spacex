@@ -24,3 +24,9 @@ export {
   useSkillFileBlob,
   type SkillFileBlob,
 } from './hooks';
+export { buildSkillGraph } from './lib/skill-graph';
+export type {
+  SkillGraphNode,
+  SkillGraphEdge,
+  SkillGraphResult,
+} from './lib/skill-graph';
