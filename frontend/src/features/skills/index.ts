@@ -16,6 +16,11 @@ export {
   useSkillsViewQueryStringSync,
   type SkillsViewMode,
 } from './hooks/useSkillsViewQueryStringSync';
+export {
+  useGraphKeyboardNav,
+  type UseGraphKeyboardNavArgs,
+  type UseGraphKeyboardNavResult,
+} from './hooks/useGraphKeyboardNav';
 // Note: the SkillGraphNode/FileGraphNode COMPONENTS are intentionally NOT
 // re-exported from this barrel — `SkillGraphNode` is also the name of a TYPE
 // from `./lib/skill-graph` (Plan 92-01's public contract). Consumers that

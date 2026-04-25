@@ -29,6 +29,30 @@ vi.mock('../../hooks', () => ({
   SKILLS_CATALOG_QUERY_KEY: ['skills', 'catalog'] as const,
 }));
 
+// Phase 92 Plan 03 — gallery hosts a [Cards | Graph] toggle. Mock the hook
+// and the heavy <SkillGraphView /> so this suite stays focused on the page
+// composition (toggle wiring, conditional render, peek/setMode handoff).
+const mockSetMode = vi.fn();
+let mockMode: 'cards' | 'graph' = 'cards';
+vi.mock('../../hooks/useSkillsViewQueryStringSync', () => ({
+  useSkillsViewQueryStringSync: () => [mockMode, mockSetMode] as const,
+}));
+
+const mockOpenSkillFilePeek = vi.fn();
+vi.mock('@/hooks/use-artifact-peek-state', () => ({
+  useArtifactPeekState: () => ({
+    openSkillFilePeek: mockOpenSkillFilePeek,
+  }),
+}));
+
+let lastGraphProps: Record<string, unknown> | null = null;
+vi.mock('../SkillGraphView', () => ({
+  SkillGraphView: (props: Record<string, unknown>) => {
+    lastGraphProps = props;
+    return <div data-testid="skill-graph-view-stub" />;
+  },
+}));
+
 import { SkillsGalleryPage } from '../SkillsGalleryPage';
 
 // ---------------------------------------------------------------------------
@@ -82,6 +106,10 @@ describe('SkillsGalleryPage (Phase 91)', () => {
     vi.setSystemTime(NOW);
     mockPush.mockReset();
     mockUseSkillCatalog.mockReset();
+    mockSetMode.mockReset();
+    mockOpenSkillFilePeek.mockReset();
+    mockMode = 'cards';
+    lastGraphProps = null;
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -154,5 +182,98 @@ describe('SkillsGalleryPage (Phase 91)', () => {
     const card = screen.getByRole('article', { name: /AI Context/ });
     await user.click(card);
     expect(mockPush).toHaveBeenCalledWith('/workspace/skills/ai-context');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 92 Plan 03 — toggle + conditional graph render
+// ---------------------------------------------------------------------------
+
+describe('SkillsGalleryPage (Phase 92 — view toggle)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    mockPush.mockReset();
+    mockUseSkillCatalog.mockReset();
+    mockSetMode.mockReset();
+    mockOpenSkillFilePeek.mockReset();
+    mockMode = 'cards';
+    lastGraphProps = null;
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('renders the SkillsViewToggle in the header (cards mode by default)', () => {
+    mockUseSkillCatalog.mockReturnValue(
+      makeResult({ data: [buildSkill({ slug: 'a', name: 'A' })] }),
+    );
+    render(<SkillsGalleryPage />, { wrapper });
+    expect(
+      screen.getByRole('tablist', { name: /skills view/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /cards/i })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+  });
+
+  it('renders the cards grid (not the graph) when mode === "cards"', () => {
+    mockMode = 'cards';
+    mockUseSkillCatalog.mockReturnValue(
+      makeResult({ data: [buildSkill({ slug: 'a', name: 'A' })] }),
+    );
+    render(<SkillsGalleryPage />, { wrapper });
+    expect(screen.getByText('A')).toBeInTheDocument();
+    expect(screen.queryByTestId('skill-graph-view-stub')).toBeNull();
+  });
+
+  it('renders SkillGraphView (not the grid) when mode === "graph"', () => {
+    mockMode = 'graph';
+    mockUseSkillCatalog.mockReturnValue(
+      makeResult({ data: [buildSkill({ slug: 'a', name: 'A' })] }),
+    );
+    render(<SkillsGalleryPage />, { wrapper });
+    expect(screen.getByTestId('skill-graph-view-stub')).toBeInTheDocument();
+    // Card grid items should NOT render — verify the SkillCard's role="article"
+    // is absent.
+    expect(screen.queryByRole('article')).toBeNull();
+  });
+
+  it('clicking the Graph tab calls setMode("graph")', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    mockUseSkillCatalog.mockReturnValue(
+      makeResult({ data: [buildSkill({ slug: 'a', name: 'A' })] }),
+    );
+    render(<SkillsGalleryPage />, { wrapper });
+    await user.click(screen.getByRole('tab', { name: /graph/i }));
+    expect(mockSetMode).toHaveBeenCalledWith('graph');
+  });
+
+  it('passes onOpenFilePeek = openSkillFilePeek to SkillGraphView', () => {
+    mockMode = 'graph';
+    mockUseSkillCatalog.mockReturnValue(makeResult({ data: [] }));
+    render(<SkillsGalleryPage />, { wrapper });
+    expect(lastGraphProps).not.toBeNull();
+    expect(lastGraphProps!.onOpenFilePeek).toBe(mockOpenSkillFilePeek);
+  });
+
+  it('passes onSwitchToCards that calls setMode("cards") to SkillGraphView', () => {
+    mockMode = 'graph';
+    mockUseSkillCatalog.mockReturnValue(makeResult({ data: [] }));
+    render(<SkillsGalleryPage />, { wrapper });
+    expect(lastGraphProps).not.toBeNull();
+    const onSwitchToCards = lastGraphProps!.onSwitchToCards as () => void;
+    expect(typeof onSwitchToCards).toBe('function');
+    onSwitchToCards();
+    expect(mockSetMode).toHaveBeenCalledWith('cards');
+  });
+
+  it('passes workspaceSlug to SkillGraphView', () => {
+    mockMode = 'graph';
+    mockUseSkillCatalog.mockReturnValue(makeResult({ data: [] }));
+    render(<SkillsGalleryPage />, { wrapper });
+    expect(lastGraphProps).not.toBeNull();
+    expect(lastGraphProps!.workspaceSlug).toBe('workspace');
   });
 });

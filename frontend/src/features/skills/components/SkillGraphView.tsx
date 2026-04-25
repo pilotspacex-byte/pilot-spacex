@@ -38,6 +38,7 @@ import {
 
 import { useSkillGraphData } from '../hooks/useSkillGraphData';
 import { useSkillGraphLayout } from '../hooks/useSkillGraphLayout';
+import { useGraphKeyboardNav } from '../hooks/useGraphKeyboardNav';
 import { SkillGraphNode } from './graph-nodes/SkillGraphNode';
 import { FileGraphNode } from './graph-nodes/FileGraphNode';
 import { GraphEmptyState } from './graph-states/GraphEmptyState';
@@ -57,15 +58,41 @@ const NODE_TYPES = {
 } as const;
 
 export interface SkillGraphViewProps {
-  /** Optional handler the future Plan 92-03 toggle wires up. */
+  /** Workspace slug used by keyboard nav to navigate to skill detail pages. */
+  workspaceSlug?: string;
+  /**
+   * Phase 91-04 peek setter. Called when the user activates a file node
+   * (Enter on selection, or DBL-click). When omitted the file activation is
+   * a safe no-op.
+   */
+  onOpenFilePeek?: (parentSkillSlug: string, path: string) => void;
+  /** Plan 92-03 toggle handoff — switches gallery back to cards mode. */
   onSwitchToCards?: () => void;
 }
 
 export function SkillGraphView({
+  workspaceSlug = '',
+  onOpenFilePeek,
   onSwitchToCards,
 }: SkillGraphViewProps = {}): React.ReactElement {
   const { catalog, graph } = useSkillGraphData();
   const { flowNodes, flowEdges, isReady } = useSkillGraphLayout(graph);
+
+  // Plan 92-03 — keyboard nav + click dispatch. The hook is pure-logic
+  // (does not call `useReactFlow()`) so it can be invoked outside the
+  // ReactFlowProvider; this also keeps the test harness simple.
+  const noopPeek = React.useCallback(
+    (_slug: string, _path: string) => {
+      // intentional no-op fallback when consumer omits onOpenFilePeek
+    },
+    [],
+  );
+  const keyboardNav = useGraphKeyboardNav({
+    flowNodes,
+    flowEdges,
+    workspaceSlug,
+    onOpenFilePeek: onOpenFilePeek ?? noopPeek,
+  });
 
   // Branch 1: pending → skeleton.
   if (catalog.isPending) {
@@ -134,6 +161,7 @@ export function SkillGraphView({
           tabIndex={0}
           role="application"
           aria-label={canvasAriaLabel}
+          onKeyDown={keyboardNav.onKeyDown}
           className="h-full w-full focus-visible:outline-2 focus-visible:outline-[#29a386]"
         >
           <ReactFlow
@@ -142,6 +170,8 @@ export function SkillGraphView({
             nodeTypes={NODE_TYPES}
             fitView
             nodesDraggable={false}
+            onNodeClick={keyboardNav.onNodeClick}
+            onNodeDoubleClick={keyboardNav.onNodeDoubleClick}
             proOptions={{ hideAttribution: true }}
             minZoom={0.4}
             maxZoom={2}
