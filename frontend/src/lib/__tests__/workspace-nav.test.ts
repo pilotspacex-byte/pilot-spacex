@@ -14,19 +14,20 @@ import { getRecentWorkspaces } from '@/components/workspace-selector';
 
 describe('workspace-nav', () => {
   beforeEach(() => {
-    // jsdom in this project ships without localStorage.clear — guard for compat.
-    if (typeof localStorage !== 'undefined' && typeof localStorage.clear === 'function') {
-      localStorage.clear();
-    } else if (typeof localStorage !== 'undefined') {
-      // Best-effort manual clear when .clear is unavailable.
-      const len = (localStorage as Storage).length ?? 0;
-      const keys: string[] = [];
-      for (let i = 0; i < len; i += 1) {
-        const k = (localStorage as Storage).key?.(i);
-        if (k) keys.push(k);
-      }
-      keys.forEach((k) => (localStorage as Storage).removeItem?.(k));
-    }
+    const store = new Map<string, string>();
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => void store.set(key, String(value)),
+        removeItem: (key: string) => void store.delete(key),
+        clear: () => void store.clear(),
+        key: (i: number) => Array.from(store.keys())[i] ?? null,
+        get length() {
+          return store.size;
+        },
+      },
+    });
     vi.restoreAllMocks();
   });
 
