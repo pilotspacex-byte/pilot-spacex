@@ -7,4 +7,4 @@
  */
 export { useSkillCatalog, SKILLS_CATALOG_QUERY_KEY } from './useSkillCatalog';
 export { useSkill, skillQueryKey } from './useSkill';
-// useSkillFileBlob is added by Task 3 in this wave.
+export { useSkillFileBlob, type SkillFileBlob } from './useSkillFileBlob';
