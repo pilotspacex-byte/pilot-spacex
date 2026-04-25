@@ -35,6 +35,17 @@ function relativeTime(iso: string | null): string {
   }
 }
 
+function SkillIcon({ name }: { name: string | null | undefined }) {
+  const Component = resolveLucideIcon(name);
+  return (
+    <Component
+      className="h-5 w-5 shrink-0"
+      style={{ color: '#7c5cff' }}
+      aria-hidden
+    />
+  );
+}
+
 function SkillCardFooter({ skill }: { skill: Skill }) {
   const refsCount = skill.reference_files.length;
   const refsLabel = refsCount === 1 ? '1 ref' : `${refsCount} refs`;
@@ -53,7 +64,6 @@ function SkillCardFooter({ skill }: { skill: Skill }) {
 }
 
 export function SkillCard({ skill, onClick }: SkillCardProps) {
-  const Icon = resolveLucideIcon(skill.icon);
   const featureTag = skill.feature_module?.[0];
   return (
     <ArtifactCard
@@ -66,11 +76,7 @@ export function SkillCard({ skill, onClick }: SkillCardProps) {
       footer={<SkillCardFooter skill={skill} />}
     >
       <div className="flex items-start gap-3">
-        <Icon
-          className="h-5 w-5 shrink-0"
-          style={{ color: '#7c5cff' }}
-          aria-hidden
-        />
+        <SkillIcon name={skill.icon} />
         <div className="min-w-0 flex-1">
           {skill.description && (
             <p

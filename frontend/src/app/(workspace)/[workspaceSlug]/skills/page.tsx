@@ -1,13 +1,12 @@
 /**
- * Roles route page - SDLC role skills management at workspace level.
+ * Skills gallery route — Phase 91 Plan 03.
  *
- * Route: /[workspaceSlug]/roles
- *
- * @see {@link @/features/settings/pages/skills-settings-page.tsx} for the actual component implementation.
+ * Replaces the legacy SkillsSettingsPage mount with the new gallery surface.
+ * The role-skills settings page is preserved at `/{slug}/settings/skills`
+ * and `/{slug}/roles` (both routes untouched by this plan).
  */
+import { SkillsGalleryPage } from '@/features/skills';
 
-import { SkillsSettingsPage } from '@/features/settings/pages/skills-settings-page';
-
-export default function RolesPage() {
-  return <SkillsSettingsPage />;
+export default function SkillsPage() {
+  return <SkillsGalleryPage />;
 }

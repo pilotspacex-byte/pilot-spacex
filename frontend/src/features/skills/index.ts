@@ -6,6 +6,7 @@
  * commands) can import from `@/features/skills`.
  */
 export { SkillCard, type SkillCardProps } from './components/SkillCard';
+export { SkillsGalleryPage } from './components/SkillsGalleryPage';
 export { resolveLucideIcon } from './lib/skill-icon';
 export {
   useSkillCatalog,
