@@ -48,6 +48,11 @@ from pilot_space.application.services.note.pin_note_service import (
     PinNoteResult,
     PinNoteService,
 )
+from pilot_space.application.services.note.topic_tree_service import (
+    GetChildrenPayload,
+    GetChildrenResult,
+    TopicTreeService,
+)
 from pilot_space.application.services.note.update_annotation_service import (
     UpdateAnnotationPayload,
     UpdateAnnotationResult,
@@ -69,6 +74,8 @@ __all__ = [
     "DeleteNotePayload",
     "DeleteNoteResult",
     "DeleteNoteService",
+    "GetChildrenPayload",
+    "GetChildrenResult",
     "GetNoteOptions",
     "GetNoteService",
     "ListAnnotationsPayload",
@@ -80,6 +87,7 @@ __all__ = [
     "PinNotePayload",
     "PinNoteResult",
     "PinNoteService",
+    "TopicTreeService",
     "UpdateAnnotationPayload",
     "UpdateAnnotationResult",
     "UpdateAnnotationService",

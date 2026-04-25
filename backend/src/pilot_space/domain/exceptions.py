@@ -89,12 +89,48 @@ class ServiceUnavailableError(AppError):
     http_status = 503
 
 
+# ── Topic-tree (Phase 93) domain exceptions ─────────────────────────────────
+# These translate the repository-edge ValueError sentinels emitted by
+# ``NoteRepository.move_topic`` into typed domain exceptions that the global
+# ``app_error_handler`` converts to RFC 7807 problem+json responses.
+
+
+class TopicMaxDepthExceededError(ConflictError):
+    """Raised when a topic move would exceed the 5-level depth cap (409)."""
+
+    error_code = "topic_max_depth_exceeded"
+
+    def __init__(
+        self,
+        message: str = "Topic max depth (5) exceeded",
+        *,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message, error_code=self.error_code, details=details)
+
+
+class TopicCycleError(ConflictError):
+    """Raised when a topic move would create a cycle (409)."""
+
+    error_code = "topic_cycle_rejected"
+
+    def __init__(
+        self,
+        message: str = "Topic cannot be moved into its own subtree",
+        *,
+        details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message, error_code=self.error_code, details=details)
+
+
 __all__ = [
     "AppError",
     "ConflictError",
     "ForbiddenError",
     "NotFoundError",
     "ServiceUnavailableError",
+    "TopicCycleError",
+    "TopicMaxDepthExceededError",
     "UnauthorizedError",
     "ValidationError",
 ]
