@@ -35,6 +35,7 @@ import { ArtifactTypeBadge } from './ArtifactTypeBadge';
 import { ArtifactRendererSwitch } from './ArtifactRendererSwitch';
 import { LineageChip } from './LineageChip';
 import { VersionHistoryChip } from './VersionHistoryChip';
+import { SkillFilePreview } from '@/features/skills/components/SkillFilePreview';
 import type { VersionHistoryEntry } from '@/features/ai/proposals/types';
 
 function shortId(id: string): string {
@@ -43,12 +44,24 @@ function shortId(id: string): string {
 }
 
 export function ArtifactPeekDrawer() {
-  const { peekId, peekType, isPeekOpen, closePeek, escalate } = useArtifactPeekState();
+  const {
+    peekId,
+    peekType,
+    isPeekOpen,
+    isSkillFilePeek,
+    skillFile,
+    closePeek,
+    escalate,
+  } = useArtifactPeekState();
   const params = useParams<{ workspaceSlug?: string }>();
   const workspaceSlug = params?.workspaceSlug ?? '';
+  // Phase 91 — skill-file peeks use a separate body component (SkillFilePreview)
+  // and do NOT participate in the artifact-resolution query. We still call
+  // useArtifactQuery (with both args nulled when isSkillFilePeek) so the hook
+  // ordering stays stable — TanStack Query short-circuits on null inputs.
   const { data } = useArtifactQuery(
-    isPeekOpen ? peekType : null,
-    isPeekOpen ? peekId : null,
+    isPeekOpen && !isSkillFilePeek ? peekType : null,
+    isPeekOpen && !isSkillFilePeek ? peekId : null,
   );
 
   // ⌘. → escalate
@@ -125,12 +138,35 @@ export function ArtifactPeekDrawer() {
           )}
         >
           <DialogPrimitive.Title className="sr-only">
-            {data?.title ?? (peekType ? `${peekType} artifact` : 'Artifact preview')}
+            {isSkillFilePeek && skillFile
+              ? `Skill file ${skillFile.path}`
+              : (data?.title ??
+                (peekType ? `${peekType} artifact` : 'Artifact preview'))}
           </DialogPrimitive.Title>
 
           {/* Header — 56px */}
           <header className="flex h-14 flex-shrink-0 items-center gap-2 border-b border-border px-4">
-            {lineage?.sourceChatId && (
+            {/* Phase 91 — skill-file branch: show SKILL chip + filename. */}
+            {isSkillFilePeek && skillFile && (
+              <>
+                <ArtifactTypeBadge type="SKILL" />
+                <span
+                  className="font-mono text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
+                  data-testid="peek-drawer-skill-slug"
+                >
+                  {skillFile.slug}
+                </span>
+                <span
+                  className="truncate text-[13px] font-medium text-foreground"
+                  data-testid="peek-drawer-skill-filename"
+                >
+                  {skillFile.path.split('/').pop() ?? skillFile.path}
+                </span>
+              </>
+            )}
+
+            {/* Entity-peek header — preserved verbatim, hidden for skill files. */}
+            {!isSkillFilePeek && lineage?.sourceChatId && (
               <LineageChip
                 sourceChatId={lineage.sourceChatId}
                 sourceMessageId={lineage.sourceMessageId}
@@ -139,9 +175,9 @@ export function ArtifactPeekDrawer() {
               />
             )}
 
-            {peekType && <ArtifactTypeBadge type={peekType} />}
+            {!isSkillFilePeek && peekType && <ArtifactTypeBadge type={peekType} />}
 
-            {peekId && (
+            {!isSkillFilePeek && peekId && (
               <TooltipProvider delayDuration={300}>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -163,7 +199,7 @@ export function ArtifactPeekDrawer() {
               </TooltipProvider>
             )}
 
-            {versionInfo && (
+            {!isSkillFilePeek && versionInfo && (
               <VersionHistoryChip
                 versionNumber={versionInfo.versionNumber}
                 versionHistory={versionInfo.history}
@@ -171,34 +207,39 @@ export function ArtifactPeekDrawer() {
             )}
 
             <div className="ml-auto flex items-center gap-1">
-              <TooltipProvider delayDuration={300}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      onClick={escalate}
-                      aria-label="Expand to focus view"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      data-testid="peek-drawer-expand"
-                    >
-                      <Maximize2 className="h-4 w-4" aria-hidden="true" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    <span className="text-xs">Expand (⌘.)</span>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              {/* Expand and Pin are entity-only — split-pane for files lands in Phase 92. */}
+              {!isSkillFilePeek && (
+                <>
+                  <TooltipProvider delayDuration={300}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={escalate}
+                          aria-label="Expand to focus view"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          data-testid="peek-drawer-expand"
+                        >
+                          <Maximize2 className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom">
+                        <span className="text-xs">Expand (⌘.)</span>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
 
-              <button
-                type="button"
-                onClick={handlePin}
-                aria-label="Pin artifact"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                data-testid="peek-drawer-pin"
-              >
-                <Pin className="h-4 w-4" aria-hidden="true" />
-              </button>
+                  <button
+                    type="button"
+                    onClick={handlePin}
+                    aria-label="Pin artifact"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    data-testid="peek-drawer-pin"
+                  >
+                    <Pin className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </>
+              )}
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -242,9 +283,11 @@ export function ArtifactPeekDrawer() {
             </div>
           </header>
 
-          {/* Body */}
+          {/* Body — Phase 91 branch: skill-file preview vs entity-peek. */}
           <div className="flex-1 overflow-hidden">
-            {peekType && peekId ? (
+            {isSkillFilePeek && skillFile ? (
+              <SkillFilePreview slug={skillFile.slug} path={skillFile.path} />
+            ) : peekType && peekId ? (
               <ArtifactRendererSwitch type={peekType} id={peekId} />
             ) : null}
           </div>
