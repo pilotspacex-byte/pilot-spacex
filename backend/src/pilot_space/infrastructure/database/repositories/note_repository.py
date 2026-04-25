@@ -464,8 +464,10 @@ class NoteRepository(BaseRepository[Note]):
         total_result = await self.session.execute(count_query)
         total = total_result.scalar() or 0
 
+        # Stable order: created_at DESC with id DESC tie-break so concurrent
+        # inserts in the same millisecond cannot shuffle pagination boundaries.
         rows_query = (
-            base.order_by(Note.created_at.desc())
+            base.order_by(Note.created_at.desc(), Note.id.desc())
             .limit(page_size)
             .offset((page - 1) * page_size)
         )

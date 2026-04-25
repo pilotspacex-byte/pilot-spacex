@@ -419,6 +419,81 @@ async def test_move_topic_rejects_missing_topic(
         await repo.move_topic(uuid4(), None)
 
 
+async def test_move_topic_savepoint_rolls_back_partial_update(
+    db_session: AsyncSession, workspace: Workspace, user: User
+) -> None:
+    """A mid-flight UPDATE failure inside the begin_nested savepoint rolls
+    back the source row's already-applied parent_topic_id + topic_depth
+    write so the caller observes the pre-move state.
+
+    This is the real test for the savepoint atomicity guarantee: the
+    upfront validations all pass, the moved-row UPDATE lands first, then
+    a forced RuntimeError on the descendant UPDATE must unwind both
+    writes together via the begin_nested rollback. The outer transaction
+    stays healthy so the post-failure SELECT can proceed.
+    """
+    repo = NoteRepository(db_session)
+    # Tree: root -> a -> b. Move A under a separate Dest at depth 0.
+    root = await _make_note(db_session, workspace.id, user.id, title="Root")
+    a = await _make_note(
+        db_session, workspace.id, user.id, title="A",
+        parent_topic_id=root.id, topic_depth=1,
+    )
+    await _make_note(
+        db_session, workspace.id, user.id, title="B",
+        parent_topic_id=a.id, topic_depth=2,
+    )
+    dest = await _make_note(
+        db_session, workspace.id, user.id, title="Dest", topic_depth=0,
+    )
+
+    # Capture identifiers BEFORE forcing a session error, so post-failure
+    # attribute access on `a` does not trigger an autoload at a bad moment.
+    a_id = a.id
+    pre_parent_id = a.parent_topic_id
+    pre_depth = a.topic_depth
+
+    # Patch the session's execute so the FIRST UPDATE inside the savepoint
+    # (moved row) succeeds and the SECOND UPDATE (descendant B) raises.
+    # Using a non-DB exception (RuntimeError) keeps the outer connection
+    # healthy — IntegrityError would taint the connection past the savepoint
+    # rollback in async SQLAlchemy + SQLite.
+    real_execute = db_session.execute
+    update_call_count = {"n": 0}
+
+    async def fake_execute(stmt, *args, **kwargs):  # type: ignore[no-untyped-def]
+        if getattr(stmt, "is_dml", False):
+            update_call_count["n"] += 1
+            if update_call_count["n"] >= 2:
+                raise RuntimeError("forced mid-update failure")
+        return await real_execute(stmt, *args, **kwargs)
+
+    db_session.execute = fake_execute  # type: ignore[method-assign]
+    try:
+        with pytest.raises(RuntimeError, match="forced mid-update failure"):
+            await repo.move_topic(a.id, dest.id)
+    finally:
+        # Restore so post-test introspection uses the real method.
+        db_session.execute = real_execute  # type: ignore[method-assign]
+
+    # Savepoint should have rolled BOTH the moved row's UPDATE and any
+    # partial descendant UPDATE back to the pre-call state. Issue an
+    # explicit SELECT (bypass the identity map cache and any lazy-load
+    # path on detached attributes that triggers post-error).
+    from sqlalchemy import select as sa_select
+
+    result = await db_session.execute(
+        sa_select(Note.parent_topic_id, Note.topic_depth).where(Note.id == a_id)
+    )
+    row = result.one()
+    assert row.parent_topic_id == pre_parent_id, (
+        "savepoint failed to roll back source row's parent_topic_id"
+    )
+    assert row.topic_depth == pre_depth, (
+        "savepoint failed to roll back source row's topic_depth"
+    )
+
+
 async def test_move_topic_rolls_back_on_failure(
     db_session: AsyncSession, workspace: Workspace, user: User
 ) -> None:
