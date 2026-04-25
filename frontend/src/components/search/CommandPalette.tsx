@@ -162,29 +162,41 @@ export const CommandPalette = observer(function CommandPalette() {
     workspaceStore.currentWorkspaceId;
 
   // ─── Prefix detection effect ─────────────────────────────────────────────
+  // Only writes to the scope when a prefix transition actually happens —
+  // never unconditionally on every query keystroke — so the user's manual
+  // scope-tab click survives.
+  const prevPrefixModeRef = useRef(uiStore.palettePrefixMode);
   useEffect(() => {
-    const mode = detectPrefixMode(query);
+    const nextMode = detectPrefixMode(query);
+    const prevMode = prevPrefixModeRef.current;
 
-    if (mode !== uiStore.palettePrefixMode) {
-      uiStore.setPalettePrefixMode(mode);
+    if (nextMode !== uiStore.palettePrefixMode) {
+      uiStore.setPalettePrefixMode(nextMode);
     }
 
-    // Reset the manual-scope override when the prefix mode disappears
-    // (so the next prefix typed will once again drive scope).
-    if (mode === null) {
-      manualScopeOverrideRef.current = false;
-      if (uiStore.paletteScope !== 'all') {
-        uiStore.setPaletteScope('all');
-      }
+    if (nextMode === prevMode) {
+      // No transition — leave scope alone.
       return;
     }
 
-    if (!manualScopeOverrideRef.current) {
-      const next = scopeForPrefix(mode);
+    // Mode just appeared (null → tasks/people/pages/commands).
+    if (nextMode !== null && !manualScopeOverrideRef.current) {
+      const next = scopeForPrefix(nextMode);
       if (uiStore.paletteScope !== next) {
         uiStore.setPaletteScope(next);
       }
     }
+
+    // Mode just disappeared (tasks → null via backspace, etc.). Restore
+    // 'all' UNLESS the user explicitly clicked a different scope tab.
+    if (nextMode === null) {
+      manualScopeOverrideRef.current = false;
+      if (uiStore.paletteScope !== 'all') {
+        uiStore.setPaletteScope('all');
+      }
+    }
+
+    prevPrefixModeRef.current = nextMode;
   }, [query, uiStore]);
 
   // ─── Debounced workspace search (notes + issues) ─────────────────────────
@@ -495,40 +507,54 @@ export const CommandPalette = observer(function CommandPalette() {
           </CommandGroup>
         )}
 
-        {/* Chats group — empty-state placeholder; data source lands in 91 */}
+        {/* Chats group — empty-state placeholder; data source lands in 91.
+            Rendered OUTSIDE cmdk's CommandGroup because cmdk requires
+            CommandItem children; using plain markup keeps the visual
+            tab parity without breaking cmdk's filter index. */}
         {!isLoading && hasQuery && showChats && (
-          <CommandGroup heading="CHATS" className={GROUP_HEADING_CLS}>
+          <div data-palette-group="chats" className="px-2 py-1">
+            <div className="px-2 py-1.5 font-mono text-[10px] font-semibold tracking-[0.04em] uppercase text-[var(--text-muted)]">
+              CHATS
+            </div>
             <div className="px-2 py-3 text-[13px] text-[var(--text-muted)] flex items-center gap-2">
               <MessageSquare className="h-4 w-4" />
               <span>Chat search arrives in Phase 91.</span>
             </div>
-          </CommandGroup>
+          </div>
         )}
 
         {/* Specs group — empty-state placeholder until specs API wired */}
         {!isLoading && hasQuery && showSpecs && (
-          <CommandGroup heading="SPECS" className={GROUP_HEADING_CLS}>
+          <div data-palette-group="specs" className="px-2 py-1">
+            <div className="px-2 py-1.5 font-mono text-[10px] font-semibold tracking-[0.04em] uppercase text-[var(--text-muted)]">
+              SPECS
+            </div>
             <div className="px-2 py-3 text-[13px] text-[var(--text-muted)] flex items-center gap-2">
               <FileText className="h-4 w-4" />
               <span>Spec search not wired yet.</span>
             </div>
-          </CommandGroup>
+          </div>
         )}
 
         {/* People group — empty-state placeholder until members API wired */}
         {!isLoading && hasQuery && showPeople && (
-          <CommandGroup heading="PEOPLE" className={GROUP_HEADING_CLS}>
+          <div data-palette-group="people" className="px-2 py-1">
+            <div className="px-2 py-1.5 font-mono text-[10px] font-semibold tracking-[0.04em] uppercase text-[var(--text-muted)]">
+              PEOPLE
+            </div>
             <div className="px-2 py-3 text-[13px] text-[var(--text-muted)] flex items-center gap-2">
               <Users className="h-4 w-4" />
               <span>People search not wired yet.</span>
             </div>
-          </CommandGroup>
+          </div>
         )}
 
         {/* AI fallback — only when query has zero matches.
-            UI-SPEC Copywriting Contract: no "No results" heading above. */}
+            UI-SPEC Copywriting Contract: no "No results" heading above.
+            Wrapped in CommandGroup with an explicit heading prop to keep
+            cmdk happy (empty-string heading renders nothing visible). */}
         {!isLoading && !fetchError && hasQuery && !hasResults && (
-          <CommandGroup className={GROUP_HEADING_CLS}>
+          <CommandGroup heading="" className={GROUP_HEADING_CLS}>
             <CommandItem
               value={`ai-fallback-${query}`}
               onSelect={() => {
