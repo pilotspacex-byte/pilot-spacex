@@ -351,16 +351,12 @@ describe('MembersPage', () => {
     expect(invitationsTab).toHaveTextContent('1');
   });
 
-  // --- Search (server-side) ---
+  // --- Search affordance removed (NAV-04, Plan 90-05) ---
 
-  it('search passes query to useWorkspaceMembers hook', () => {
+  it('does not render a page-level search input', () => {
     setupLoadedState();
     render(<MembersPage />, { wrapper: createWrapper() });
-
-    fireEvent.change(screen.getByLabelText('Search members'), { target: { value: 'Admin' } });
-
-    // Verify the hook is called with the search option (debounce may not have fired yet)
-    expect(mockUseWorkspaceMembers).toHaveBeenCalled();
+    expect(screen.queryByPlaceholderText(/search/i)).toBeNull();
   });
 
   it('shows empty state when server returns no members', () => {

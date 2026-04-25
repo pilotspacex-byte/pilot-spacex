@@ -394,3 +394,15 @@ describe('NotesPage - NoteListRow (list view)', () => {
     expect(screen.getByText('+1')).toBeInTheDocument();
   });
 });
+
+// NAV-04 sweep (Plan 90-05): page-level search input removed; palette subsumes.
+describe('NotesPage - NAV-04 sweep', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('does not render a page-level search input', async () => {
+    await renderNotesPage([makeNote()]);
+    expect(screen.queryByPlaceholderText('Search notes...')).toBeNull();
+  });
+});
