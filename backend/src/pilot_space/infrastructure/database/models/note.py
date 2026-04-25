@@ -15,6 +15,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    SmallInteger,
     String,
     Text,
     text,
@@ -158,6 +159,21 @@ class Note(WorkspaceScopedModel):
         server_default=text("0"),
     )
 
+    # Topic-level hierarchy (separate from page-level parent_id; max depth 5).
+    # Enforced in NoteRepository.move_topic — NO DB CheckConstraint because
+    # intermediate states during a recursive depth recompute would trip it.
+    parent_topic_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("notes.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    topic_depth: Mapped[int] = mapped_column(
+        SmallInteger,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+    )
+
     # Page visual identity: optional emoji icon displayed in sidebar tree and page header
     icon_emoji: Mapped[str | None] = mapped_column(
         String(10),
@@ -234,6 +250,9 @@ class Note(WorkspaceScopedModel):
         Index("ix_notes_parent_position", "parent_id", "position"),
         Index("ix_notes_depth", "depth"),
         Index("ix_notes_owner_workspace", "owner_id", "workspace_id"),
+        # Topic-level hierarchy indexes (Phase 93 — separate from page hierarchy)
+        Index("idx_notes_parent_topic_id", "parent_topic_id"),
+        Index("idx_notes_workspace_parent", "workspace_id", "parent_topic_id"),
         # Tree hierarchy constraints
         CheckConstraint("depth >= 0 AND depth <= 2", name="chk_notes_depth_range"),
         CheckConstraint("parent_id != id", name="chk_notes_no_self_parent"),

@@ -115,3 +115,108 @@ async def test_migration_112_preserves_rls_policies(test_engine: AsyncEngine) ->
     # The two canonical policies emitted by get_workspace_rls_policy_sql.
     assert any("workspace_isolation" in p for p in policy_names), policy_names
     assert any("service_role" in p for p in policy_names), policy_names
+
+
+# ── ORM round-trip (Task 2 — model exposes parent_topic_id / topic_depth) ────
+
+
+async def test_note_model_exposes_topic_hierarchy_fields() -> None:
+    """Note ORM has parent_topic_id (UUID|None) and topic_depth (int) Mapped attrs."""
+    from pilot_space.infrastructure.database.models.note import Note
+
+    # Mapped attributes resolve via the declarative class, not the instance.
+    assert hasattr(Note, "parent_topic_id")
+    assert hasattr(Note, "topic_depth")
+
+    # Page-level hierarchy still present (regression guard).
+    assert hasattr(Note, "parent_id")
+    assert hasattr(Note, "depth")
+    assert hasattr(Note, "position")
+
+
+async def test_note_model_persists_topic_hierarchy_defaults(
+    db_session: object,  # AsyncSession; loose typing keeps file import-light
+) -> None:
+    """A freshly-inserted note rounds-trips with parent_topic_id=None, topic_depth=0."""
+    from uuid import uuid4
+
+    from pilot_space.infrastructure.database.models import (
+        Note,
+        User,
+        Workspace,
+    )
+
+    workspace = Workspace(
+        id=uuid4(), name="Topic Test WS", slug="topic-test-ws", owner_id=uuid4()
+    )
+    db_session.add(workspace)  # type: ignore[attr-defined]
+    await db_session.flush()  # type: ignore[attr-defined]
+
+    user = User(id=uuid4(), email="topic-default@example.com", full_name="Topic Default")
+    db_session.add(user)  # type: ignore[attr-defined]
+    await db_session.flush()  # type: ignore[attr-defined]
+
+    note = Note(
+        id=uuid4(),
+        workspace_id=workspace.id,
+        owner_id=user.id,
+        title="Root topic",
+        content={},
+    )
+    db_session.add(note)  # type: ignore[attr-defined]
+    await db_session.flush()  # type: ignore[attr-defined]
+
+    fetched = await db_session.get(Note, note.id)  # type: ignore[attr-defined]
+    assert fetched is not None
+    assert fetched.parent_topic_id is None
+    assert fetched.topic_depth == 0
+
+
+async def test_note_model_persists_topic_hierarchy_assignment(
+    db_session: object,
+) -> None:
+    """Setting parent_topic_id and topic_depth round-trips through the ORM."""
+    from uuid import uuid4
+
+    from pilot_space.infrastructure.database.models import (
+        Note,
+        User,
+        Workspace,
+    )
+
+    workspace = Workspace(
+        id=uuid4(), name="Topic Assign WS", slug="topic-assign-ws", owner_id=uuid4()
+    )
+    db_session.add(workspace)  # type: ignore[attr-defined]
+    await db_session.flush()  # type: ignore[attr-defined]
+
+    user = User(id=uuid4(), email="topic-assign@example.com", full_name="Topic Assign")
+    db_session.add(user)  # type: ignore[attr-defined]
+    await db_session.flush()  # type: ignore[attr-defined]
+
+    parent = Note(
+        id=uuid4(),
+        workspace_id=workspace.id,
+        owner_id=user.id,
+        title="Parent topic",
+        content={},
+    )
+    db_session.add(parent)  # type: ignore[attr-defined]
+    await db_session.flush()  # type: ignore[attr-defined]
+
+    child = Note(
+        id=uuid4(),
+        workspace_id=workspace.id,
+        owner_id=user.id,
+        title="Child topic",
+        content={},
+        parent_topic_id=parent.id,
+        topic_depth=1,
+    )
+    db_session.add(child)  # type: ignore[attr-defined]
+    await db_session.flush()  # type: ignore[attr-defined]
+
+    fetched = await db_session.get(Note, child.id)  # type: ignore[attr-defined]
+    assert fetched is not None
+    assert fetched.parent_topic_id == parent.id
+    assert fetched.topic_depth == 1
