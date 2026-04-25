@@ -76,6 +76,10 @@ vi.mock('@/hooks/useCommandPaletteShortcut', () => ({
   useCommandPaletteShortcut: () => {},
 }));
 
+vi.mock('@/hooks/useWorkspaceSwitchShortcuts', () => ({
+  useWorkspaceSwitchShortcuts: () => {},
+}));
+
 // Stub Sidebar to a simple element we can detect
 vi.mock('../sidebar', () => ({
   Sidebar: () => <div data-testid="sidebar-content">Sidebar</div>,
