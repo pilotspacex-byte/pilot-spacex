@@ -1,33 +1,33 @@
 'use client';
 
 /**
- * CommandPalette - Global Cmd+K / Cmd+P search modal (T-019)
+ * CommandPalette v3 (Plan 90-03)
  *
- * Opens via uiStore.commandPaletteOpen. Searches notes and issues
- * with a 5-result cap per group via server-side search query.
- * Keyboard-navigable with cmdk.
+ * Center modal (680px @ ~120px from top, 20px radius) with:
+ *   - Scope tabs:    All · Chats · Topics · Tasks · Specs · People
+ *   - Prefix modes:  '#' tasks · '@' people · '/' pages · '>' commands
+ *   - Mode chip rendered inside input row when a prefix is consumed
+ *   - Ghost completion overlay (text-only, opacity 20%, no raw HTML injection)
+ *   - AI fallback row when query has zero matches → /chat?prompt=…
+ *   - URL state sync via usePaletteQueryStringSync (?palette=1, ?scope, ?q)
  *
- * Mode prefixes:
- *   >  Commands mode  — editor/UI command list
- *   #  Symbols mode   — (deferred) symbol search placeholder
- *   :  Go-to-line mode — jump to a line number in the active editor
- *   (no prefix) — default notes/issues search
+ * Cmd+P stays as an alias for Cmd+K (handled in useEffect below).
  *
- * Cmd+P opens palette (alias for Cmd+K — identical behavior).
+ * Threat-model mitigations (Plan 90-03 §threat_model):
+ *   T-90-06 — encodeURIComponent on /chat?prompt= construction
+ *   T-90-07 — render user query / titles via React text nodes only
  */
 
-import { useCallback, useEffect, useState } from 'react';
-import { useRouter, useParams } from 'next/navigation';
-import { FileText, Ticket, Search, Terminal, Hash, CornerDownLeft } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
+import { FileText, Ticket, Sparkles, MessageSquare, Users } from 'lucide-react';
 
 import {
   CommandDialog,
   CommandInput,
   CommandList,
-  CommandEmpty,
   CommandGroup,
   CommandItem,
-  CommandSeparator,
 } from '@/components/ui/command';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -38,48 +38,46 @@ import { notesApi } from '@/services/api/notes';
 import { issuesApi } from '@/services/api/issues';
 import type { Note } from '@/types/note';
 import type { Issue } from '@/types/issue';
+import type { PaletteScope } from '@/stores/UIStore';
+
+import {
+  detectPrefixMode,
+  consumePrefix,
+  scopeForPrefix,
+  ghostCompletion,
+  placeholderForPrefix,
+} from './palette/prefix';
+import { usePaletteQueryStringSync } from '@/hooks/usePaletteQueryStringSync';
 
 const MAX_RESULTS_PER_GROUP = 5;
 const DEBOUNCE_MS = 250;
-
-// ─── Palette modes ───────────────────────────────────────────────────────────
-
-type PaletteMode = 'search' | 'commands' | 'symbols' | 'goto-line';
-
-function detectMode(query: string): PaletteMode {
-  if (query.startsWith('>')) return 'commands';
-  if (query.startsWith('#')) return 'symbols';
-  if (query.startsWith(':')) return 'goto-line';
-  return 'search';
-}
-
-function effectiveQuery(mode: PaletteMode, query: string): string {
-  return mode !== 'search' ? query.slice(1).trim() : query;
-}
-
-// ─── Built-in commands list ───────────────────────────────────────────────────
-
-interface Command {
-  id: string;
-  label: string;
-  description?: string;
-  action: () => void;
-}
-
-// ─── Search results ───────────────────────────────────────────────────────────
 
 interface SearchResults {
   notes: Note[];
   issues: Issue[];
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+const SCOPES: { id: PaletteScope; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'chats', label: 'Chats' },
+  { id: 'topics', label: 'Topics' },
+  { id: 'tasks', label: 'Tasks' },
+  { id: 'specs', label: 'Specs' },
+  { id: 'people', label: 'People' },
+];
+
+const GROUP_HEADING_CLS =
+  '[&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[10px] ' +
+  '[&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:tracking-[0.04em] ' +
+  '[&_[cmdk-group-heading]]:text-[var(--text-muted)] [&_[cmdk-group-heading]]:uppercase';
+
+// ─── Result row sub-components ─────────────────────────────────────────────
 
 function NoteResultItem({ note }: { note: Note }) {
   return (
     <div className="flex items-center gap-2 min-w-0 w-full">
       <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-      <span className="truncate text-sm font-medium">{note.title || 'Untitled'}</span>
+      <span className="truncate text-[13px] font-medium">{note.title || 'Untitled'}</span>
     </div>
   );
 }
@@ -92,7 +90,7 @@ function IssueResultItem({ issue }: { issue: Issue }) {
     <div className="flex items-center gap-2 min-w-0 w-full">
       <Ticket className="h-4 w-4 shrink-0 text-muted-foreground" />
       <span className="font-mono text-xs text-muted-foreground shrink-0">{issue.identifier}</span>
-      <span className="truncate text-sm font-medium flex-1">{issue.name ?? issue.title}</span>
+      <span className="truncate text-[13px] font-medium flex-1">{issue.name ?? issue.title}</span>
       {stateName && (
         <Badge
           variant="secondary"
@@ -119,113 +117,31 @@ function ResultSkeleton() {
   );
 }
 
-// ─── Mode hint bar ────────────────────────────────────────────────────────────
-
-function ModeHintBar({ mode }: { mode: PaletteMode }) {
-  return (
-    <div className="flex items-center gap-3 px-3 py-1.5 border-t text-[11px] text-muted-foreground bg-muted/30">
-      <span className={cn('flex items-center gap-1', mode === 'commands' && 'text-foreground font-medium')}>
-        <kbd className="font-mono">&gt;</kbd> Commands
-      </span>
-      <span className={cn('flex items-center gap-1', mode === 'symbols' && 'text-foreground font-medium')}>
-        <kbd className="font-mono">#</kbd> Symbols
-      </span>
-      <span className={cn('flex items-center gap-1', mode === 'goto-line' && 'text-foreground font-medium')}>
-        <kbd className="font-mono">:</kbd> Go to Line
-      </span>
-    </div>
-  );
-}
-
-// ─── Commands mode ────────────────────────────────────────────────────────────
-
-/**
- * useCommands — returns the built-in command list for the commands mode.
- */
-function useCommands(onClose: () => void): Command[] {
-  return [
-    {
-      id: 'toggle-source-control',
-      label: 'Toggle Source Control Panel',
-      description: 'Ctrl+Shift+G',
-      action: () => {
-        const e = new KeyboardEvent('keydown', {
-          key: 'G',
-          shiftKey: true,
-          ctrlKey: true,
-          bubbles: true,
-        });
-        window.dispatchEvent(e);
-        onClose();
-      },
-    },
-    {
-      id: 'toggle-file-tree',
-      label: 'Toggle File Tree',
-      description: 'Ctrl+B',
-      action: () => {
-        window.dispatchEvent(new CustomEvent('code-editor:toggle-file-tree'));
-        onClose();
-      },
-    },
-    {
-      id: 'format-document',
-      label: 'Format Document',
-      description: 'Shift+Alt+F',
-      action: () => {
-        window.dispatchEvent(new CustomEvent('code-editor:format-document'));
-        onClose();
-      },
-    },
-    {
-      id: 'change-language-mode',
-      label: 'Change Language Mode',
-      action: () => {
-        window.dispatchEvent(new CustomEvent('code-editor:change-language'));
-        onClose();
-      },
-    },
-  ];
-}
-
-// ─── Symbols mode ─────────────────────────────────────────────────────────────
-
-function SymbolsMode() {
-  return (
-    <div className="flex flex-col items-center justify-center gap-2 py-8 px-4 text-center">
-      <Hash className="h-6 w-6 text-muted-foreground" />
-      <p className="text-sm text-muted-foreground">
-        Symbol search available in a future update
-      </p>
-      <p className="text-xs text-muted-foreground">
-        Monaco outline API integration coming soon
-      </p>
-    </div>
-  );
-}
-
-// GotoLineMode is now rendered inside CommandList (see main component below)
-
-// ─── Main component ───────────────────────────────────────────────────────────
+// ─── Main component ───────────────────────────────────────────────────────
 
 export const CommandPalette = observer(function CommandPalette() {
   const uiStore = useUIStore();
   const workspaceStore = useWorkspaceStore();
   const router = useRouter();
   const params = useParams<{ workspaceSlug: string }>();
+  const searchParams = useSearchParams();
 
-  // Read open state directly from MobX (component is observer())
+  // Mount the URL ↔ store sync (palette + scope; q is local).
+  usePaletteQueryStringSync();
+
   const open = uiStore.commandPaletteOpen;
-  const [query, setQuery] = useState('');
+
+  // Initial query hydrated from ?q= once (lazy initializer).
+  const [query, setQuery] = useState<string>(() => searchParams?.get('q') ?? '');
   const [results, setResults] = useState<SearchResults>({ notes: [], issues: [] });
   const [isLoading, setIsLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
-  // Mode detection from query prefix
-  const mode = detectMode(query);
-  const eQuery = effectiveQuery(mode, query);
+  // Tracks whether the user manually clicked a scope tab AFTER typing a
+  // prefix; prevents the prefix-driven scope auto-switch from clobbering
+  // the user's choice.
+  const manualScopeOverrideRef = useRef(false);
 
-  // When dialog closes (by cmdk or Escape), sync back to store
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
       if (!nextOpen) {
@@ -233,6 +149,7 @@ export const CommandPalette = observer(function CommandPalette() {
         setQuery('');
         setResults({ notes: [], issues: [] });
         setFetchError(null);
+        manualScopeOverrideRef.current = false;
       }
     },
     [uiStore]
@@ -244,14 +161,40 @@ export const CommandPalette = observer(function CommandPalette() {
     (workspaceSlug ? workspaceStore.getWorkspaceBySlug(workspaceSlug)?.id : undefined) ??
     workspaceStore.currentWorkspaceId;
 
-  // Debounced search — only active in 'search' mode
+  // ─── Prefix detection effect ─────────────────────────────────────────────
+  useEffect(() => {
+    const mode = detectPrefixMode(query);
+
+    if (mode !== uiStore.palettePrefixMode) {
+      uiStore.setPalettePrefixMode(mode);
+    }
+
+    // Reset the manual-scope override when the prefix mode disappears
+    // (so the next prefix typed will once again drive scope).
+    if (mode === null) {
+      manualScopeOverrideRef.current = false;
+      if (uiStore.paletteScope !== 'all') {
+        uiStore.setPaletteScope('all');
+      }
+      return;
+    }
+
+    if (!manualScopeOverrideRef.current) {
+      const next = scopeForPrefix(mode);
+      if (uiStore.paletteScope !== next) {
+        uiStore.setPaletteScope(next);
+      }
+    }
+  }, [query, uiStore]);
+
+  // ─── Debounced workspace search (notes + issues) ─────────────────────────
+  const effectiveQuery = consumePrefix(query);
+
   useEffect(() => {
     if (!open) return;
-    if (mode !== 'search') return;
     if (!workspaceId) return;
 
-    // Clear results when query is empty
-    if (!eQuery.trim()) {
+    if (!effectiveQuery.trim()) {
       setResults({ notes: [], issues: [] });
       setIsLoading(false);
       return;
@@ -261,22 +204,20 @@ export const CommandPalette = observer(function CommandPalette() {
     setFetchError(null);
 
     let cancelled = false;
-
     const timer = setTimeout(async () => {
       try {
         const [notesRes, issuesRes] = await Promise.all([
-          notesApi.list(workspaceId, { search: eQuery }, 1, MAX_RESULTS_PER_GROUP),
-          issuesApi.list(workspaceId, { search: eQuery }, 1, MAX_RESULTS_PER_GROUP),
+          notesApi.list(workspaceId, { search: effectiveQuery }, 1, MAX_RESULTS_PER_GROUP),
+          issuesApi.list(workspaceId, { search: effectiveQuery }, 1, MAX_RESULTS_PER_GROUP),
         ]);
         if (cancelled) return;
-
         setResults({
           notes: notesRes.items.slice(0, MAX_RESULTS_PER_GROUP),
           issues: issuesRes.items.slice(0, MAX_RESULTS_PER_GROUP),
         });
       } catch {
         if (cancelled) return;
-        setFetchError('Search failed. Try again.');
+        setFetchError("Couldn't reach search. Retry?");
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -286,9 +227,9 @@ export const CommandPalette = observer(function CommandPalette() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [eQuery, open, workspaceId, mode]);
+  }, [effectiveQuery, open, workspaceId]);
 
-  // Register Cmd+P as alias for Cmd+K (opens palette)
+  // ─── Cmd+P alias for Cmd+K ───────────────────────────────────────────────
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       const platform =
@@ -309,191 +250,316 @@ export const CommandPalette = observer(function CommandPalette() {
         uiStore.openCommandPalette();
       }
     }
-
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
   }, [uiStore]);
 
+  // ─── Selection handlers ──────────────────────────────────────────────────
+  // ⌘↵ split-pane (?focus=) is recorded via metaSelectRef; cmdk Items don't
+  // expose the originating event, so we capture modifier state on keydown
+  // and read it inside onSelect.
+  const metaSelectRef = useRef(false);
+
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+        metaSelectRef.current = true;
+      }
+    }
+    function onKeyUp(e: KeyboardEvent) {
+      // Reset shortly after enter handling so a subsequent plain Enter
+      // doesn't inherit split-pane intent.
+      if (e.key === 'Enter') {
+        // small async reset
+        setTimeout(() => {
+          metaSelectRef.current = false;
+        }, 0);
+      }
+    }
+    window.addEventListener('keydown', onKeyDown, { capture: true });
+    window.addEventListener('keyup', onKeyUp, { capture: true });
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, { capture: true });
+      window.removeEventListener('keyup', onKeyUp, { capture: true });
+    };
+  }, [open]);
+
   const handleSelectNote = useCallback(
     (noteId: string) => {
-      if (workspaceSlug) router.push(`/${workspaceSlug}/notes/${noteId}`);
+      if (!workspaceSlug) return;
+      const target = metaSelectRef.current
+        ? `/${workspaceSlug}/notes/${noteId}?focus=${noteId}`
+        : `/${workspaceSlug}/notes/${noteId}`;
+      router.push(target);
       handleOpenChange(false);
     },
     [router, workspaceSlug, handleOpenChange]
   );
 
   const handleSelectIssue = useCallback(
-    (issueId: string) => {
-      if (workspaceSlug) router.push(`/${workspaceSlug}/issues/${issueId}`);
+    (issueId: string, identifier?: string) => {
+      if (!workspaceSlug) return;
+      const focus = identifier ?? issueId;
+      const target = metaSelectRef.current
+        ? `/${workspaceSlug}/issues/${issueId}?focus=${focus}`
+        : `/${workspaceSlug}/issues/${issueId}`;
+      router.push(target);
       handleOpenChange(false);
     },
     [router, workspaceSlug, handleOpenChange]
   );
 
-  // Commands mode state
-  const commands = useCommands(() => handleOpenChange(false));
-  const filteredCommands = eQuery
-    ? commands.filter((c) => c.label.toLowerCase().includes(eQuery.toLowerCase()))
-    : commands;
+  // ─── Input keydown: backspace-to-empty clears prefix mode ────────────────
+  function handleInputKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== 'Backspace') return;
+    if (query === '' && uiStore.palettePrefixMode !== null) {
+      uiStore.setPalettePrefixMode(null);
+      uiStore.setPaletteScope('all');
+      manualScopeOverrideRef.current = false;
+    }
+  }
 
-  // Go-to-line mode state
-  const parsedLine = parseInt(eQuery, 10);
-  const gotoLineNumber = !isNaN(parsedLine) && parsedLine > 0 ? parsedLine : null;
-
+  // ─── Derived view-model ──────────────────────────────────────────────────
+  const trimmed = effectiveQuery.trim();
+  const hasQuery = trimmed.length > 0;
   const hasResults = results.notes.length > 0 || results.issues.length > 0;
-  const hasQuery = query.trim().length > 0;
 
-  // Placeholder for default search mode (no query)
-  const showDefaultPlaceholder = !hasQuery && mode === 'search';
+  const scope = uiStore.paletteScope;
+  const showTopics = scope === 'all' || scope === 'topics';
+  const showTasks = scope === 'all' || scope === 'tasks';
+  const showChats = scope === 'all' || scope === 'chats';
+  const showSpecs = scope === 'all' || scope === 'specs';
+  const showPeople = scope === 'all' || scope === 'people';
+
+  const firstResultTitle =
+    results.notes[0]?.title ?? results.issues[0]?.name ?? results.issues[0]?.title ?? undefined;
+  const ghost = ghostCompletion(effectiveQuery, firstResultTitle);
+
+  const placeholder = placeholderForPrefix(uiStore.palettePrefixMode);
+  const modeChipChar =
+    uiStore.palettePrefixMode === 'tasks'
+      ? '#'
+      : uiStore.palettePrefixMode === 'people'
+        ? '@'
+        : uiStore.palettePrefixMode === 'pages'
+          ? '/'
+          : uiStore.palettePrefixMode === 'commands'
+            ? '>'
+            : null;
 
   return (
     <CommandDialog
       open={open}
       onOpenChange={handleOpenChange}
       title="Command Palette"
-      description="Search notes, issues, run commands, or navigate"
-      className="max-w-xl"
+      description="Search chats, topics, tasks, specs, and people"
+      className="max-w-none w-[680px] rounded-[20px] top-[120px] translate-y-0 p-0"
       showCloseButton={false}
     >
-      <CommandInput
-        placeholder={
-          mode === 'commands' ? 'Search commands...' :
-          mode === 'symbols' ? 'Search symbols...' :
-          mode === 'goto-line' ? 'Enter line number...' :
-          'Search notes and issues...'
-        }
-        value={query}
-        onValueChange={setQuery}
-        autoFocus
-      />
+      {/* ── Scope tabs ── */}
+      <ul
+        role="tablist"
+        aria-label="Palette scope"
+        className="flex gap-1 px-4 py-2 border-b border-[var(--border-card)]"
+      >
+        {SCOPES.map((s) => (
+          <li key={s.id}>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={scope === s.id}
+              data-scope={s.id}
+              className={cn(
+                'px-3 py-1.5 rounded-md text-[13px] font-medium transition-colors',
+                scope === s.id
+                  ? 'bg-[#29a38615] text-[var(--brand-primary)] font-semibold'
+                  : 'text-[var(--text-muted)] hover:bg-[var(--surface-input)]'
+              )}
+              onClick={() => {
+                uiStore.setPaletteScope(s.id);
+                manualScopeOverrideRef.current = true;
+              }}
+            >
+              {s.label}
+            </button>
+          </li>
+        ))}
+      </ul>
 
-      {/* ── Modes ── */}
+      {/* ── Input row: mode chip + CommandInput + ghost overlay + ⌘K ── */}
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-[var(--border-card)]">
+        {modeChipChar && (
+          <span
+            data-testid="palette-mode-chip"
+            className="inline-flex items-center justify-center px-2 py-0.5 rounded-md bg-[#29a38615] text-[var(--brand-primary)] text-[13px] font-semibold font-mono"
+          >
+            {modeChipChar}
+          </span>
+        )}
 
-      {/* Symbols mode (# prefix) — static placeholder, no CommandList needed */}
-      {mode === 'symbols' && (
-        <SymbolsMode />
-      )}
-
-      {/* Commands mode (> prefix) — inside CommandList for keyboard nav */}
-      {mode === 'commands' && (
-        <CommandList className="max-h-[400px]">
-          {filteredCommands.length === 0 ? (
-            <CommandEmpty>No commands match &ldquo;{eQuery}&rdquo;</CommandEmpty>
-          ) : (
-            <CommandGroup heading="Commands">
-              {filteredCommands.map((cmd) => (
-                <CommandItem
-                  key={cmd.id}
-                  value={cmd.label}
-                  onSelect={cmd.action}
-                >
-                  <Terminal className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span className="flex-1">{cmd.label}</span>
-                  {cmd.description && (
-                    <span className="text-xs text-muted-foreground font-mono shrink-0">
-                      {cmd.description}
-                    </span>
-                  )}
-                </CommandItem>
-              ))}
-            </CommandGroup>
+        <div className="relative flex-1 min-w-0">
+          <CommandInput
+            value={query}
+            onValueChange={setQuery}
+            onKeyDown={handleInputKeyDown}
+            placeholder={placeholder}
+            autoFocus
+            className="text-[15px] placeholder:text-[var(--text-muted)] font-medium border-0 px-0 h-auto py-0"
+          />
+          {ghost && hasQuery && (
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute left-0 top-0 text-[15px] font-medium text-[var(--text-muted)] opacity-20 select-none"
+              style={{ whiteSpace: 'pre' }}
+            >
+              {/* Pad with the user's typed text length so suffix lines up.
+                  Rendered as a React text node — no raw HTML injection. */}
+              {effectiveQuery + ghost}
+            </span>
           )}
-        </CommandList>
-      )}
+        </div>
 
-      {/* Go-to-line mode (: prefix) — inside CommandList for keyboard nav */}
-      {mode === 'goto-line' && (
-        <CommandList className="max-h-[200px]">
-          {gotoLineNumber === null ? (
-            <CommandEmpty>
-              {eQuery === '' ? 'Type a line number to navigate' : 'Enter a valid line number'}
-            </CommandEmpty>
-          ) : (
-            <CommandGroup heading="Go to Line">
-              <CommandItem
-                value={`goto-line-${gotoLineNumber}`}
-                onSelect={() => {
-                  window.dispatchEvent(
-                    new CustomEvent('code-editor:goto-line', { detail: { lineNumber: gotoLineNumber } })
-                  );
-                  handleOpenChange(false);
-                }}
-              >
-                <CornerDownLeft className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <span className="text-sm">
-                  Go to line <span className="font-mono font-medium">{gotoLineNumber}</span>
-                </span>
-              </CommandItem>
-            </CommandGroup>
-          )}
-        </CommandList>
-      )}
+        <kbd className="font-mono text-[10px] text-[var(--text-muted)] bg-[var(--surface-input)] rounded-md px-1.5 py-0.5">
+          ⌘K
+        </kbd>
+      </div>
 
-      {/* Default search mode (no prefix) */}
-      {mode === 'search' && (
-        <>
-          <CommandList className={cn('max-h-[400px]', !hasQuery && 'hidden')}>
-            {/* Loading state */}
-            {isLoading && <ResultSkeleton />}
+      {/* ── Results list ── */}
+      <CommandList className="max-h-[420px]">
+        {/* Loading */}
+        {isLoading && <ResultSkeleton />}
 
-            {/* Error state */}
-            {fetchError && !isLoading && (
-              <div role="alert" className="px-3 py-4 text-sm text-destructive text-center">
-                {fetchError}
-              </div>
-            )}
+        {/* Error */}
+        {fetchError && !isLoading && (
+          <div role="alert" className="px-3 py-4 text-[13px] text-destructive text-center">
+            {fetchError}
+          </div>
+        )}
 
-            {/* Empty state */}
-            {!isLoading && !fetchError && hasQuery && !hasResults && (
-              <CommandEmpty>No results for &ldquo;{query}&rdquo;</CommandEmpty>
-            )}
-
-            {/* Notes group */}
-            {!isLoading && results.notes.length > 0 && (
-              <>
-                <CommandGroup heading="Topics">
-                  {results.notes.map((note) => (
-                    <CommandItem
-                      key={note.id}
-                      value={`note-${note.id}-${note.title}`}
-                      onSelect={() => handleSelectNote(note.id)}
-                    >
-                      <NoteResultItem note={note} />
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-                {results.issues.length > 0 && <CommandSeparator />}
-              </>
-            )}
-
-            {/* Issues group */}
-            {!isLoading && results.issues.length > 0 && (
-              <CommandGroup heading="Tasks">
-                {results.issues.map((issue) => (
-                  <CommandItem
-                    key={issue.id}
-                    value={`issue-${issue.id}-${issue.identifier}-${issue.name ?? issue.title}`}
-                    onSelect={() => handleSelectIssue(issue.id)}
-                  >
-                    <IssueResultItem issue={issue} />
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            )}
-          </CommandList>
-
-          {/* Placeholder when no query */}
-          {showDefaultPlaceholder && (
-            <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
-              <Search className="h-4 w-4" />
-              <span>Start typing to search notes and issues</span>
+        {/* No-query empty state */}
+        {!isLoading && !hasQuery && (
+          <div className="py-12 text-center">
+            <div className="text-[13px] font-medium text-[var(--text-secondary)]">
+              Search everything
             </div>
-          )}
-        </>
-      )}
+            <div className="text-[13px] font-medium text-[var(--text-muted)] mt-1">
+              Try{' '}
+              <kbd className="font-mono text-[10px] bg-[var(--surface-input)] rounded-md px-1.5 py-0.5">
+                #tasks
+              </kbd>
+              ,{' '}
+              <kbd className="font-mono text-[10px] bg-[var(--surface-input)] rounded-md px-1.5 py-0.5">
+                @people
+              </kbd>
+              ,{' '}
+              <kbd className="font-mono text-[10px] bg-[var(--surface-input)] rounded-md px-1.5 py-0.5">
+                /pages
+              </kbd>
+              , or{' '}
+              <kbd className="font-mono text-[10px] bg-[var(--surface-input)] rounded-md px-1.5 py-0.5">
+                &gt; commands
+              </kbd>
+              .
+            </div>
+          </div>
+        )}
 
-      {/* Mode hint bar — always visible */}
-      <ModeHintBar mode={mode} />
+        {/* Topics group */}
+        {!isLoading && hasQuery && showTopics && results.notes.length > 0 && (
+          <CommandGroup heading="TOPICS" className={GROUP_HEADING_CLS}>
+            {results.notes.map((note) => (
+              <CommandItem
+                key={note.id}
+                value={`note-${note.id}-${note.title}`}
+                onSelect={() => handleSelectNote(note.id)}
+              >
+                <NoteResultItem note={note} />
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+
+        {/* Tasks group */}
+        {!isLoading && hasQuery && showTasks && results.issues.length > 0 && (
+          <CommandGroup heading="TASKS" className={GROUP_HEADING_CLS}>
+            {results.issues.map((issue) => (
+              <CommandItem
+                key={issue.id}
+                value={`issue-${issue.id}-${issue.identifier}-${issue.name ?? issue.title}`}
+                onSelect={() => handleSelectIssue(issue.id, issue.identifier)}
+              >
+                <IssueResultItem issue={issue} />
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+
+        {/* Chats group — empty-state placeholder; data source lands in 91 */}
+        {!isLoading && hasQuery && showChats && (
+          <CommandGroup heading="CHATS" className={GROUP_HEADING_CLS}>
+            <div className="px-2 py-3 text-[13px] text-[var(--text-muted)] flex items-center gap-2">
+              <MessageSquare className="h-4 w-4" />
+              <span>Chat search arrives in Phase 91.</span>
+            </div>
+          </CommandGroup>
+        )}
+
+        {/* Specs group — empty-state placeholder until specs API wired */}
+        {!isLoading && hasQuery && showSpecs && (
+          <CommandGroup heading="SPECS" className={GROUP_HEADING_CLS}>
+            <div className="px-2 py-3 text-[13px] text-[var(--text-muted)] flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              <span>Spec search not wired yet.</span>
+            </div>
+          </CommandGroup>
+        )}
+
+        {/* People group — empty-state placeholder until members API wired */}
+        {!isLoading && hasQuery && showPeople && (
+          <CommandGroup heading="PEOPLE" className={GROUP_HEADING_CLS}>
+            <div className="px-2 py-3 text-[13px] text-[var(--text-muted)] flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              <span>People search not wired yet.</span>
+            </div>
+          </CommandGroup>
+        )}
+
+        {/* AI fallback — only when query has zero matches.
+            UI-SPEC Copywriting Contract: no "No results" heading above. */}
+        {!isLoading && !fetchError && hasQuery && !hasResults && (
+          <CommandGroup className={GROUP_HEADING_CLS}>
+            <CommandItem
+              value={`ai-fallback-${query}`}
+              onSelect={() => {
+                const target = `/chat?prompt=${encodeURIComponent(consumePrefix(query))}`;
+                router.push(target);
+                handleOpenChange(false);
+              }}
+              className="bg-[var(--surface-snow)]"
+            >
+              <Sparkles className="h-[15px] w-[15px] text-[var(--ai-partner)]" />
+              <span className="flex-1 text-[13px] text-[var(--text-heading)]">
+                Ask AI: &ldquo;
+                <span className="font-medium">{consumePrefix(query)}</span>
+                &rdquo;
+              </span>
+              <kbd className="font-mono text-[10px] text-[var(--text-muted)]">⌘↵</kbd>
+            </CommandItem>
+          </CommandGroup>
+        )}
+      </CommandList>
+
+      {/* ── Footer legend ── */}
+      <div className="flex items-center gap-3 px-5 py-3 border-t border-[var(--border-card)] font-mono text-[10px] text-[var(--text-muted)]">
+        <span>↑↓ navigate</span>
+        <span>·</span>
+        <span>↵ open</span>
+        <span>·</span>
+        <span>⌘↵ open in split</span>
+        <span>·</span>
+        <span>esc close</span>
+      </div>
     </CommandDialog>
   );
 });
