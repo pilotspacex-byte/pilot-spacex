@@ -143,6 +143,16 @@ class NoteResponse(EntitySchema):
         default=None,
         description="Page emoji icon",
     )
+    # Phase 93 — topic-tree hierarchy (orthogonal to page-level parent_id/depth/position).
+    parent_topic_id: UUID | None = Field(
+        default=None,
+        description="Parent topic ID for nested topic hierarchy. None at root.",
+    )
+    topic_depth: int = Field(
+        default=0,
+        ge=0,
+        description="Depth in the topic tree (0 = root, max = 5).",
+    )
 
 
 class NoteDetailResponse(NoteResponse):
@@ -219,6 +229,25 @@ class MovePageRequest(BaseSchema):
     new_parent_id: UUID | None = Field(
         default=None,
         description="Target parent note ID. None promotes to tree root.",
+    )
+
+
+class MoveTopicRequest(BaseSchema):
+    """Request schema for moving a topic to a new parent topic (Phase 93).
+
+    Distinct from ``MovePageRequest`` (page-level hierarchy, max=2). Topic
+    hierarchy uses ``parent_topic_id`` / ``topic_depth`` (max=5) on the same
+    notes table.
+
+    Attributes:
+        parent_id: Target parent topic ID (camelCase ``parentId`` on the wire
+            via BaseSchema's alias_generator). ``None`` promotes the topic to
+            workspace-root.
+    """
+
+    parent_id: UUID | None = Field(
+        default=None,
+        description="Target parent topic ID. None moves the topic to root.",
     )
 
 

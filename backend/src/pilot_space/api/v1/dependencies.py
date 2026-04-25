@@ -99,6 +99,7 @@ from pilot_space.application.services.note import (
 from pilot_space.application.services.note.ai_update_service import NoteAIUpdateService
 from pilot_space.application.services.note.move_page_service import MovePageService
 from pilot_space.application.services.note.reorder_page_service import ReorderPageService
+from pilot_space.application.services.note.topic_tree_service import TopicTreeService
 from pilot_space.application.services.note_template import NoteTemplateService
 from pilot_space.application.services.ocr_configuration import OcrConfigurationService
 from pilot_space.application.services.onboarding import (
@@ -798,6 +799,16 @@ def _get_reorder_page_service(
 
 ReorderPageServiceDep = Annotated[ReorderPageService, Depends(_get_reorder_page_service)]
 
+
+@inject
+def _get_topic_tree_service(
+    svc: TopicTreeService = Depends(Provide[Container.topic_tree_service]),
+) -> TopicTreeService:
+    return svc
+
+
+TopicTreeServiceDep = Annotated[TopicTreeService, Depends(_get_topic_tree_service)]
+
 # ===== Knowledge Graph Service Dependencies =====
 
 
@@ -1121,6 +1132,7 @@ __all__ = [  # noqa: RUF022
     "RbacServiceDep",
     "MovePageServiceDep",
     "ReorderPageServiceDep",
+    "TopicTreeServiceDep",
     "TranscriptionServiceDep",
     "ProjectMemberServiceDep",
     "require_project_membership",

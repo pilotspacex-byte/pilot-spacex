@@ -117,6 +117,9 @@ from pilot_space.api.v1.routers.workspace_note_links import (
 )
 from pilot_space.api.v1.routers.workspace_notes import router as workspace_notes_router
 from pilot_space.api.v1.routers.workspace_notes_ai import router as workspace_notes_ai_router
+from pilot_space.api.v1.routers.workspace_notes_topic_tree import (
+    topic_tree_router as workspace_notes_topic_tree_router,
+)
 from pilot_space.api.v1.routers.workspace_ocr_settings import (
     router as workspace_ocr_settings_router,
 )
@@ -246,6 +249,7 @@ __all__ = [
     "workspace_note_links_router",
     "workspace_notes_ai_router",
     "workspace_notes_router",
+    "workspace_notes_topic_tree_router",
     "workspace_ocr_settings_router",
     "workspace_quota_router",
     "workspace_sessions_router",
