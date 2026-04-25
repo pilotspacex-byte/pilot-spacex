@@ -51,7 +51,7 @@ UI layout state with localStorage persistence and theme management.
 
 - Layout: `sidebarCollapsed`, `sidebarWidth` (220-400px), `marginPanelWidth` (150-350px)
 - Theme: `theme` ('light'|'dark'|'system'), `hydrated` (SSR-safe flag)
-- Modals: `commandPaletteOpen`, `searchModalOpen`, `modals: Map<string, ModalState>`
+- Modals: `commandPaletteOpen`, `workspaceSwitcherOpen`, `modals: Map<string, ModalState>`
 - Toasts: `toasts: Toast[]` (max 5 visible)
 
 **Key Computed**: `activeToasts`, `resolvedTheme`, `hasOpenModal`

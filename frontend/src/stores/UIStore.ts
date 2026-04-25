@@ -45,7 +45,6 @@ export class UIStore {
   workspaceSwitcherOpen = false;
   paletteScope: PaletteScope = 'all';
   palettePrefixMode: PalettePrefixMode = null;
-  searchModalOpen = false;
   isFocusMode = false;
   hydrated = false;
 
@@ -229,18 +228,6 @@ export class UIStore {
     this.palettePrefixMode = mode;
   }
 
-  openSearchModal(): void {
-    this.searchModalOpen = true;
-  }
-
-  closeSearchModal(): void {
-    this.searchModalOpen = false;
-  }
-
-  toggleSearchModal(): void {
-    this.searchModalOpen = !this.searchModalOpen;
-  }
-
   enterFocusMode(): void {
     this.isFocusMode = true;
   }
@@ -277,7 +264,6 @@ export class UIStore {
       this.modals.set(id, { ...modal, isOpen: false });
     }
     this.commandPaletteOpen = false;
-    this.searchModalOpen = false;
   }
 
   showToast(toast: Omit<Toast, 'id'>): string {
@@ -342,7 +328,6 @@ export class UIStore {
     this.marginPanelWidth = 200;
     this.theme = 'system';
     this.commandPaletteOpen = false;
-    this.searchModalOpen = false;
     this.modals.clear();
     this.clearAllToasts();
   }
