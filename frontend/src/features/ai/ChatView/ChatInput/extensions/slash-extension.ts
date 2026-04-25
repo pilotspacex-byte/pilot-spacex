@@ -113,6 +113,20 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     kind: 'route',
     routeTemplate: (ws) => `/${ws}/skills`,
   },
+  // Phase 92 Plan 03 — /skills-graph opens the gallery in graph mode.
+  // Single-token entry locked per UI-SPEC OQ4: multi-token `/skills graph`
+  // is impossible because shouldTrigger rejects whitespace (slash-extension
+  // .ts:213). Inserted BETWEEN /skills and /skill so typing "/sk" surfaces
+  // the three options in order: /skills, /skills-graph, /skill.
+  {
+    id: 'skills-graph',
+    keyword: '/skills-graph',
+    description: 'Open the skill dependency graph',
+    iconName: 'Network',
+    iconColor: '#7c5cff',
+    kind: 'route',
+    routeTemplate: (ws) => `/${ws}/skills?view=graph`,
+  },
   // Phase 91 Plan 05 — /skill <name> repurposed: was "Run a skill" (chat
   // submission via SkillMenu text-insert); now opens the detail page on
   // pick. The bare-keyword Enter still routes to the gallery via
