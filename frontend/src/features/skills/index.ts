@@ -30,3 +30,8 @@ export type {
   SkillGraphEdge,
   SkillGraphResult,
 } from './lib/skill-graph';
+export {
+  layoutSkillGraph,
+  COLUMN_PITCH,
+  ROW_PITCH,
+} from './lib/skill-graph-layout';
