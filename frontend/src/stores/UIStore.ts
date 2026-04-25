@@ -5,6 +5,10 @@ import { generateUUID } from '@/lib/utils';
 
 export type Theme = 'light' | 'dark' | 'system';
 
+export type PaletteScope = 'all' | 'chats' | 'topics' | 'tasks' | 'specs' | 'people';
+
+export type PalettePrefixMode = null | 'tasks' | 'people' | 'pages' | 'commands';
+
 export interface ModalState {
   isOpen: boolean;
   data?: unknown;
@@ -38,6 +42,9 @@ export class UIStore {
   marginPanelWidth = 200;
   theme: Theme = 'system';
   commandPaletteOpen = false;
+  workspaceSwitcherOpen = false;
+  paletteScope: PaletteScope = 'all';
+  palettePrefixMode: PalettePrefixMode = null;
   searchModalOpen = false;
   isFocusMode = false;
   hydrated = false;
@@ -194,10 +201,32 @@ export class UIStore {
 
   closeCommandPalette(): void {
     this.commandPaletteOpen = false;
+    this.paletteScope = 'all';
+    this.palettePrefixMode = null;
   }
 
   toggleCommandPalette(): void {
     this.commandPaletteOpen = !this.commandPaletteOpen;
+  }
+
+  openWorkspaceSwitcher(): void {
+    this.workspaceSwitcherOpen = true;
+  }
+
+  closeWorkspaceSwitcher(): void {
+    this.workspaceSwitcherOpen = false;
+  }
+
+  toggleWorkspaceSwitcher(): void {
+    this.workspaceSwitcherOpen = !this.workspaceSwitcherOpen;
+  }
+
+  setPaletteScope(scope: PaletteScope): void {
+    this.paletteScope = scope;
+  }
+
+  setPalettePrefixMode(mode: PalettePrefixMode): void {
+    this.palettePrefixMode = mode;
   }
 
   openSearchModal(): void {

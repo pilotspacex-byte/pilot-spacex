@@ -13,7 +13,7 @@ const WORKSPACE_STORAGE_KEY = 'pilot-space:last-workspace';
 const RECENT_WORKSPACES_KEY = 'pilot-space:recent-workspaces';
 const MAX_RECENT_WORKSPACES = 5;
 
-interface RecentWorkspace {
+export interface RecentWorkspace {
   slug: string;
   lastVisited: number;
 }
@@ -21,7 +21,7 @@ interface RecentWorkspace {
 /**
  * Get recent workspaces from localStorage.
  */
-function getRecentWorkspaces(): RecentWorkspace[] {
+export function getRecentWorkspaces(): RecentWorkspace[] {
   if (typeof window === 'undefined') return [];
   try {
     const stored = localStorage.getItem(RECENT_WORKSPACES_KEY);

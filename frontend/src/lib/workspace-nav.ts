@@ -1,3 +1,6 @@
+import type { Workspace } from '@/types';
+import { getRecentWorkspaces } from '@/components/workspace-selector';
+
 const LAST_PATH_PREFIX = 'pilot-space:last-path:';
 
 /**
@@ -25,4 +28,30 @@ export function getLastWorkspacePath(slug: string): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Returns workspaces in recency order (most recent first).
+ *
+ * Source of truth for ⌘2/⌘3 shortcut and the Switcher popover WORKSPACES list.
+ * Joins the localStorage recency slug list (from `getRecentWorkspaces`) to the
+ * `WorkspaceStore.workspaces` Map values, filtering out slugs whose workspace is
+ * unknown to the store (e.g. user lost access, workspace deleted).
+ *
+ * Pure function — no side effects, no localStorage write.
+ */
+export function getOrderedRecentWorkspaces(
+  store: { workspaces: Map<string, Workspace> }
+): Workspace[] {
+  const recents = getRecentWorkspaces();
+  const ordered: Workspace[] = [];
+  for (const { slug } of recents) {
+    for (const ws of store.workspaces.values()) {
+      if (ws.slug === slug) {
+        ordered.push(ws);
+        break;
+      }
+    }
+  }
+  return ordered;
 }

@@ -220,3 +220,101 @@ describe('UIStore — isFocusMode focus mode', () => {
     dispose();
   });
 });
+
+// ---------------------------------------------------------------------------
+// workspace switcher + palette extensions (Plan 90-01)
+// ---------------------------------------------------------------------------
+
+describe('UIStore — workspace switcher + palette extensions', () => {
+  let uiStore: UIStore;
+
+  beforeEach(() => {
+    localStorageMock.clear();
+    vi.clearAllMocks();
+    uiStore = new UIStore();
+  });
+
+  afterEach(() => {
+    uiStore.dispose();
+  });
+
+  it('workspaceSwitcherOpen defaults to false', () => {
+    expect(uiStore.workspaceSwitcherOpen).toBe(false);
+  });
+
+  it('openWorkspaceSwitcher / closeWorkspaceSwitcher / toggleWorkspaceSwitcher manipulate observable', () => {
+    uiStore.openWorkspaceSwitcher();
+    expect(uiStore.workspaceSwitcherOpen).toBe(true);
+
+    uiStore.closeWorkspaceSwitcher();
+    expect(uiStore.workspaceSwitcherOpen).toBe(false);
+
+    uiStore.toggleWorkspaceSwitcher();
+    expect(uiStore.workspaceSwitcherOpen).toBe(true);
+
+    uiStore.toggleWorkspaceSwitcher();
+    expect(uiStore.workspaceSwitcherOpen).toBe(false);
+  });
+
+  it("paletteScope defaults to 'all'", () => {
+    expect(uiStore.paletteScope).toBe('all');
+  });
+
+  it('setPaletteScope assigns the scope', () => {
+    uiStore.setPaletteScope('tasks');
+    expect(uiStore.paletteScope).toBe('tasks');
+
+    uiStore.setPaletteScope('people');
+    expect(uiStore.paletteScope).toBe('people');
+  });
+
+  it('palettePrefixMode defaults to null', () => {
+    expect(uiStore.palettePrefixMode).toBe(null);
+  });
+
+  it('setPalettePrefixMode accepts null | tasks | people | pages | commands', () => {
+    uiStore.setPalettePrefixMode('tasks');
+    expect(uiStore.palettePrefixMode).toBe('tasks');
+
+    uiStore.setPalettePrefixMode('people');
+    expect(uiStore.palettePrefixMode).toBe('people');
+
+    uiStore.setPalettePrefixMode('pages');
+    expect(uiStore.palettePrefixMode).toBe('pages');
+
+    uiStore.setPalettePrefixMode('commands');
+    expect(uiStore.palettePrefixMode).toBe('commands');
+
+    uiStore.setPalettePrefixMode(null);
+    expect(uiStore.palettePrefixMode).toBe(null);
+  });
+
+  it("closeCommandPalette resets paletteScope to 'all' and palettePrefixMode to null", () => {
+    uiStore.openCommandPalette();
+    uiStore.setPaletteScope('topics');
+    uiStore.setPalettePrefixMode('tasks');
+
+    uiStore.closeCommandPalette();
+
+    expect(uiStore.commandPaletteOpen).toBe(false);
+    expect(uiStore.paletteScope).toBe('all');
+    expect(uiStore.palettePrefixMode).toBe(null);
+  });
+
+  it('workspaceSwitcherOpen is MobX-observable (autorun fires on toggle)', () => {
+    let reactionCount = 0;
+
+    const dispose = autorun(() => {
+      const _val = uiStore.workspaceSwitcherOpen;
+      void _val;
+      reactionCount++;
+    });
+
+    const initialCount = reactionCount;
+    uiStore.toggleWorkspaceSwitcher();
+
+    expect(reactionCount).toBeGreaterThan(initialCount);
+
+    dispose();
+  });
+});

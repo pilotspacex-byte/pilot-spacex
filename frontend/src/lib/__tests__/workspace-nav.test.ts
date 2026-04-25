@@ -1,9 +1,32 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { saveLastWorkspacePath, getLastWorkspacePath } from '../workspace-nav';
+import {
+  saveLastWorkspacePath,
+  getLastWorkspacePath,
+  getOrderedRecentWorkspaces,
+} from '../workspace-nav';
+import type { Workspace } from '@/types';
+
+vi.mock('@/components/workspace-selector', () => ({
+  getRecentWorkspaces: vi.fn(),
+}));
+
+import { getRecentWorkspaces } from '@/components/workspace-selector';
 
 describe('workspace-nav', () => {
   beforeEach(() => {
-    localStorage.clear();
+    // jsdom in this project ships without localStorage.clear — guard for compat.
+    if (typeof localStorage !== 'undefined' && typeof localStorage.clear === 'function') {
+      localStorage.clear();
+    } else if (typeof localStorage !== 'undefined') {
+      // Best-effort manual clear when .clear is unavailable.
+      const len = (localStorage as Storage).length ?? 0;
+      const keys: string[] = [];
+      for (let i = 0; i < len; i += 1) {
+        const k = (localStorage as Storage).key?.(i);
+        if (k) keys.push(k);
+      }
+      keys.forEach((k) => (localStorage as Storage).removeItem?.(k));
+    }
     vi.restoreAllMocks();
   });
 
@@ -67,6 +90,72 @@ describe('workspace-nav', () => {
       delete globalThis.window;
       expect(getLastWorkspacePath('my-ws')).toBeNull();
       globalThis.window = originalWindow;
+    });
+  });
+
+  describe('getOrderedRecentWorkspaces', () => {
+    function makeWorkspace(id: string, slug: string): Workspace {
+      return { id, slug, name: slug } as Workspace;
+    }
+
+    function makeStore(workspaces: Workspace[]): { workspaces: Map<string, Workspace> } {
+      const map = new Map<string, Workspace>();
+      for (const ws of workspaces) map.set(ws.id, ws);
+      return { workspaces: map };
+    }
+
+    it('returns workspaces in recency order (recents=[beta,gamma,alpha] → [beta,gamma,alpha])', () => {
+      vi.mocked(getRecentWorkspaces).mockReturnValue([
+        { slug: 'beta', lastVisited: 3 },
+        { slug: 'gamma', lastVisited: 2 },
+        { slug: 'alpha', lastVisited: 1 },
+      ]);
+      const alpha = makeWorkspace('id-a', 'alpha');
+      const beta = makeWorkspace('id-b', 'beta');
+      const gamma = makeWorkspace('id-c', 'gamma');
+      const store = makeStore([alpha, beta, gamma]);
+
+      const result = getOrderedRecentWorkspaces(store);
+
+      expect(result.map((w) => w.slug)).toEqual(['beta', 'gamma', 'alpha']);
+    });
+
+    it('filters out slugs whose workspace is not in the Map', () => {
+      vi.mocked(getRecentWorkspaces).mockReturnValue([
+        { slug: 'ghost', lastVisited: 2 },
+        { slug: 'beta', lastVisited: 1 },
+      ]);
+      const beta = makeWorkspace('id-b', 'beta');
+      const store = makeStore([beta]);
+
+      const result = getOrderedRecentWorkspaces(store);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]!.slug).toBe('beta');
+    });
+
+    it('returns empty array when recents is empty', () => {
+      vi.mocked(getRecentWorkspaces).mockReturnValue([]);
+      const store = makeStore([makeWorkspace('id-a', 'alpha')]);
+
+      expect(getOrderedRecentWorkspaces(store)).toEqual([]);
+    });
+
+    it('preserves recency order even when Map insertion order differs', () => {
+      vi.mocked(getRecentWorkspaces).mockReturnValue([
+        { slug: 'gamma', lastVisited: 3 },
+        { slug: 'alpha', lastVisited: 2 },
+        { slug: 'beta', lastVisited: 1 },
+      ]);
+      // Map insertion order alphabetical (alpha, beta, gamma) — different from recency
+      const alpha = makeWorkspace('id-a', 'alpha');
+      const beta = makeWorkspace('id-b', 'beta');
+      const gamma = makeWorkspace('id-c', 'gamma');
+      const store = makeStore([alpha, beta, gamma]);
+
+      const result = getOrderedRecentWorkspaces(store);
+
+      expect(result.map((w) => w.slug)).toEqual(['gamma', 'alpha', 'beta']);
     });
   });
 });
