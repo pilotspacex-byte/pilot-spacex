@@ -132,6 +132,36 @@ describe('usePaletteQueryStringSync', () => {
     expect(url).not.toContain('q=');
   });
 
+  // Phase 91 Plan 05 — 'skills' was added to VALID_SCOPES.
+  it("hydrates paletteScope from ?palette=1&scope=skills (Plan 91-05)", () => {
+    setUrl('?palette=1&scope=skills');
+
+    renderHook(() => usePaletteQueryStringSync());
+
+    expect(uiStore.commandPaletteOpen).toBe(true);
+    expect(uiStore.paletteScope).toBe('skills');
+  });
+
+  it("setPaletteScope('skills') while open → URL contains scope=skills (Plan 91-05)", async () => {
+    renderHook(() => usePaletteQueryStringSync());
+
+    act(() => {
+      uiStore.openCommandPalette();
+    });
+    await waitFor(() => expect(replaceMock).toHaveBeenCalled());
+    replaceMock.mockClear();
+    setUrl('?palette=1');
+
+    act(() => {
+      uiStore.setPaletteScope('skills');
+    });
+
+    await waitFor(() => expect(replaceMock).toHaveBeenCalled());
+    const url = replaceMock.mock.calls[replaceMock.mock.calls.length - 1]![0] as string;
+    expect(url).toContain('scope=skills');
+    expect(url).toContain('palette=1');
+  });
+
   it("scope='all' while open → scope param omitted (kept palette=1 only)", async () => {
     renderHook(() => usePaletteQueryStringSync());
 

@@ -332,4 +332,32 @@ describe('CommandPalette v3', () => {
     expect(screen.getByText('@people')).toBeDefined();
     expect(screen.getByText('/pages')).toBeDefined();
   });
+
+  // ─── Phase 91 Plan 05 — Skills scope tab ────────────────────────────────
+  it('renders Skills tab between Specs and People (Plan 91-05)', () => {
+    render(<CommandPalette />);
+    const tabs = screen
+      .getAllByRole('tab')
+      .map((t) => (t as HTMLElement).textContent?.trim());
+    expect(tabs).toEqual(['All', 'Chats', 'Topics', 'Tasks', 'Specs', 'Skills', 'People']);
+  });
+
+  it('clicking Skills tab updates uiStore.paletteScope and aria-selected (Plan 91-05)', () => {
+    render(<CommandPalette />);
+    const skillsTab = screen.getByRole('tab', { name: 'Skills' });
+    fireEvent.click(skillsTab);
+    expect(testUIStore.paletteScope).toBe('skills');
+    expect(skillsTab.getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('?palette=1&scope=skills opens palette with Skills tab active (Plan 91-05)', async () => {
+    setSearchParams('palette=1&scope=skills');
+    testUIStore = new UIStore();
+    render(<CommandPalette />);
+    await waitFor(() => {
+      expect(testUIStore.paletteScope).toBe('skills');
+    });
+    const skillsTab = screen.getByRole('tab', { name: 'Skills' });
+    expect(skillsTab.getAttribute('aria-selected')).toBe('true');
+  });
 });

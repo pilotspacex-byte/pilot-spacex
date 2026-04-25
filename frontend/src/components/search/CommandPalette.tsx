@@ -63,6 +63,8 @@ const SCOPES: { id: PaletteScope; label: string }[] = [
   { id: 'topics', label: 'Topics' },
   { id: 'tasks', label: 'Tasks' },
   { id: 'specs', label: 'Specs' },
+  // Phase 91 Plan 05 — Skills tab between Specs and People (UI-SPEC §Surface 3).
+  { id: 'skills', label: 'Skills' },
   { id: 'people', label: 'People' },
 ];
 

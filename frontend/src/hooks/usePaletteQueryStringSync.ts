@@ -27,6 +27,7 @@ const VALID_SCOPES: readonly PaletteScope[] = [
   'topics',
   'tasks',
   'specs',
+  'skills',
   'people',
 ] as const;
 

@@ -5,7 +5,7 @@ import { generateUUID } from '@/lib/utils';
 
 export type Theme = 'light' | 'dark' | 'system';
 
-export type PaletteScope = 'all' | 'chats' | 'topics' | 'tasks' | 'specs' | 'people';
+export type PaletteScope = 'all' | 'chats' | 'topics' | 'tasks' | 'specs' | 'skills' | 'people';
 
 export type PalettePrefixMode = null | 'tasks' | 'people' | 'pages' | 'commands';
 

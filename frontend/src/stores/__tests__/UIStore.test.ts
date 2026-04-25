@@ -268,6 +268,12 @@ describe('UIStore — workspace switcher + palette extensions', () => {
     expect(uiStore.paletteScope).toBe('people');
   });
 
+  // Phase 91 Plan 05 — PaletteScope widened to include 'skills'.
+  it("setPaletteScope accepts 'skills' (Plan 91-05)", () => {
+    uiStore.setPaletteScope('skills');
+    expect(uiStore.paletteScope).toBe('skills');
+  });
+
   it('palettePrefixMode defaults to null', () => {
     expect(uiStore.palettePrefixMode).toBe(null);
   });
