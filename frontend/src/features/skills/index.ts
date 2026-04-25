@@ -23,6 +23,11 @@ export {
   skillQueryKey,
   useSkillFileBlob,
   type SkillFileBlob,
+  useSkillGraphData,
+  type UseSkillGraphDataResult,
+  useSkillGraphLayout,
+  type UseSkillGraphLayoutResult,
+  type FlowNodeData,
 } from './hooks';
 export { buildSkillGraph } from './lib/skill-graph';
 export type {
