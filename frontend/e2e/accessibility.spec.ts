@@ -17,6 +17,7 @@
 
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { scanRouteForA11y, expectNoCriticalA11yViolations } from './fixtures/a11y';
 
 /**
  * Routes to test for accessibility compliance.
@@ -341,6 +342,133 @@ test.describe('Accessibility Compliance', () => {
 
       expect(criticalViolations).toHaveLength(0);
     });
+  });
+});
+
+/**
+ * Phase 94 Plan 01 Task 3 — Chat-first capstone route coverage.
+ *
+ * The routes below are net-new in Phases 84-93 (chat-first pivot,
+ * skills gallery + DAG, topic detail/tree, peek drawer, edit proposal).
+ * Each scan asserts zero critical/serious WCAG 2.2 AA violations.
+ *
+ * Open-state variants (peek drawer, edit proposal) gate behind a
+ * `waitFor` selector so we scan the portaled dialog body — not just
+ * the trigger surface that opens it. Radix Dialog/Popover portal their
+ * content outside the React tree, so a route-only scan misses violations
+ * inside the floating layer.
+ *
+ * Skips: routes that depend on seed-data IDs (specific skill slug,
+ * specific topic id, specific proposal id) gracefully fall back to
+ * scanning their gallery/index pages when the seed isn't available.
+ * The `seed*` constants below are populated by the global-setup
+ * helper if/when it is extended to provision them.
+ */
+test.describe('Chat-first capstone routes', () => {
+  // Demo workspace seed slug — keep in sync with global-setup.ts.
+  const wsSlug = 'workspace-demo';
+
+  // Optional seed identifiers — extend global-setup.ts to populate
+  // them. When undefined, the corresponding test scans the gallery /
+  // index page only.
+  const seedSkillSlug: string | undefined = process.env.E2E_SEED_SKILL_SLUG;
+  const seedTopicId: string | undefined = process.env.E2E_SEED_TOPIC_ID;
+  const seedNoteId: string | undefined = process.env.E2E_SEED_NOTE_ID;
+  const seedProposalId: string | undefined = process.env.E2E_SEED_PROPOSAL_ID;
+
+  test('homepage launchpad has no critical a11y violations', async ({ page }) => {
+    await expectNoCriticalA11yViolations(page, `/${wsSlug}`);
+  });
+
+  test('chat surface has no critical a11y violations', async ({ page }) => {
+    await expectNoCriticalA11yViolations(page, `/${wsSlug}/chat`);
+  });
+
+  test('skills gallery has no critical a11y violations', async ({ page }) => {
+    await expectNoCriticalA11yViolations(page, `/${wsSlug}/skills`);
+  });
+
+  test('skills graph view has no critical a11y violations', async ({ page }) => {
+    // ?view=graph triggers the React Flow DAG. Wait for the canvas
+    // wrapper to mount before scanning so the graph nodes are present.
+    await expectNoCriticalA11yViolations(page, `/${wsSlug}/skills?view=graph`, {
+      waitFor: '[role="application"], [data-testid="skill-graph-skeleton"]',
+    });
+  });
+
+  test('skill detail page has no critical a11y violations', async ({ page }) => {
+    test.skip(
+      !seedSkillSlug,
+      'No seed skill slug — set E2E_SEED_SKILL_SLUG or extend global-setup',
+    );
+    await expectNoCriticalA11yViolations(page, `/${wsSlug}/skills/${seedSkillSlug}`);
+  });
+
+  test('topic detail has no critical a11y violations', async ({ page }) => {
+    test.skip(
+      !seedTopicId,
+      'No seed topic id — set E2E_SEED_TOPIC_ID or extend global-setup',
+    );
+    await expectNoCriticalA11yViolations(page, `/${wsSlug}/topics/${seedTopicId}`);
+  });
+
+  test('peek drawer open state has no critical a11y violations', async ({ page }) => {
+    test.skip(
+      !seedNoteId,
+      'No seed note id — set E2E_SEED_NOTE_ID or extend global-setup',
+    );
+    // ?peek=&peekType= mounts the global ArtifactPeekDrawer Dialog.
+    // Wait for the drawer body to be visible before scanning.
+    await expectNoCriticalA11yViolations(
+      page,
+      `/${wsSlug}/chat?peek=${seedNoteId}&peekType=NOTE`,
+      {
+        waitFor: '[data-testid="peek-drawer-content"]',
+        withTags: ['cat.aria', 'cat.color'],
+      },
+    );
+  });
+
+  test('edit proposal open state has no critical a11y violations', async ({ page }) => {
+    test.skip(
+      !seedProposalId,
+      'No seed proposal id — set E2E_SEED_PROPOSAL_ID or extend global-setup',
+    );
+    await expectNoCriticalA11yViolations(
+      page,
+      `/${wsSlug}/chat?proposal=${seedProposalId}`,
+      {
+        waitFor: '[data-testid="edit-proposal-card"]',
+        withTags: ['cat.aria'],
+      },
+    );
+  });
+});
+
+/**
+ * Phase 94 Plan 01 Task 3 — Type-badge & diff-block aria coverage.
+ *
+ * These tests scan the chat-first surfaces with the `cat.aria` tag
+ * pinned on so we surface badge / role-attribute fixes specifically.
+ * Type badges (ArtifactTypeBadge / RejectedPill / version chips) and
+ * diff blocks (TextDiffBlock / FieldDiffRow inserting role="insertion"
+ * / role="deletion") are the highest-value Task 2 fixes.
+ */
+test.describe('Capstone aria & diff-role coverage', () => {
+  const wsSlug = 'workspace-demo';
+
+  test('chat surface — aria & diff role audit', async ({ page }) => {
+    const { criticalViolations } = await scanRouteForA11y(page, `/${wsSlug}/chat`, {
+      withTags: ['cat.aria'],
+    });
+    expect(criticalViolations).toHaveLength(0);
+  });
+
+  test('skills gallery — aria audit', async ({ page }) => {
+    const { criticalViolations } = await scanRouteForA11y(page, `/${wsSlug}/skills`, {
+      withTags: ['cat.aria'],
+    });
+    expect(criticalViolations).toHaveLength(0);
   });
 });
 
