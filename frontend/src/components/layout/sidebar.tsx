@@ -64,6 +64,7 @@ import { usePendingApprovalCount } from '@/features/approvals/hooks/use-approval
 import { usePinnedNotes } from '@/hooks/usePinnedNotes';
 import { useSettingsModal } from '@/features/settings/settings-modal-context';
 import type { WorkspaceFeatureToggles } from '@/types';
+import { TopicTreeContainer } from '@/features/topics/components';
 
 // ---------------------------------------------------------------------------
 // RECENT CHATS — empty-state-only ship per known degradation (Plan 90-04).
@@ -709,6 +710,15 @@ export const Sidebar = observer(function Sidebar() {
                               active={isActive}
                               count={count}
                             />
+                            {/* Phase 93-04: Topics nav-row gains a nested
+                                drag-drop tree below it. Mounted inline so the
+                                Topics accordion entry expands into the tree
+                                without restructuring sidebar navigation. */}
+                            {entry.id === 'topics' && resolvedWorkspaceId && (
+                              <div className="mt-0.5">
+                                <TopicTreeContainer workspaceId={resolvedWorkspaceId} />
+                              </div>
+                            )}
                           </li>
                         );
                       })}

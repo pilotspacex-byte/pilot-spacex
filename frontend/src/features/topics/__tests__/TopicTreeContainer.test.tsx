@@ -38,8 +38,6 @@ vi.mock('sonner', () => ({
 
 function makeNote(over: Partial<Note> & { id: string; title: string; topicDepth?: number }): Note {
   return {
-    id: over.id,
-    title: over.title,
     workspaceId: 'ws-1',
     wordCount: 0,
     isPinned: false,
@@ -60,9 +58,10 @@ function createWrapper() {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={qc}>{children}</QueryClientProvider>
-  );
+  function Wrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
+  }
+  return Wrapper;
 }
 
 // Lazy import after mocks are wired.
@@ -144,8 +143,12 @@ describe('TopicTreeContainer', () => {
   it('renders aria-live status region for drop announcements (sr-only)', async () => {
     mockUseTopicChildren.mockReturnValue(makeChildrenResult([]));
     await mountContainer();
-    const status = screen.getByRole('status');
+    // @dnd-kit injects its own DndLiveRegion role="status"; we look up our
+    // status via testid to avoid that ambiguity.
+    const status = screen.getByTestId('topic-tree-aria-live');
     expect(status).toBeInTheDocument();
+    expect(status.getAttribute('role')).toBe('status');
+    expect(status.getAttribute('aria-live')).toBe('polite');
     expect(status.className).toMatch(/sr-only/);
   });
 
