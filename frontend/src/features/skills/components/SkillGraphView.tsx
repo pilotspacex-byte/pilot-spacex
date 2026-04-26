@@ -102,7 +102,7 @@ export function SkillGraphView({
           data-testid="skill-graph-skeleton"
           className="flex h-full w-full items-center justify-center"
         >
-          <div className="h-20 w-[280px] animate-pulse rounded-2xl bg-[var(--surface-input,#f1f1ef)]" />
+          <div className="h-20 w-[280px] motion-safe:animate-pulse rounded-2xl bg-[var(--surface-input,#f1f1ef)]" aria-label="Loading skills graph" role="status" />
         </div>
       </ViewportShell>
     );
@@ -129,7 +129,7 @@ export function SkillGraphView({
           data-testid="skill-graph-skeleton"
           className="flex h-full w-full items-center justify-center"
         >
-          <div className="h-20 w-[280px] animate-pulse rounded-2xl bg-[var(--surface-input,#f1f1ef)]" />
+          <div className="h-20 w-[280px] motion-safe:animate-pulse rounded-2xl bg-[var(--surface-input,#f1f1ef)]" aria-label="Loading skills graph" role="status" />
         </div>
       </ViewportShell>
     );

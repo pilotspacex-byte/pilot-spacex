@@ -157,16 +157,18 @@ function VersionItem({
         <Button
           variant="ghost"
           size="icon-sm"
-          className="h-6 w-6 opacity-0 group-hover:opacity-100"
+          aria-label={isExpanded ? `Collapse version ${version.versionNumber} details` : `Expand version ${version.versionNumber} details`}
+          aria-expanded={isExpanded}
+          className="h-6 w-6 min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           onClick={(e) => {
             e.stopPropagation();
             setIsExpanded(!isExpanded);
           }}
         >
           {isExpanded ? (
-            <ChevronUp className="h-3.5 w-3.5" />
+            <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
           ) : (
-            <ChevronDown className="h-3.5 w-3.5" />
+            <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
           )}
         </Button>
       </div>
@@ -300,8 +302,8 @@ export const VersionHistoryPanel = observer(function VersionHistoryPanel({
 
       {/* Loading state */}
       {isLoading && (
-        <div className="flex items-center justify-center py-8">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <div className="flex items-center justify-center py-8" role="status" aria-label="Loading version history">
+          <div className="h-6 w-6 motion-safe:animate-spin rounded-full border-2 border-primary border-t-transparent" aria-hidden="true" />
         </div>
       )}
 

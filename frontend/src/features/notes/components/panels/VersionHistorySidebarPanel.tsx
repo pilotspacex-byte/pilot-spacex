@@ -72,7 +72,7 @@ export function VersionHistorySidebarPanel({
       {isLoading && (
         <div className="flex items-center justify-center py-6" aria-label="Loading save history">
           <div
-            className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent"
+            className="h-5 w-5 motion-safe:animate-spin rounded-full border-2 border-primary border-t-transparent"
             aria-hidden="true"
           />
         </div>

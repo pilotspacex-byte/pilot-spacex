@@ -464,8 +464,10 @@ export const CommandPalette = observer(function CommandPalette() {
                 role="tab"
                 aria-selected={scope === s.id}
                 data-scope={s.id}
+                aria-label={`${s.label ?? s.id} scope`}
                 className={cn(
-                  'px-3 py-1.5 rounded-md text-[13px] font-medium transition-colors',
+                  'px-3 py-1.5 rounded-md text-[13px] font-medium motion-safe:transition-colors',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2',
                   scope === s.id
                     ? 'bg-[#29a38615] text-[var(--brand-primary)] font-semibold'
                     : 'text-[var(--text-muted)] hover:bg-[var(--surface-input)]'

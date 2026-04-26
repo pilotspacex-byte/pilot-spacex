@@ -41,27 +41,29 @@ export const FieldDiffRow = memo<FieldDiffRowProps>(function FieldDiffRow({ row,
       data-field={row.field}
     >
       <span className="text-xs font-medium text-foreground shrink-0">{row.label}:</span>
-      <span
+      <del
+        role="deletion"
         data-testid="field-diff-before"
         className={cn(
-          'inline-flex items-center rounded-md px-2 py-0.5',
+          'inline-flex items-center rounded-md px-2 py-0.5 no-underline',
           'text-xs font-medium leading-none',
           'bg-[#fecaca] text-[#dc2626]'
         )}
       >
         {before}
-      </span>
+      </del>
       <ArrowRight aria-hidden="true" className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-      <span
+      <ins
+        role="insertion"
         data-testid="field-diff-after"
         className={cn(
-          'inline-flex items-center rounded-md px-2 py-0.5',
+          'inline-flex items-center rounded-md px-2 py-0.5 no-underline',
           'text-xs font-medium leading-none',
           'bg-[#bbf7d0] text-[#16a34a]'
         )}
       >
         {after}
-      </span>
+      </ins>
     </div>
   );
 });

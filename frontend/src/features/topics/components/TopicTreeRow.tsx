@@ -89,6 +89,7 @@ export const TopicTreeRow = observer(function TopicTreeRow({
       <button
         type="button"
         aria-label={isExpanded ? `Collapse ${displayTitle}` : `Expand ${displayTitle}`}
+        aria-expanded={isExpanded}
         onClick={(e) => {
           e.stopPropagation();
           e.preventDefault();
@@ -96,7 +97,7 @@ export const TopicTreeRow = observer(function TopicTreeRow({
         }}
         // pointerDown stops the dnd listeners from grabbing the chevron click.
         onPointerDown={(e) => e.stopPropagation()}
-        className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-[var(--text-muted)] hover:text-[var(--text-heading)]"
+        className="hit-target-44 flex h-6 w-6 shrink-0 items-center justify-center rounded text-[var(--text-muted)] hover:text-[var(--text-heading)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-1"
       >
         <ChevronRight
           className={cn(

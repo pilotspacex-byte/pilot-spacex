@@ -67,7 +67,7 @@ export const RejectedPill = memo<RejectedPillProps>(function RejectedPill({
     >
       {resolved === 'rejected' && <X className="h-3.5 w-3.5" aria-hidden="true" />}
       {resolved === 'retried' && (
-        <RotateCcw className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+        <RotateCcw className="h-3.5 w-3.5 motion-safe:animate-spin" aria-hidden="true" />
       )}
       {resolved === 'reverted' && <Undo2 className="h-3.5 w-3.5" aria-hidden="true" />}
       {resolved === 'errored' && <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />}

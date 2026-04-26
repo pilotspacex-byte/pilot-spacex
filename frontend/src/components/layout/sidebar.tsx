@@ -291,8 +291,8 @@ export const SidebarUserControls = observer(function SidebarUserControls({
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
-            className="flex flex-1 items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-sidebar-accent/50 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-1 focus-visible:ring-offset-sidebar"
-            aria-label="Account"
+            className="flex flex-1 items-center gap-2.5 rounded-lg px-2 py-1.5 text-left motion-safe:transition-colors hover:bg-sidebar-accent/50 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-1 focus-visible:ring-offset-sidebar"
+            aria-label="Open workspace account menu"
           >
             <Avatar className="h-7 w-7 shrink-0 border border-border">
               <AvatarImage src={authStore.user?.avatarUrl ?? ''} alt="User" />
@@ -420,7 +420,7 @@ function NavRow({
       data-testid={`nav-${entry.id}`}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'group relative flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-1',
+        'group relative flex items-center gap-2 rounded-md px-2 py-1.5 text-[13px] font-medium motion-safe:transition-colors outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-1',
         active
           ? 'bg-[var(--surface-input)] text-[var(--text-heading)]'
           : 'text-[var(--text-secondary)] hover:bg-[var(--surface-input)]/60'
@@ -787,7 +787,7 @@ export const Sidebar = observer(function Sidebar() {
             aria-live="polite"
             data-testid="topic-create-pending"
           >
-            <Loader2 className="h-3 w-3 animate-spin text-[var(--text-muted)]" />
+            <Loader2 className="h-3 w-3 motion-safe:animate-spin text-[var(--text-muted)]" aria-hidden="true" />
             <span className="text-[10px] text-[var(--text-muted)]">Creating…</span>
           </div>
         )}

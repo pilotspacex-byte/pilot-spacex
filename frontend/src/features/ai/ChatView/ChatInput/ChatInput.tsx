@@ -924,7 +924,7 @@ export const ChatInput = observer<ChatInputProps>(
                   'min-h-[40px] max-h-[160px] overflow-y-auto resize-none pr-20',
                   'bg-transparent text-base',
                   'outline-none',
-                  'transition-colors',
+                  'motion-safe:transition-colors',
                   'empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/70',
                   isStreaming && 'chat-input-working',
                   isDisabled && 'cursor-not-allowed opacity-50'

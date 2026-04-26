@@ -170,7 +170,7 @@ export const IssueCard = observer(function IssueCard({
     return (
       <div
         className={cn(
-          'group flex items-center gap-2 rounded-md border bg-card px-2 py-1 transition-all',
+          'group flex items-center gap-2 rounded-md border bg-card px-2 py-1 motion-safe:transition-all',
           'hover:border-primary/50 hover:bg-accent/50',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           isDragging && 'opacity-50 ring-2 ring-primary',
@@ -199,7 +199,7 @@ export const IssueCard = observer(function IssueCard({
       <TooltipProvider>
         <div
           className={cn(
-            'group relative rounded-lg border bg-card p-1.5 shadow-sm transition-all',
+            'group relative rounded-lg border bg-card p-1.5 shadow-sm motion-safe:transition-all',
             'hover:border-primary/50 hover:shadow-md',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
             isDragging && 'opacity-50 ring-2 ring-primary',
@@ -286,7 +286,7 @@ export const IssueCard = observer(function IssueCard({
     <TooltipProvider>
       <div
         className={cn(
-          'group relative rounded-lg border bg-card p-2 shadow-sm transition-all',
+          'group relative rounded-lg border bg-card p-2 shadow-sm motion-safe:transition-all',
           'hover:border-primary/50 hover:shadow-md',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           isDragging && 'opacity-50 ring-2 ring-primary',
@@ -322,7 +322,7 @@ export const IssueCard = observer(function IssueCard({
               <Button
                 variant="ghost"
                 size="icon-sm"
-                className="size-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="size-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 motion-safe:transition-opacity"
                 onClick={(e) => {
                   e.stopPropagation();
                   onOpenIssue(issue);

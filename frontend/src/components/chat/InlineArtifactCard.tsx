@@ -195,16 +195,17 @@ function FullVariant({
         <button
           type="button"
           aria-label={expanded ? 'Collapse body' : 'Expand body'}
+          aria-expanded={expanded}
           onClick={(e) => {
             e.stopPropagation();
             setExpanded((v) => !v);
           }}
-          className="absolute top-3 right-3 z-10 rounded p-1 hover:bg-black/[0.04]"
+          className="hit-target-44 absolute top-3 right-3 z-10 rounded p-1 hover:bg-black/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           {expanded ? (
-            <ChevronUp className="h-4 w-4" />
+            <ChevronUp className="h-4 w-4" aria-hidden="true" />
           ) : (
-            <ChevronDown className="h-4 w-4" />
+            <ChevronDown className="h-4 w-4" aria-hidden="true" />
           )}
         </button>
       </div>
@@ -290,7 +291,8 @@ function GroupVariant({
         <button
           type="button"
           onClick={() => setExpanded(true)}
-          className="h-10 w-full px-4 text-left text-[13px] font-medium text-[#29a386] hover:underline"
+          aria-label={hidden === 1 ? 'Show 1 more item' : `Show ${hidden} more items`}
+          className="h-10 w-full px-4 text-left text-[13px] font-medium text-[#29a386] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           {hidden === 1 ? 'Show 1 more' : `Show ${hidden} more`}
         </button>
@@ -321,7 +323,8 @@ function CompactVariant({
       data-inline-card="compact"
       data-compact-pill=""
       onClick={onOpenPeek}
-      className="inline-flex h-7 max-w-[280px] cursor-pointer items-center gap-2 rounded-full border bg-card px-3 hover:bg-accent/30"
+      aria-label={`Open ${typeLabel}: ${title}`}
+      className="hit-target-44 inline-flex h-7 max-w-[280px] cursor-pointer items-center gap-2 rounded-full border bg-card px-3 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       style={{ borderColor: tokens.accent + '55' }}
     >
       <Icon
