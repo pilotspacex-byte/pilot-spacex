@@ -921,7 +921,9 @@ export const ChatInput = observer<ChatInputProps>(
                   // Phase 87 Plan 01: contenteditable inherits the composer
                   // shell — no own border / bg / radius. The Gemini surface
                   // wrapper above provides the visual chrome.
-                  'min-h-[40px] max-h-[160px] overflow-y-auto resize-none pr-20',
+                  // Phase 94 Plan 02 (MIG-03): drop right-reserve at <640
+                  // so the toolbar can wrap below the textarea.
+                  'min-h-[40px] max-h-[160px] overflow-y-auto resize-none pb-10 sm:pb-0 sm:pr-20',
                   'bg-transparent text-base',
                   'outline-none',
                   'motion-safe:transition-colors',
@@ -932,8 +934,10 @@ export const ChatInput = observer<ChatInputProps>(
                 data-placeholder="Ask anything, draft a topic, or type / for commands…"
               />
 
-              {/* Inline toolbar buttons */}
-              <div className="absolute bottom-1.5 right-2 flex items-center gap-0.5">
+              {/* Inline toolbar buttons. Phase 94 Plan 02 (MIG-03): flex-wrap
+                  + max-w-full so buttons reflow at very narrow widths
+                  (the composer reserves pb-10 below 640 for this row). */}
+              <div className="absolute bottom-1.5 right-2 flex max-w-[calc(100%-1rem)] flex-wrap items-center justify-end gap-0.5">
                 <RecordButton
                   workspaceId={workspaceId ?? ''}
                   onTranscript={(text, audioUrl) => {

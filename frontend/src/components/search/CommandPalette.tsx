@@ -447,7 +447,11 @@ export const CommandPalette = observer(function CommandPalette() {
           ? 'Pick a destination topic'
           : 'Search chats, topics, tasks, specs, and people'
       }
-      className="max-w-none w-[680px] rounded-[20px] top-[120px] translate-y-0 p-0"
+      // Phase 94 Plan 02 (MIG-03) — palette responsive width:
+      //   <425  → 95vw (capped)
+      //   ≥425  → 95vw clamp continues to scale
+      //   ≥768  → fixed 680px (existing v3 behavior preserved on tablet+desktop)
+      className="max-w-none w-[95vw] md:w-[680px] md:max-w-[680px] rounded-[20px] top-[120px] translate-y-0 p-0"
       showCloseButton={false}
     >
       {/* ── Scope tabs ── (hidden in 93-05 move mode — picker has no scope) */}
@@ -455,7 +459,7 @@ export const CommandPalette = observer(function CommandPalette() {
         <ul
           role="tablist"
           aria-label="Palette scope"
-          className="flex gap-1 px-4 py-2 border-b border-[var(--border-card)]"
+          className="flex flex-wrap gap-1 px-4 py-2 border-b border-[var(--border-card)]"
         >
           {SCOPES.map((s) => (
             <li key={s.id}>

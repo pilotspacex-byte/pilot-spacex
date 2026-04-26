@@ -67,8 +67,10 @@ export function HomepageGreeting() {
   return (
     <h1
       className={cn(
-        // Typography — UI-SPEC §2 (Fraunces 24/400, tight tracking)
-        'font-display text-2xl font-normal tracking-tighter text-foreground',
+        // Typography — UI-SPEC §2 (Fraunces 24/400, tight tracking).
+        // Phase 94 Plan 02 (MIG-03): drop to Fraunces 20 (text-xl) at <640
+        // so the hero greeting stays balanced on small viewports.
+        'font-display text-xl sm:text-2xl font-normal tracking-tighter text-foreground',
         // Mount fade-in (240ms ease-out, no translate). Reduced-motion users
         // see the final state immediately.
         'animate-in fade-in duration-200 motion-reduce:animate-none',

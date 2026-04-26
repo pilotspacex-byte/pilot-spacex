@@ -182,7 +182,8 @@ export const EditProposalCard = observer<EditProposalCardProps>(function EditPro
       role="region"
       aria-label={`Edit proposal for ${envelope.targetArtifactType.toLowerCase()} ${shortId(envelope.targetArtifactId)}`}
       className={cn(
-        'w-full max-w-[720px] rounded-2xl border-[1.5px] border-[#f97316] bg-white overflow-hidden',
+        // Phase 94 Plan 02 (MIG-03) — full-width at <640, capped at 720px ≥640.
+        'w-full sm:max-w-[720px] rounded-2xl border-[1.5px] border-[#f97316] bg-white overflow-hidden',
         transition,
         className
       )}
