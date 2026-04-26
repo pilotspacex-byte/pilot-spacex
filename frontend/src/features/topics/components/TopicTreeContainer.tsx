@@ -45,6 +45,10 @@ import { useMoveTopic, useTopicChildren, type MoveTopicError } from '../hooks';
 import { topicTreeStore, type DropMode } from '../stores/TopicTreeStore';
 import { topicCollisionDetection } from '../lib/topic-collision';
 import { TopicTreeRow } from './TopicTreeRow';
+// Plan 93-05 — right-click "Move to…" affordance. Decision AA composes the
+// menu wrapper around each row inside this container (per advisor + plan
+// note: sidebar.tsx mounts the container, not individual rows).
+import { TopicTreeRowContextMenu } from './TopicTreeRowContextMenu';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -161,7 +165,13 @@ const TopicSubtree = observer(function TopicSubtree({
         const childExpanded = topicTreeStore.isExpanded(note.id);
         return (
           <div key={note.id}>
-            <TopicTreeRow note={note} depth={depth} onContextMenu={onRowContextMenu} />
+            {/* Plan 93-05 — wrap each row with the Radix ContextMenu so
+                right-click opens "Move to…" → palette move-mode. The legacy
+                onContextMenu callback prop is preserved for opt-in callers
+                that still want a programmatic hook. */}
+            <TopicTreeRowContextMenu note={note}>
+              <TopicTreeRow note={note} depth={depth} onContextMenu={onRowContextMenu} />
+            </TopicTreeRowContextMenu>
             {childExpanded && (
               <TopicSubtree
                 workspaceId={workspaceId}

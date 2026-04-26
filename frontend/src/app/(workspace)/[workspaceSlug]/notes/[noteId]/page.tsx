@@ -12,6 +12,9 @@ import { FileX, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NoteCanvas } from '@/components/editor/NoteCanvas';
+// Plan 93-05 — ancestor breadcrumb on the topic detail page (also covers
+// /topics/[topicId] via the route's re-export of this page).
+import { TopicBreadcrumb } from '@/features/topics/components';
 import { VersionHistoryPanel, type NoteVersion } from '@/components/editor/VersionHistoryPanel';
 import { EditorFilePreview } from '@/features/artifacts/components/EditorFilePreview';
 import { FilePreviewConfigContext } from '@/features/notes/editor/extensions/file-card/inline-preview';
@@ -395,6 +398,18 @@ function NoteDetailPage() {
 
   return (
     <div className="flex h-full flex-col">
+      {/* Plan 93-05 — TopicBreadcrumb above the editor. Visible on both
+          /notes/[noteId] and /topics/[topicId] (the topics route is a 1-line
+          re-export of this page). The breadcrumb fetches its own ancestors
+          via TanStack and silently no-ops for top-level / soft-deleted notes. */}
+      <div className="shrink-0 border-b border-[var(--border-card)] px-6 py-2">
+        <TopicBreadcrumb
+          workspaceId={workspaceId}
+          workspaceSlug={workspaceSlug}
+          noteId={noteId}
+        />
+      </div>
+
       {/* Editor with merged header - Three-column layout per Prototype v4 */}
       <div className="relative flex-1 overflow-hidden">
         <FilePreviewConfigContext.Provider

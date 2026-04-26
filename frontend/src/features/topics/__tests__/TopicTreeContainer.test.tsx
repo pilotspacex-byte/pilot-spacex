@@ -18,6 +18,13 @@ vi.mock('next/navigation', () => ({
   useParams: () => ({ workspaceSlug: 'workspace' }),
 }));
 
+// Plan 93-05 — TopicTreeRowContextMenu now wraps each row inside the container
+// (Decision AA), and it calls useUIStore() to dispatch openPaletteForMove. The
+// 93-04 test harness doesn't mount a RootStoreProvider, so we stub the hook.
+vi.mock('@/stores', () => ({
+  useUIStore: () => ({ openPaletteForMove: vi.fn() }),
+}));
+
 // Hook mocks --------------------------------------------------------------
 
 const mockUseTopicChildren = vi.fn();
