@@ -206,7 +206,34 @@ describe('TopicBreadcrumb', () => {
       </Wrapper>,
     );
 
+    // #144: bordered band wrapper now lives INSIDE the component so the
+    // empty-state genuinely produces zero DOM. Previously the page-level
+    // wrapper produced an empty bordered row above the ProjectContextHeader.
     expect(container.firstChild).toBeNull();
+    expect(container.querySelector('[data-testid="topic-breadcrumb-band"]')).toBeNull();
+  });
+
+  it('wraps the breadcrumb in a single bordered band (#144 — no stacked headers)', async () => {
+    ancestorsState.data = [
+      buildNote('a-root', 'Roadmap'),
+      buildNote('a-self', 'Sprint 12', 'a-root'),
+    ];
+
+    const Wrapper = createWrapper();
+    const { TopicBreadcrumb } = await import('../components/TopicBreadcrumb');
+
+    const { container } = render(
+      <Wrapper>
+        <TopicBreadcrumb workspaceId="ws-1" workspaceSlug="acme" noteId="a-self" />
+      </Wrapper>,
+    );
+
+    // Exactly one bordered band — no duplicate/stacked wrappers.
+    const bands = container.querySelectorAll('[data-testid="topic-breadcrumb-band"]');
+    expect(bands).toHaveLength(1);
+    // The band wraps the breadcrumb nav, not the other way around.
+    const band = bands[0]!;
+    expect(band.querySelector('[data-testid="topic-breadcrumb"]')).not.toBeNull();
   });
 
   it('truncates middle segments into a Popover when chain length > 5', async () => {

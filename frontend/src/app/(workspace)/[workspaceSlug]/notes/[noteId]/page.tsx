@@ -400,15 +400,27 @@ function NoteDetailPage() {
     <div className="flex h-full flex-col">
       {/* Plan 93-05 — TopicBreadcrumb above the editor. Visible on both
           /notes/[noteId] and /topics/[topicId] (the topics route is a 1-line
-          re-export of this page). The breadcrumb fetches its own ancestors
-          via TanStack and silently no-ops for top-level / soft-deleted notes. */}
-      <div className="shrink-0 border-b border-[var(--border-card)] px-6 py-2">
+          re-export of this page).
+
+          Issue #144 — two fixes:
+          1. The bordered band is now hoisted INTO TopicBreadcrumb itself so
+             the empty-state (no ancestors) renders zero DOM, instead of an
+             empty `border-b` row above ProjectContextHeader.
+          2. When the topic belongs to a project, the ProjectContextHeader
+             rendered by NoteCanvasLayout already provides the "where am I"
+             surface (project name + Overview/Tasks/Cycles tabs). Stacking
+             a topic-ancestry breadcrumb on top creates the duplicate
+             horizontal band the smoke test reported. We suppress the
+             breadcrumb in that case; project-scoped topic ancestry is
+             still discoverable via the sidebar topic tree. Personal /
+             top-level topics (no projectId) keep the breadcrumb. */}
+      {!note.projectId && (
         <TopicBreadcrumb
           workspaceId={workspaceId}
           workspaceSlug={workspaceSlug}
           noteId={noteId}
         />
-      </div>
+      )}
 
       {/* Editor with merged header - Three-column layout per Prototype v4 */}
       <div className="relative flex-1 overflow-hidden">

@@ -55,6 +55,23 @@ function ChevronSeparator() {
   );
 }
 
+/**
+ * Shared bordered band wrapper. Hoisted into the component so the empty-state
+ * case (`return null`) genuinely renders no DOM — previously the page render
+ * wrapper produced an empty bordered row above the project context header
+ * even when ancestors were empty (#144 issue 2).
+ */
+function BreadcrumbBand({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      className="shrink-0 border-b border-[var(--border-card)] px-6 py-2"
+      data-testid="topic-breadcrumb-band"
+    >
+      {children}
+    </div>
+  );
+}
+
 function BreadcrumbSkeleton() {
   return (
     <nav aria-label="Breadcrumb" className="min-h-8 flex items-center gap-2 text-[13px]">
@@ -112,16 +129,23 @@ export function TopicBreadcrumb({ workspaceId, workspaceSlug, noteId }: Props) {
     openPeek(id, 'NOTE');
   };
 
-  if (isLoading) return <BreadcrumbSkeleton />;
+  if (isLoading)
+    return (
+      <BreadcrumbBand>
+        <BreadcrumbSkeleton />
+      </BreadcrumbBand>
+    );
   if (isError) {
     return (
-      <span
-        role="alert"
-        className="text-[13px] text-[var(--text-muted)]"
-        data-testid="topic-breadcrumb-error"
-      >
-        Couldn&apos;t load breadcrumb.
-      </span>
+      <BreadcrumbBand>
+        <span
+          role="alert"
+          className="text-[13px] text-[var(--text-muted)]"
+          data-testid="topic-breadcrumb-error"
+        >
+          Couldn&apos;t load breadcrumb.
+        </span>
+      </BreadcrumbBand>
     );
   }
   if (!ancestors || ancestors.length === 0) return null;
@@ -142,6 +166,7 @@ export function TopicBreadcrumb({ workspaceId, workspaceSlug, noteId }: Props) {
     : middleAncestors;
 
   return (
+    <BreadcrumbBand>
     <nav
       aria-label="Breadcrumb"
       className="min-h-8 flex items-center gap-2 text-[13px]"
@@ -241,5 +266,6 @@ export function TopicBreadcrumb({ workspaceId, workspaceSlug, noteId }: Props) {
         </li>
       </ol>
     </nav>
+    </BreadcrumbBand>
   );
 }
