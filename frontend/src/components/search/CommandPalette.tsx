@@ -181,6 +181,12 @@ export const CommandPalette = observer(function CommandPalette() {
     (nextOpen: boolean) => {
       if (!nextOpen) {
         uiStore.closeCommandPalette();
+        // Issue #140: also reset prefix mode + scope so a re-open starts
+        // clean. Without this, closing the palette while in 'tasks' mode
+        // would re-open with the chip + scope still active but an empty
+        // input — re-introducing the same desync this fix is solving.
+        uiStore.setPalettePrefixMode(null);
+        uiStore.setPaletteScope('all');
         setQuery('');
         setResults({ notes: [], issues: [] });
         setFetchError(null);
@@ -202,15 +208,22 @@ export const CommandPalette = observer(function CommandPalette() {
   const { data: allSkills } = useSkillCatalog();
 
   // ─── Prefix detection effect ─────────────────────────────────────────────
-  // Only writes to the scope when a prefix transition actually happens —
-  // never unconditionally on every query keystroke — so the user's manual
-  // scope-tab click survives.
+  // Drives mode + scope from the query buffer. Runs only when the leading
+  // character actually changes the detected mode — never unconditionally
+  // on every keystroke — so the user's manual scope-tab click survives.
+  //
+  // Issue #140: With interactive `handleQueryChange` the query buffer is
+  // empty after a prefix transition (the prefix glyph is consumed); this
+  // effect therefore only ever sees `nextMode === null` for typed input.
+  // It still drives the URL-hydration path (`?q=%23stale` lands with the
+  // glyph intact in `query`), which is the only remaining producer of a
+  // non-null `nextMode` here.
   const prevPrefixModeRef = useRef(uiStore.palettePrefixMode);
   useEffect(() => {
     const nextMode = detectPrefixMode(query);
     const prevMode = prevPrefixModeRef.current;
 
-    if (nextMode !== uiStore.palettePrefixMode) {
+    if (nextMode !== null && nextMode !== uiStore.palettePrefixMode) {
       uiStore.setPalettePrefixMode(nextMode);
     }
 
@@ -219,20 +232,11 @@ export const CommandPalette = observer(function CommandPalette() {
       return;
     }
 
-    // Mode just appeared (null → tasks/people/pages/commands).
+    // Mode just appeared via URL hydration (null → tasks/people/pages/commands).
     if (nextMode !== null && !manualScopeOverrideRef.current) {
       const next = scopeForPrefix(nextMode);
       if (uiStore.paletteScope !== next) {
         uiStore.setPaletteScope(next);
-      }
-    }
-
-    // Mode just disappeared (tasks → null via backspace, etc.). Restore
-    // 'all' UNLESS the user explicitly clicked a different scope tab.
-    if (nextMode === null) {
-      manualScopeOverrideRef.current = false;
-      if (uiStore.paletteScope !== 'all') {
-        uiStore.setPaletteScope('all');
       }
     }
 
@@ -368,8 +372,31 @@ export const CommandPalette = observer(function CommandPalette() {
     if (query === '' && uiStore.palettePrefixMode !== null) {
       uiStore.setPalettePrefixMode(null);
       uiStore.setPaletteScope('all');
+      prevPrefixModeRef.current = null;
       manualScopeOverrideRef.current = false;
     }
+  }
+
+  // ─── Query change: consume prefix glyph on transition (Issue #140) ───────
+  // When the user types a prefix character on an empty buffer we strip the
+  // glyph from `query` and lift the mode/scope into the store directly.
+  // Subsequent typing therefore produces a clean search term — typing
+  // "#urgent" leaves `urgent` in the input while `palettePrefixMode === 'tasks'`.
+  // Mirrors the Linear / Raycast / Vercel pattern (option B in #140).
+  function handleQueryChange(value: string) {
+    if (query === '' && value.length === 1) {
+      const mode = detectPrefixMode(value);
+      if (mode !== null) {
+        uiStore.setPalettePrefixMode(mode);
+        if (!manualScopeOverrideRef.current) {
+          uiStore.setPaletteScope(scopeForPrefix(mode));
+        }
+        prevPrefixModeRef.current = null; // query stays '' so the effect no-ops
+        setQuery('');
+        return;
+      }
+    }
+    setQuery(value);
   }
 
   // ─── Derived view-model ──────────────────────────────────────────────────
@@ -502,7 +529,7 @@ export const CommandPalette = observer(function CommandPalette() {
         <div className="relative flex-1 min-w-0">
           <CommandInput
             value={query}
-            onValueChange={setQuery}
+            onValueChange={handleQueryChange}
             onKeyDown={handleInputKeyDown}
             placeholder={placeholder}
             autoFocus

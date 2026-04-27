@@ -157,6 +157,54 @@ describe('CommandPalette v3', () => {
     expect(chip.textContent).toBe('#');
   });
 
+  // ─── Issue #140 — prefix glyph consumed from input buffer ───────────────
+  // The chip + scope tab transition implies the palette has consumed the
+  // prefix character. Ensure the input value follows suit so subsequent
+  // typing produces a clean search term ("urgent", not "#urgent").
+  it.each([
+    ['#', 'tasks', 'tasks'],
+    ['@', '@', 'people'],
+    ['/', '/', 'pages'],
+    ['>', '>', 'commands'],
+  ] as const)(
+    "Issue #140 — typing %s alone clears input and surfaces chip",
+    async (prefix, expectedChip, expectedMode) => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(<CommandPalette />);
+      const input = screen.getByRole('combobox') as HTMLInputElement;
+      await user.type(input, prefix);
+      expect(input.value).toBe('');
+      expect(testUIStore.palettePrefixMode).toBe(expectedMode);
+      const chip = screen.getByTestId('palette-mode-chip');
+      // For the tasks case the chip char matches the prefix.
+      void expectedChip;
+      expect(chip.textContent).toBe(prefix);
+    },
+  );
+
+  it("Issue #140 — typing '#urgent' yields 'urgent' in input buffer", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<CommandPalette />);
+    const input = screen.getByRole('combobox') as HTMLInputElement;
+    await user.type(input, '#urgent');
+    expect(input.value).toBe('urgent');
+    expect(testUIStore.palettePrefixMode).toBe('tasks');
+    expect(screen.getByTestId('palette-mode-chip').textContent).toBe('#');
+  });
+
+  it("Issue #140 — Backspace from empty scoped input pops mode and removes chip", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<CommandPalette />);
+    const input = screen.getByRole('combobox') as HTMLInputElement;
+    await user.type(input, '#');
+    expect(screen.queryByTestId('palette-mode-chip')).not.toBeNull();
+    await user.type(input, '{Backspace}');
+    await waitFor(() => {
+      expect(testUIStore.palettePrefixMode).toBe(null);
+    });
+    expect(screen.queryByTestId('palette-mode-chip')).toBeNull();
+  });
+
   it('backspace on empty clears the prefix mode', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<CommandPalette />);
