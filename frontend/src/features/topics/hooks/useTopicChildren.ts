@@ -5,10 +5,16 @@
  * when `parentId === null` (Phase 93 Plan 03 Task 2).
  *
  * Decision K (locked): for v1, root listing fetches the workspace-wide notes
- * via `notesApi.list` (existing endpoint, pageSize=200) and filters client-side
- * to `parentTopicId === null`. If profiling later shows this is wasteful, a
+ * via `notesApi.list` (existing endpoint) and filters client-side to
+ * `parentTopicId === null`. If profiling later shows this is wasteful, a
  * `?parent_topic_id=null` filter on the existing list endpoint is the planned
  * follow-up. Documented in 93-03-SUMMARY.md.
+ *
+ * Issue #141 — `ROOT_LISTING_PAGE_SIZE` MUST stay ≤ the backend cap. The
+ * router declares `page_size: Annotated[int, Query(ge=1, le=100)]` on
+ * `GET /workspaces/{ws}/notes`; the previous value (200) caused FastAPI to
+ * return 422 → React Query `data` stayed undefined → the sidebar tree
+ * rendered an empty subtree container even when root topics existed.
  */
 
 import { useQuery } from '@tanstack/react-query';
@@ -17,7 +23,9 @@ import type { Note } from '@/types';
 import type { PaginatedResponse } from '@/services/api/client';
 import { topicTreeKeys } from '../lib/topic-tree-keys';
 
-const ROOT_LISTING_PAGE_SIZE = 200;
+// Backend caps `page_size` at 100 on `GET /workspaces/{ws}/notes` — see
+// `workspace_notes.py::list_workspace_notes`. Sending more triggers a 422.
+const ROOT_LISTING_PAGE_SIZE = 100;
 
 interface UseTopicChildrenOptions {
   enabled?: boolean;
