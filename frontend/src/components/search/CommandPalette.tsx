@@ -451,7 +451,7 @@ export const CommandPalette = observer(function CommandPalette() {
       //   <425  → 95vw (capped)
       //   ≥425  → 95vw clamp continues to scale
       //   ≥768  → fixed 680px (existing v3 behavior preserved on tablet+desktop)
-      className="max-w-none w-[95vw] md:w-[680px] md:max-w-[680px] rounded-[20px] top-[120px] translate-y-0 p-0"
+      className="max-w-none w-[95vw] md:w-[680px] md:max-w-[680px] rounded-[20px] top-[120px] translate-y-0 p-0 bg-popover text-popover-foreground border shadow-lg"
       showCloseButton={false}
     >
       {/* ── Scope tabs ── (hidden in 93-05 move mode — picker has no scope) */}
