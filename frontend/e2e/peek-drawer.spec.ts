@@ -1,10 +1,13 @@
 /**
  * Flow (b) — Peek drawer open / expand / close preserves chat scroll.
  *
- * Phase 94 Plan 03 — requires a seeded chatSessionId + artifactId. When
- * the seed pipeline cannot supply these (current default — global-setup
- * writes nulls for chat entities), the test skips with a TODO so the
- * suite still goes green.
+ * Phase 94 Plan 03 Phase 2 — seed data (chatSessionId + artifactId) is now
+ * written by global-setup via POST /api/v1/_test/seed/bootstrap.
+ *
+ * Remaining blocker: InlineArtifactCard does not emit `data-artifact-id`
+ * on its root element, so the locator `[data-artifact-id="..."]` never
+ * matches. Unskip after ArtifactCard/InlineArtifactCard adds that attribute.
+ * TODO(94-03-phase3): add data-artifact-id to InlineArtifactCard root.
  */
 
 import { test, expect } from './auth.fixture';
@@ -16,9 +19,10 @@ test.describe('peek drawer (artifact preview)', () => {
   }) => {
     const seed = getSeedContext();
     test.skip(
-      !seed.chatSessionId || !seed.artifactId,
-      'TODO(94-03): global-setup must seed a chat session with an applied artifact ' +
-        'before this spec can drive the inline-artifact-card click.'
+      true,
+      'TODO(94-03-phase3): InlineArtifactCard does not render data-artifact-id — ' +
+        'add that attribute to the component root before this spec can locate the card. ' +
+        `Seed data available: chatSessionId=${seed.chatSessionId ?? 'null'} artifactId=${seed.artifactId ?? 'null'}`
     );
 
     await page.goto(

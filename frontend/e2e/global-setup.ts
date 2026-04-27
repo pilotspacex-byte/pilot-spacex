@@ -213,8 +213,8 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
     // can resolve workspace + entity ids without hardcoding. Best-effort:
     // - Topic chain (root + 2 children + 5-deep chain) is seeded via the
     //   public /workspaces/{ws}/notes + /move endpoints.
-    // - Chat/proposal/task entities require AI/FK fan-out and stay null
-    //   until a backend test-seed endpoint is added (follow-up).
+    // - Phase 2: Chat/proposal/task entities seeded via
+    //   POST /api/v1/_test/seed/bootstrap (guarded by PILOT_E2E_SEED_ENABLED=1).
     const workspaceId = (() => {
       const matched = wsList.items?.find?.(
         (w: { slug: string; id?: string }) => w.slug === 'workspace'
@@ -226,14 +226,20 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
       ? await seedTopicChain({ apiUrl: API_URL, token, workspaceId })
       : { rootTopicId: null, childTopicAId: null, childTopicBId: null, deepTopicId: null };
 
+    // Phase 94 Plan 03 Phase 2 — bootstrap proposal/task/session entities.
+    const bootstrapSeed = workspaceId
+      ? await seedBootstrap({ apiUrl: API_URL, token, workspaceId })
+      : null;
+
     const seedCtx = {
       workspaceSlug: 'workspace',
       workspaceId: workspaceId ?? '',
       ...topicSeed,
-      taskId: null,
-      chatSessionId: null,
-      artifactId: null,
-      pendingProposalId: null,
+      taskId: bootstrapSeed?.taskId ?? null,
+      chatSessionId: bootstrapSeed?.chatSessionId ?? null,
+      messageId: bootstrapSeed?.messageId ?? null,
+      artifactId: bootstrapSeed?.artifactId ?? null,
+      pendingProposalId: bootstrapSeed?.pendingProposalId ?? null,
       skillSlug: null,
       skillReferenceFilePath: null,
     };
@@ -378,3 +384,89 @@ async function seedTopicChain({
 }
 
 export { TEST_USER, AUTH_STATE_PATH };
+
+// ---------------------------------------------------------------------------
+// Phase 94 Plan 03 Phase 2 — bootstrap seed via backend test-seed endpoint.
+// ---------------------------------------------------------------------------
+
+interface BootstrapSeedResult {
+  taskId: string;
+  chatSessionId: string;
+  messageId: string;
+  artifactId: string;
+  pendingProposalId: string;
+}
+
+/**
+ * Call POST /api/v1/_test/seed/bootstrap to atomically create the FK chain:
+ * project → task, ai_session → ai_message → note, proposal (pending).
+ *
+ * Idempotent — backend returns the same IDs on repeated calls.
+ * Returns null when the endpoint is unavailable (PILOT_E2E_SEED_ENABLED not set
+ * or backend older than Phase 2), so callers fall back to null seed values.
+ */
+async function seedBootstrap({
+  apiUrl,
+  token,
+  workspaceId,
+}: {
+  apiUrl: string;
+  token: string;
+  workspaceId: string;
+}): Promise<BootstrapSeedResult | null> {
+  console.log('🔧 Global setup: Seeding bootstrap entities (task + session + proposal)…');
+
+  try {
+    const res = await fetch(`${apiUrl}/_test/seed/bootstrap`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ workspace_id: workspaceId }),
+    });
+
+    if (res.status === 404) {
+      console.log(
+        '⚠️ Global setup: _test/seed/bootstrap endpoint not found ' +
+          '(PILOT_E2E_SEED_ENABLED not set or backend not updated). ' +
+          'Proposal/task/chat specs will skip.'
+      );
+      return null;
+    }
+
+    if (!res.ok) {
+      const body = await res.text();
+      console.warn(
+        `⚠️ Global setup: Bootstrap seed returned ${res.status}: ${body}`
+      );
+      return null;
+    }
+
+    const data = (await res.json()) as {
+      task_id: string;
+      chat_session_id: string;
+      message_id: string;
+      artifact_id: string;
+      pending_proposal_id: string;
+    };
+
+    console.log(
+      `✅ Global setup: Bootstrap seed → task=${data.task_id?.slice(0, 8)} ` +
+        `session=${data.chat_session_id?.slice(0, 8)} ` +
+        `artifact=${data.artifact_id?.slice(0, 8)} ` +
+        `proposal=${data.pending_proposal_id?.slice(0, 8)}`
+    );
+
+    return {
+      taskId: data.task_id,
+      chatSessionId: data.chat_session_id,
+      messageId: data.message_id,
+      artifactId: data.artifact_id,
+      pendingProposalId: data.pending_proposal_id,
+    };
+  } catch (err) {
+    console.warn('⚠️ Global setup: Bootstrap seed failed with error:', err);
+    return null;
+  }
+}

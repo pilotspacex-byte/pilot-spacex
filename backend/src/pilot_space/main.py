@@ -434,6 +434,18 @@ app.include_router(notifications_router, prefix=f"{API_V1_PREFIX}/workspaces")
 if debug_router:
     app.include_router(debug_router, prefix=API_V1_PREFIX)
 
+# Test-seed endpoint — mounted ONLY when PILOT_E2E_SEED_ENABLED=1 AND
+# app_env != "production". Never exposed in production regardless of env var.
+import os as _os  # noqa: E402
+
+from pilot_space.config import get_settings as _get_settings  # noqa: E402
+
+_settings = _get_settings()
+if _settings.app_env != "production" and _os.getenv("PILOT_E2E_SEED_ENABLED") == "1":
+    from pilot_space.api.v1.routers._test_seed import router as _test_seed_router
+
+    app.include_router(_test_seed_router, prefix=f"{API_V1_PREFIX}/_test")
+
 # AI Proxy sub-application — mounted as a separate ASGI app so it gets its
 # own exception handlers and can be deployed independently if needed.
 from pilot_space.ai.proxy.app import proxy_app  # noqa: E402

@@ -33,7 +33,9 @@ export interface SeedContext {
   // Chat
   /** Pre-existing chat session with a user message + assistant message + applied artifact. */
   chatSessionId: string | null;
-  /** NOTE artifact rendered as InlineArtifactCard inside chatSessionId — used for peek-drawer.spec. */
+  /** First user message inside chatSessionId — seeded with content="seed". */
+  messageId?: string | null;
+  /** NOTE artifact (Note.id) linked to chatSessionId via source_chat_session_id. */
   artifactId: string | null;
   // Proposals
   /** EditProposal in 'pending' state targeting taskId. Consumed by edit-proposal-accept.spec. */
