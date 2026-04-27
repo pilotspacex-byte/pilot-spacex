@@ -416,9 +416,12 @@ class DemoSeedBootstrapService:
       "stale" demo digest.
 
     Dismissal note:
-    - If a user dismisses the seeded stale_issues flags, they will not reappear
-      until the demo seed is re-run (which replaces the digest row). This is
-      intentional — re-running the seed resets the demo state.
+    - If a user dismisses a seeded stale_issues flag, it stays dismissed across
+      re-seeds. ``GetDigestService._filter_suggestions`` filters by
+      ``(entity_id, category)`` and the demo stale issue UUIDs are stable
+      (matched by sentinel title). Re-inserting the digest row does NOT restore
+      dismissed suggestions — dismissals must be manually cleared from the
+      ``DigestDismissal`` table to make flags reappear.
     """
 
     def __init__(
