@@ -434,14 +434,19 @@ app.include_router(notifications_router, prefix=f"{API_V1_PREFIX}/workspaces")
 if debug_router:
     app.include_router(debug_router, prefix=API_V1_PREFIX)
 
-# Test-seed endpoint — mounted ONLY when PILOT_E2E_SEED_ENABLED=1 AND
-# app_env != "production". Never exposed in production regardless of env var.
+# Test-seed endpoint — mounted when EITHER gate passes (non-production only).
+#   PILOT_E2E_SEED_ENABLED=1  → E2E Playwright fixtures
+#   PILOT_DEMO_SEED_ENABLED=1 → Demo workspace launchpad population
+# Per-mode checks are enforced inside the router handler so both gates can
+# coexist independently. Never exposed in production regardless of env vars.
 import os as _os  # noqa: E402
 
 from pilot_space.config import get_settings as _get_settings  # noqa: E402
 
 _settings = _get_settings()
-if _settings.app_env != "production" and _os.getenv("PILOT_E2E_SEED_ENABLED") == "1":
+_seed_e2e_enabled = _os.getenv("PILOT_E2E_SEED_ENABLED") == "1"
+_seed_demo_enabled = _os.getenv("PILOT_DEMO_SEED_ENABLED") == "1"
+if _settings.app_env != "production" and (_seed_e2e_enabled or _seed_demo_enabled):
     from pilot_space.api.v1.routers._test_seed import router as _test_seed_router
 
     app.include_router(_test_seed_router, prefix=f"{API_V1_PREFIX}/_test")
