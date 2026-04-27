@@ -235,21 +235,21 @@ export function EmptyState({ onCreate }: { onCreate?: () => void }) {
     <div className="flex flex-col items-center justify-center py-20 text-center">
       <div className="relative mb-6">
         <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-primary/6">
-          <span className="font-display text-4xl font-semibold text-primary/40">N</span>
+          <span className="font-display text-4xl font-semibold text-primary/40">T</span>
         </div>
         <div className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-lg bg-background shadow-warm-sm border border-border/50">
           <Plus className="h-4 w-4 text-muted-foreground" />
         </div>
       </div>
-      <h3 className="font-display text-xl font-semibold text-foreground mb-2">No notes yet</h3>
+      <h3 className="font-display text-xl font-semibold text-foreground mb-2">No topics yet</h3>
       <p className="text-sm text-muted-foreground mb-6 max-w-sm leading-relaxed">
-        Start capturing your thoughts, ideas, and discussions. Notes are the foundation of your
+        Start capturing your thoughts, ideas, and discussions. Topics are the foundation of your
         workflow.
       </p>
       {onCreate && (
         <Button onClick={onCreate} className="shadow-warm-sm">
           <Plus className="mr-2 h-4 w-4" />
-          Create your first note
+          Create your first topic
         </Button>
       )}
     </div>

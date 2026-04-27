@@ -212,7 +212,7 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
         <div className="flex items-end justify-between">
           <div>
             <h1 className="font-display text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-              Notes
+              Topics
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">Your collaborative thinking space</p>
           </div>
@@ -228,7 +228,7 @@ const NotesPage = observer(function NotesPage({ params }: NotesPageProps) {
               ) : (
                 <Plus className="h-4 w-4" />
               )}
-              <span className="hidden sm:inline">New Note</span>
+              <span className="hidden sm:inline">New Topic</span>
               <span className="sm:hidden">New</span>
             </Button>
           )}

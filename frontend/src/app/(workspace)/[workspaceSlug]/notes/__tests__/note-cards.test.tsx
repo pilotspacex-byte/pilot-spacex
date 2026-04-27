@@ -406,3 +406,31 @@ describe('NotesPage - NAV-04 sweep', () => {
     expect(screen.queryByPlaceholderText('Search notes...')).toBeNull();
   });
 });
+
+// Phase 84 user-visible rename gap (issue #139): list page must say "Topics", not "Notes".
+describe('NotesPage - Topics rename (issue #139)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('renders heading "Topics" instead of "Notes"', async () => {
+    await renderNotesPage([makeNote()]);
+    const heading = screen.getByRole('heading', { level: 1 });
+    expect(heading).toHaveTextContent('Topics');
+    expect(heading).not.toHaveTextContent(/^Notes$/);
+  });
+
+  it('renders primary action button labeled "New Topic"', async () => {
+    await renderNotesPage([makeNote()]);
+    const createBtn = screen.getByTestId('create-note-button');
+    expect(createBtn).toHaveTextContent('New Topic');
+    expect(createBtn).not.toHaveTextContent('New Note');
+  });
+
+  it('renders empty state with "No topics yet" and "Create your first topic"', async () => {
+    await renderNotesPage([]);
+    expect(screen.getByText('No topics yet')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /create your first topic/i })).toBeInTheDocument();
+    expect(screen.queryByText('No notes yet')).toBeNull();
+  });
+});
