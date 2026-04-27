@@ -1,18 +1,23 @@
 /**
  * Phase 88 Plan 04 — Task 2: ContinueCard (RED).
+ * E-02 Path B revision — empty/loading branches now render a 96px dashed
+ * placeholder instead of `return null`, preserving launchpad rhythm and
+ * giving new users a clear hint about what this surface is for.
  *
- * Component contract (PLAN §interfaces):
+ * Component contract (PLAN §interfaces + E-02):
  *   <ContinueCard workspaceId workspaceSlug />
  *
  * Render branches:
- *   - useLastChatSession returns null → renders nothing (firstChild === null).
+ *   - useLastChatSession returns null → renders the
+ *     `continue-card-empty` placeholder (role="status").
+ *   - Loading → same placeholder.
  *   - Session present → renders an <a> link to /{slug}/chat?session={id}
  *     with section label, title, 1-line truncated preview, timestamp, and
  *     up to 3 artifact pills.
- *   - aria-label format: "Continue chat: {title}, last active {timeAgo}"
+ *   - aria-label format: "Continue chat: {title}, last active {timeAgo}".
  *   - Artifact pills are aria-hidden="true".
- *   - Error from hook → renders nothing (graceful degrade — hook returns
- *     null on errors so the same null branch covers it).
+ *   - Error from hook → hook returns null on errors, so the placeholder
+ *     branch covers that path too.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -61,21 +66,30 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('ContinueCard (Phase 88 Plan 04 — Task 2)', () => {
-  it('renders nothing when session is null', () => {
+  it('renders the empty-state placeholder when session is null', () => {
     sessionMock.session = null;
-    const { container } = render(
-      <ContinueCard workspaceId="ws-1" workspaceSlug="workspace" />,
-    );
-    expect(container.firstChild).toBeNull();
+    render(<ContinueCard workspaceId="ws-1" workspaceSlug="workspace" />);
+
+    const placeholder = screen.getByTestId('continue-card-empty');
+    expect(placeholder).toBeInTheDocument();
+    expect(placeholder).toHaveAttribute('role', 'status');
+    // Hint copy + section label both present so users know what this is.
+    expect(screen.getByText(/your first chat will land here/i)).toBeInTheDocument();
+    expect(screen.getByText(/continue where you left off/i)).toBeInTheDocument();
+    // Same 96px height + dashed border so layout doesn't shift later.
+    expect(placeholder.className).toMatch(/h-24/);
+    expect(placeholder.className).toMatch(/border-dashed/);
+    // No <a href> link rendered in empty mode.
+    expect(screen.queryByRole('link')).toBeNull();
   });
 
-  it('renders nothing while loading', () => {
+  it('renders the empty-state placeholder while loading', () => {
     sessionMock.session = null;
     sessionMock.isLoading = true;
-    const { container } = render(
-      <ContinueCard workspaceId="ws-1" workspaceSlug="workspace" />,
-    );
-    expect(container.firstChild).toBeNull();
+    render(<ContinueCard workspaceId="ws-1" workspaceSlug="workspace" />);
+
+    expect(screen.getByTestId('continue-card-empty')).toBeInTheDocument();
+    expect(screen.queryByRole('link')).toBeNull();
   });
 
   it('renders link with session href and aria-label when session present (no pills)', () => {

@@ -1,14 +1,16 @@
 'use client';
 
 /**
- * RedFlagStrip — Phase 88 Plan 03.
+ * RedFlagStrip — Phase 88 Plan 03 (E-02 empty-state revision).
  *
  * Calm 0–3 banner strip for the launchpad. Each banner is a real <a href>
  * link (not a button) per UI-SPEC §4 a11y row — tab focuses, Enter
  * activates, browser handles middle-click + ⌘-click out of the box.
  *
- * Render contract:
- *   • flags = []  AND not loading  -> render null (vertical rhythm collapses)
+ * Render contract (E-02 Path B — empty-state placeholder):
+ *   • flags = []  AND not loading  -> 32px dashed-border placeholder
+ *                                     ("No flags right now — you're caught up")
+ *                                     so launchpad rhythm holds.
  *   • isError                       -> render null (silent fail)
  *   • isLoading + no flags          -> single 32px skeleton banner
  *   • flags > 0                     -> N banners inside region landmark
@@ -119,14 +121,47 @@ function SkeletonBanner() {
   );
 }
 
+/**
+ * Empty-state placeholder (E-02 Path B).
+ *
+ * Maintains the same 32px vertical footprint as a populated banner so the
+ * launchpad rhythm doesn't shift when the first flag arrives. Uses a
+ * dashed border + muted text-secondary token to read as "this surface
+ * exists but has nothing to show right now" — matching the calm-launchpad
+ * principle (UI-SPEC design principle #3: spacious calm over dense
+ * efficiency).
+ *
+ * `role="status"` + `aria-live="polite"` lets a screen reader announce a
+ * change if a flag later flips the strip into populated mode without us
+ * doing manual focus management.
+ */
+function EmptyPlaceholder() {
+  return (
+    <div
+      data-testid="red-flag-strip-empty"
+      role="status"
+      aria-live="polite"
+      className={[
+        'flex h-8 w-full items-center justify-center',
+        'rounded-xl border border-dashed border-neutral-200 bg-transparent',
+        'px-4 text-[12px] font-normal text-neutral-500',
+        'animate-in fade-in duration-200 motion-reduce:animate-none',
+      ].join(' ')}
+    >
+      No flags right now — you&rsquo;re all caught up.
+    </div>
+  );
+}
+
 export function RedFlagStrip({ workspaceId, workspaceSlug }: RedFlagStripProps) {
   const { flags, isLoading, isError } = useRedFlags({ workspaceId, workspaceSlug });
 
   // Silent fail per UI-SPEC §4 error row.
   if (isError) return null;
 
-  // Empty + idle -> render nothing so launchpad rhythm collapses.
-  if (!isLoading && flags.length === 0) return null;
+  // Empty + idle -> render the calm placeholder so launchpad rhythm holds
+  // and users understand what this surface is for once data exists.
+  if (!isLoading && flags.length === 0) return <EmptyPlaceholder />;
 
   return (
     <section

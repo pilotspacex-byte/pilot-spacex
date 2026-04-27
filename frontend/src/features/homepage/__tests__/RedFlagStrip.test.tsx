@@ -1,13 +1,17 @@
 /**
  * Phase 88 Plan 03 — Task 2: RedFlagStrip (RED).
+ * E-02 Path B revision — empty state now renders a calm 32px dashed
+ * placeholder instead of `return null`, so the launchpad keeps its
+ * rhythm even when there are no flags.
  *
- * Component contract per UI-SPEC §4:
- *  - Empty (zero flags) AND not loading AND not error -> renders nothing
+ * Component contract per UI-SPEC §4 + E-02:
+ *  - Empty (zero flags) AND not loading AND not error -> renders the
+ *    `red-flag-strip-empty` placeholder (role="status").
  *  - 1+ flags -> <section role="region" aria-label="Workspace alerts">
- *    containing N <a href={flag.href}> banners
- *  - Per-flag visual contract: icon + amber/rose/violet accent + correct href
- *  - Loading state -> single skeleton banner (data-testid="red-flag-skeleton")
- *  - Error state (and no flags) -> renders nothing
+ *    containing N <a href={flag.href}> banners.
+ *  - Per-flag visual contract: icon + amber/rose/violet accent + correct href.
+ *  - Loading state -> single skeleton banner (data-testid="red-flag-skeleton").
+ *  - Error state (and no flags) -> renders nothing (silent fail).
  *
  * The hook is mocked at module boundary so we can drive every branch
  * without TanStack Query setup.
@@ -81,13 +85,28 @@ beforeEach(() => {
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
 describe('RedFlagStrip (Phase 88 Plan 03)', () => {
-  describe('empty state', () => {
-    it('renders nothing when flags is empty and not loading/erroring', () => {
-      const { container } = render(
-        <RedFlagStrip workspaceId="ws-1" workspaceSlug="workspace" />,
-      );
-      expect(container.firstChild).toBeNull();
+  describe('empty state (E-02 Path B placeholder)', () => {
+    it('renders the empty-state placeholder when flags is empty and not loading/erroring', () => {
+      render(<RedFlagStrip workspaceId="ws-1" workspaceSlug="workspace" />);
+
+      // Placeholder is present and labelled for SR consumers.
+      const placeholder = screen.getByTestId('red-flag-strip-empty');
+      expect(placeholder).toBeInTheDocument();
+      expect(placeholder).toHaveAttribute('role', 'status');
+      expect(placeholder.textContent).toMatch(/no flags right now/i);
+
+      // Banner region landmark must NOT render in the empty state — that
+      // landmark is reserved for actual flag content.
       expect(screen.queryByRole('region', { name: 'Workspace alerts' })).toBeNull();
+    });
+
+    it('uses dashed border + muted text for the placeholder', () => {
+      render(<RedFlagStrip workspaceId="ws-1" workspaceSlug="workspace" />);
+      const placeholder = screen.getByTestId('red-flag-strip-empty');
+      expect(placeholder.className).toMatch(/border-dashed/);
+      expect(placeholder.className).toMatch(/text-neutral-500/);
+      // Same 32px footprint as a populated banner so vertical rhythm holds.
+      expect(placeholder.className).toMatch(/h-8/);
     });
   });
 

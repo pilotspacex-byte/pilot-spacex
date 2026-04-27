@@ -204,16 +204,42 @@ describe('Launchpad (Phase 88 Plan 02 — assembly smoke + integration)', () => 
 
   // ── Phase 88 Plan 04 — wired children ───────────────────────────────────
 
-  it('with empty hooks: only chip buttons render (4 chips, no banners, no continue card)', () => {
+  it('with empty hooks: chip buttons render alongside the calm empty-state placeholders (E-02 Path B)', () => {
     // Default beforeEach state — empty hooks.
     render(<Launchpad workspaceId="ws-1" workspaceSlug="workspace" />);
 
     const chips = screen.getAllByRole('button');
     expect(chips).toHaveLength(4);
-    // No banners: no "Workspace alerts" region landmark.
+    // No banner region landmark (that's reserved for actual flag content).
     expect(screen.queryByRole('region', { name: 'Workspace alerts' })).toBeNull();
-    // No continue card: no link with /chat?session= href.
+    // No continue card link (link only renders when a session exists).
     expect(screen.queryByRole('link', { name: /Continue chat:/i })).toBeNull();
+
+    // E-02 Path B — placeholders preserve vertical rhythm. Both surfaces
+    // render their muted skeletal hint.
+    const flagPlaceholder = screen.getByTestId('red-flag-strip-empty');
+    const continuePlaceholder = screen.getByTestId('continue-card-empty');
+    expect(flagPlaceholder).toBeInTheDocument();
+    expect(continuePlaceholder).toBeInTheDocument();
+    // Both use dashed borders so they read as "skeletal" not active.
+    expect(flagPlaceholder.className).toMatch(/border-dashed/);
+    expect(continuePlaceholder.className).toMatch(/border-dashed/);
+  });
+
+  it('placeholders sit in DOM order between composer/chips and after chips (rhythm holds when empty)', () => {
+    render(<Launchpad workspaceId="ws-1" workspaceSlug="workspace" />);
+
+    const composer = screen.getByTestId('chat-input');
+    const flagPlaceholder = screen.getByTestId('red-flag-strip-empty');
+    const chips = screen.getByRole('group', { name: 'Suggested prompts' });
+    const continuePlaceholder = screen.getByTestId('continue-card-empty');
+
+    // Order: composer → red-flag placeholder → chips → continue placeholder.
+    const order = [composer, flagPlaceholder, chips, continuePlaceholder];
+    for (let i = 0; i < order.length - 1; i++) {
+      const followsFlag = Node.DOCUMENT_POSITION_FOLLOWING;
+      expect(order[i]!.compareDocumentPosition(order[i + 1]!) & followsFlag).toBeTruthy();
+    }
   });
 
   it('with both hooks populated: greeting + composer + banners + chips + continue card all render in DOM order', () => {

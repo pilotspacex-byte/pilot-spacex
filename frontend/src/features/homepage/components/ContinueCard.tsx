@@ -1,11 +1,13 @@
 'use client';
 
 /**
- * ContinueCard — Phase 88 Plan 04 Task 2.
+ * ContinueCard — Phase 88 Plan 04 Task 2 (E-02 empty-state revision).
  *
  * Single rich card on the launchpad linking to the user's most-recently
- * active chat session. Renders nothing when there is no session or while
- * loading (UI-SPEC §6 empty row contract — vertical rhythm collapses).
+ * active chat session. When there is no prior session OR while the hook
+ * is loading, we now render a 96px dashed-border placeholder explaining
+ * what this surface is for — preserves vertical rhythm and gives new
+ * users a clear "this is where your chats land next time" hint.
  *
  * Composition: useLastChatSession hook → null OR LastChatSession.
  *
@@ -58,13 +60,58 @@ function pillIconFor(kind: string) {
   }
 }
 
+/**
+ * Empty-state placeholder (E-02 Path B).
+ *
+ * Preserves the populated card's 96px height + 14px squircle radius so
+ * the launchpad layout stays stable when the first chat session arrives.
+ * Visual rules:
+ *   • Dashed 1px border in muted neutral (vs. solid border-neutral-200
+ *     when populated) — telegraphs "skeletal hint" without competing
+ *     with the active surfaces above.
+ *   • text-secondary muted color, no buttons, no pills.
+ *   • role="status" so SRs read the explanatory copy instead of the
+ *     populated card's link text.
+ *   • workspaceSlug is unused for now but kept in props so future iterations
+ *     can add a "Start a chat" CTA without an API change.
+ */
+function EmptyPlaceholder() {
+  return (
+    <div
+      data-testid="continue-card-empty"
+      role="status"
+      aria-live="polite"
+      className="
+        block h-24 w-full rounded-[14px] border border-dashed border-neutral-200
+        bg-transparent px-5 py-4
+        animate-in fade-in duration-200 motion-reduce:animate-none
+      "
+    >
+      <div className="flex h-full flex-col justify-between">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
+          Continue where you left off
+        </div>
+        <div className="min-w-0 flex-1 pt-1">
+          <div className="truncate text-[14px] font-semibold text-neutral-700">
+            Your first chat will land here
+          </div>
+          <div className="truncate text-[13px] font-normal text-neutral-500">
+            Start a topic above and you&rsquo;ll be able to pick it up next time.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ContinueCard({ workspaceId, workspaceSlug }: ContinueCardProps) {
   const { session, isLoading } = useLastChatSession(workspaceId);
 
-  // No session OR loading → render nothing. Vertical rhythm collapses
-  // (UI-SPEC §1 + §6 empty row contract).
+  // No session OR loading → render the calm placeholder so launchpad
+  // rhythm holds and users understand what this surface is for once a
+  // chat session exists. (E-02 Path B — replaces the prior `return null`.)
   if (!session || isLoading) {
-    return null;
+    return <EmptyPlaceholder />;
   }
 
   const href = `/${workspaceSlug}/chat?session=${session.id}`;
