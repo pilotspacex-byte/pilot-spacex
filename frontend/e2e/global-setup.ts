@@ -211,22 +211,25 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
 
     // Phase 94 Plan 03 — write seed-context.json so capstone E2E specs
     // can resolve workspace + entity ids without hardcoding. Best-effort:
-    // we currently seed only workspace identity. Specs that require
-    // deeper entities (chat session w/ assistant message, pending
-    // proposal, depth=5 topic chain) check for `null` and `test.skip`.
+    // - Topic chain (root + 2 children + 5-deep chain) is seeded via the
+    //   public /workspaces/{ws}/notes + /move endpoints.
+    // - Chat/proposal/task entities require AI/FK fan-out and stay null
+    //   until a backend test-seed endpoint is added (follow-up).
     const workspaceId = (() => {
       const matched = wsList.items?.find?.(
         (w: { slug: string; id?: string }) => w.slug === 'workspace'
       );
       return matched?.id ?? null;
     })();
+
+    const topicSeed = workspaceId
+      ? await seedTopicChain({ apiUrl: API_URL, token, workspaceId })
+      : { rootTopicId: null, childTopicAId: null, childTopicBId: null, deepTopicId: null };
+
     const seedCtx = {
       workspaceSlug: 'workspace',
       workspaceId: workspaceId ?? '',
-      rootTopicId: null,
-      childTopicAId: null,
-      childTopicBId: null,
-      deepTopicId: null,
+      ...topicSeed,
       taskId: null,
       chatSessionId: null,
       artifactId: null,
@@ -252,6 +255,126 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
     console.log('   Tests will run with empty auth state.');
     createEmptyAuthState();
   }
+}
+
+interface TopicSeedResult {
+  rootTopicId: string | null;
+  childTopicAId: string | null;
+  childTopicBId: string | null;
+  /** Topic at depth=5 — drop targets here would push to depth=6 (max-depth error). */
+  deepTopicId: string | null;
+}
+
+interface TopicSeedDeps {
+  apiUrl: string;
+  token: string;
+  workspaceId: string;
+}
+
+/**
+ * Seed the topic-tree fixtures consumed by topic-drag-drop.spec.ts.
+ *
+ * Layout produced (idempotent — looks up `[E2E SEED]` titles before creating):
+ *
+ *   root (depth 0)
+ *   ├── childA (depth 1)
+ *   ├── childB (depth 1)
+ *   └── deep1 (depth 1)
+ *       └── deep2 (depth 2)
+ *           └── deep3 (depth 3)
+ *               └── deep4 (depth 4)
+ *                   └── deep5 (depth 5)   ← deepTopicId
+ *
+ * Returns nulls for any rung that fails so the spec falls back to test.skip.
+ */
+async function seedTopicChain({
+  apiUrl,
+  token,
+  workspaceId,
+}: TopicSeedDeps): Promise<TopicSeedResult> {
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json',
+  };
+
+  async function findExisting(title: string): Promise<string | null> {
+    const res = await fetch(
+      `${apiUrl}/workspaces/${workspaceId}/notes?q=${encodeURIComponent(title)}&pageSize=5`,
+      { headers: { Authorization: headers.Authorization } }
+    );
+    if (!res.ok) return null;
+    const body = (await res.json()) as { items?: Array<{ id: string; title: string }> };
+    return body.items?.find((n) => n.title === title)?.id ?? null;
+  }
+
+  async function createTopic(title: string): Promise<string | null> {
+    const existing = await findExisting(title);
+    if (existing) return existing;
+    const res = await fetch(`${apiUrl}/workspaces/${workspaceId}/notes`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ title }),
+    });
+    if (!res.ok) {
+      console.warn(`⚠️ Topic seed: create "${title}" → ${res.status}`);
+      return null;
+    }
+    const body = (await res.json()) as { id?: string };
+    return body.id ?? null;
+  }
+
+  async function reparent(noteId: string, parentId: string | null): Promise<boolean> {
+    const res = await fetch(`${apiUrl}/workspaces/${workspaceId}/notes/${noteId}/move`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ parentId }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      console.warn(`⚠️ Topic seed: reparent ${noteId}→${parentId} → ${res.status} ${text}`);
+    }
+    return res.ok;
+  }
+
+  console.log('🔧 Global setup: Seeding topic chain (root + 2 children + 5-deep)…');
+
+  const rootTopicId = await createTopic('[E2E SEED] Root');
+  if (!rootTopicId) return { rootTopicId: null, childTopicAId: null, childTopicBId: null, deepTopicId: null };
+
+  const childTopicAId = await createTopic('[E2E SEED] Child A');
+  const childTopicBId = await createTopic('[E2E SEED] Child B');
+  if (childTopicAId) await reparent(childTopicAId, rootTopicId);
+  if (childTopicBId) await reparent(childTopicBId, rootTopicId);
+
+  // 5-deep chain: deep1 (under root) → deep5 (depth=5)
+  const deepTitles = ['[E2E SEED] Deep 1', '[E2E SEED] Deep 2', '[E2E SEED] Deep 3', '[E2E SEED] Deep 4', '[E2E SEED] Deep 5'];
+  let parent: string | null = rootTopicId;
+  let lastId: string | null = null;
+  for (const title of deepTitles) {
+    const id = await createTopic(title);
+    if (!id) {
+      lastId = null;
+      break;
+    }
+    const ok = await reparent(id, parent);
+    if (!ok) {
+      lastId = null;
+      break;
+    }
+    parent = id;
+    lastId = id;
+  }
+
+  console.log(
+    `✅ Global setup: Topic seed → root=${rootTopicId?.slice(0, 8)} childA=${childTopicAId?.slice(0, 8)} childB=${childTopicBId?.slice(0, 8)} deep5=${lastId?.slice(0, 8)}`
+  );
+
+  return {
+    rootTopicId,
+    childTopicAId,
+    childTopicBId,
+    deepTopicId: lastId,
+  };
 }
 
 export { TEST_USER, AUTH_STATE_PATH };

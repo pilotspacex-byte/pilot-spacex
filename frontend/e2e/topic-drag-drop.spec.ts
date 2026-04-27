@@ -57,11 +57,13 @@ test.describe('topic drag-drop', () => {
     );
 
     // Case 1: move childA under childB -> 200
+    // Backend exposes POST /notes/{id}/move (not PUT) — verified in
+    // workspace_notes_topic_tree.py + frontend notesApi.moveTopic.
     const moveResp = page.waitForResponse(
       (r) =>
         r.url().includes('/notes/') &&
         r.url().includes('/move') &&
-        r.request().method() === 'PUT' &&
+        r.request().method() === 'POST' &&
         r.status() === 200,
       { timeout: 10_000 }
     );

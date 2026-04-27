@@ -63,6 +63,7 @@ export const TopicTreeRow = observer(function TopicTreeRow({
     <div
       ref={setNodeRef}
       data-testid={`topic-tree-row-${note.id}`}
+      data-topic-id={note.id}
       {...attributes}
       {...listeners}
       onContextMenu={(e) => {

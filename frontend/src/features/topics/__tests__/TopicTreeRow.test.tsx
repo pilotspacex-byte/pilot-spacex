@@ -112,4 +112,10 @@ describe('TopicTreeRow', () => {
     fireEvent.contextMenu(row);
     expect(onContextMenu).toHaveBeenCalledTimes(1);
   });
+
+  it('exposes data-topic-id for E2E drag-drop selectors', () => {
+    renderRow({ note: { id: 'note-xyz', title: 'Plan A' } });
+    const row = screen.getByTestId('topic-tree-row-note-xyz');
+    expect(row.getAttribute('data-topic-id')).toBe('note-xyz');
+  });
 });
