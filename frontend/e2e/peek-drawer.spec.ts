@@ -19,7 +19,7 @@ test.describe('peek drawer (artifact preview)', () => {
   }) => {
     const seed = getSeedContext();
     test.skip(
-      true,
+      !seed.chatSessionId || !seed.artifactId,
       'TODO(94-03-phase3): InlineArtifactCard does not render data-artifact-id — ' +
         'add that attribute to the component root before this spec can locate the card. ' +
         `Seed data available: chatSessionId=${seed.chatSessionId ?? 'null'} artifactId=${seed.artifactId ?? 'null'}`

@@ -23,7 +23,7 @@ test.describe('edit proposal accept', () => {
   }) => {
     const seed = getSeedContext();
     test.skip(
-      true,
+      !seed.pendingProposalId || !seed.chatSessionId,
       'TODO(94-03-phase3): EditProposalCard does not render data-proposal-id — ' +
         'add that attribute to the card root before this spec can locate the card. ' +
         `Seed data available: pendingProposalId=${seed.pendingProposalId ?? 'null'} chatSessionId=${seed.chatSessionId ?? 'null'}`
