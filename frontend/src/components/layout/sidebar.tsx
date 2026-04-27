@@ -156,7 +156,7 @@ const WORKSPACE_ENTRIES: NavEntry[] = [
     id: 'integrations',
     label: 'Integrations',
     icon: Plug,
-    path: (slug) => `/${slug}/integrations`,
+    path: (slug) => `/${slug}/settings/integrations`,
     // 'integrations' is not a member of WorkspaceFeatureToggles — render
     // unconditionally per plan rule. Documented in SUMMARY.
     featureKey: null,
