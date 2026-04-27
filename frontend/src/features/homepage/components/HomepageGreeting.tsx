@@ -26,14 +26,6 @@
 import { useAuthStore } from '@/stores';
 import { cn } from '@/lib/utils';
 
-type TimeOfDay = 'morning' | 'afternoon' | 'evening';
-
-function getTimeOfDay(hour: number): TimeOfDay {
-  if (hour < 12) return 'morning';
-  if (hour < 18) return 'afternoon';
-  return 'evening';
-}
-
 function resolveFirstName(
   userDisplayName: string,
   emailPrefix: string,
@@ -57,12 +49,10 @@ export function HomepageGreeting() {
   // Loading variant — preserve a single-line h1 height so launchpad rhythm
   // does not jump when auth resolves.
   const isLoading = user === null;
+  const firstName = resolveFirstName(userDisplayName, emailPrefix);
   const greeting = isLoading
     ? 'Welcome.'
-    : `Good ${getTimeOfDay(new Date().getHours())}, ${resolveFirstName(
-        userDisplayName,
-        emailPrefix,
-      )}.`;
+    : `Hi ${firstName}, what's on your mind today?`;
 
   return (
     <h1

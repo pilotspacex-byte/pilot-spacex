@@ -395,6 +395,19 @@ const SearchButton = observer(function SearchButton() {
 // kept so the live-data variant plugs in without a structural refactor).
 // ---------------------------------------------------------------------------
 
+function formatRelativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return 'now';
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return `${days}d`;
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
 function RecentChatRow({ chat, slug }: { chat: RecentChat; slug: string }) {
   const Icon = chat.isRoutine ? AlarmClock : MessageSquare;
   return (
@@ -411,7 +424,7 @@ function RecentChatRow({ chat, slug }: { chat: RecentChat; slug: string }) {
         </span>
       )}
       <span className="shrink-0 font-mono text-[10px] text-[var(--text-muted)]">
-        {chat.updatedAt}
+        {formatRelativeTime(chat.updatedAt)}
       </span>
     </Link>
   );

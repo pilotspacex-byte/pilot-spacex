@@ -31,6 +31,7 @@
 'use client';
 
 import { useCallback, useRef } from 'react';
+import { useWorkspaceStore } from '@/stores';
 
 import { ContinueCard } from './components/ContinueCard';
 import {
@@ -48,6 +49,8 @@ interface LaunchpadProps {
 
 export function Launchpad({ workspaceId, workspaceSlug }: LaunchpadProps) {
   const composerRef = useRef<HomeComposerHandle>(null);
+  const workspaceStore = useWorkspaceStore();
+  const workspaceName = workspaceStore.currentWorkspace?.name ?? workspaceSlug;
 
   // Suggested-prompt chips populate the draft (do NOT submit).
   const handlePickPrompt = useCallback((text: string) => {
@@ -60,6 +63,12 @@ export function Launchpad({ workspaceId, workspaceSlug }: LaunchpadProps) {
       aria-label="Workspace launchpad"
       className="mx-auto w-full max-w-[720px] px-6 pt-[120px] pb-16 max-md:pt-20 max-sm:pt-14 max-sm:px-4"
     >
+      {/* Workspace indicator — pencil design §1 "● Pilot Space" chip */}
+      <div className="mb-3 flex items-center gap-1.5 text-[13px] font-medium text-[var(--text-muted)]">
+        <span className="h-2 w-2 rounded-full bg-[var(--brand-primary)]" />
+        {workspaceName}
+      </div>
+
       {/* Greeting */}
       <HomepageGreeting />
 
