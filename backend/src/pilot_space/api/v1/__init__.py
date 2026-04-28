@@ -22,6 +22,9 @@ from pilot_space.api.v1.routers.project_artifacts import (
 from pilot_space.api.v1.routers.project_members import router as project_members_router
 from pilot_space.api.v1.routers.projects import router as projects_router
 from pilot_space.api.v1.routers.proposals import router as proposals_router
+from pilot_space.api.v1.routers.workspace_artifacts import (
+    router as workspace_artifacts_router,
+)
 from pilot_space.api.v1.routers.workspaces import router as workspaces_router
 
 api_router = APIRouter(prefix="/api/v1")
@@ -48,6 +51,16 @@ api_router.include_router(
     ai_configuration_router,
     prefix="/workspaces/{workspace_id}/ai-configurations",
     tags=["ai-configuration"],
+)
+
+# Phase 87.1 Plan 04 — workspace-scoped signed URL for AI-generated artifacts
+# (project_id IS NULL). Sibling of /projects/{pid}/artifacts/{aid}/url for the
+# project-less case. Workspace isolation enforced by require_workspace_member +
+# RLS + artifact.workspace_id check.
+api_router.include_router(
+    workspace_artifacts_router,
+    prefix="/workspaces/{workspace_id}/artifacts",
+    tags=["artifacts"],
 )
 
 api_router.include_router(memory_router, prefix="", tags=["memory"])
