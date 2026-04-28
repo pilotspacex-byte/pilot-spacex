@@ -9,6 +9,7 @@ Design Decisions: DD-058 (Session Management)
 from __future__ import annotations
 
 import json
+import uuid as uuid_module
 from typing import Any
 from uuid import UUID
 
@@ -333,9 +334,16 @@ async def resume_session(
     # Convert messages to response format (maintaining chronological order)
     # Parse structured content for assistant messages to restore content blocks
     messages: list[dict[str, Any]] = []
-    for msg in paginated_messages:
+    # Phase 87.1 Plan 03 — collect assistant messages whose metadata
+    # references artifact_ids so we can hydrate them in a single batched
+    # query (no N+1 across the page). The msg_dict["id"] used as the
+    # collation key is also what the resolver returns under, so we can
+    # attach refs back without index drift.
+    artifact_metadata: dict[UUID, dict[str, Any] | None] = {}
+    for idx, msg in enumerate(paginated_messages):
+        msg_id = getattr(msg, "id", None) or uuid_module.uuid4()
         msg_dict: dict[str, Any] = {
-            "id": getattr(msg, "id", None),
+            "id": msg_id,
             "role": msg.role,
             "timestamp": msg.timestamp.isoformat(),
             "tokens": msg.tokens,
@@ -356,6 +364,10 @@ async def resume_session(
             tool_calls = persisted_tc or parsed["tool_calls"]
             if tool_calls:
                 msg_dict["tool_calls"] = tool_calls
+            # Collect metadata for batched artifact resolution.
+            meta = getattr(msg, "metadata", None)
+            if isinstance(meta, dict) and meta.get("artifact_ids"):
+                artifact_metadata[msg_id] = meta
         else:
             msg_dict["content"] = msg.content
 
@@ -365,6 +377,39 @@ async def resume_session(
             msg_dict["question_data"] = question_data
 
         messages.append(msg_dict)
+        del idx
+
+    # Hydrate inline artifact refs for assistant messages with
+    # metadata.artifact_ids. Single batched fetch; cross-workspace +
+    # deleted + pending_upload rows are dropped silently
+    # (T-87.1-03-01 isolation; T-87.1-03-03 info disclosure — only id
+    # + envelope shape carried, no signed URLs).
+    if artifact_metadata:
+        from pilot_space.application.services.ai.message_artifacts_resolver import (
+            MessageArtifactsResolver,
+            ResolveArtifactsPayload,
+        )
+        from pilot_space.infrastructure.database.repositories.artifact_repository import (
+            ArtifactRepository,
+        )
+
+        resolver = MessageArtifactsResolver(
+            repo=ArtifactRepository(db_session),  # type: ignore[arg-type]
+        )
+        refs_by_msg = await resolver.resolve(
+            ResolveArtifactsPayload(
+                workspace_id=workspace_id,
+                metadata_by_message_id=artifact_metadata,
+            )
+        )
+        if refs_by_msg:
+            for msg_dict in messages:
+                refs = refs_by_msg.get(msg_dict["id"])
+                if refs:
+                    msg_dict["artifacts"] = [
+                        ref.model_dump(by_alias=True, exclude_none=True)
+                        for ref in refs
+                    ]
 
     # has_more is true if there are older messages beyond what we returned
     has_more = start_idx > 0

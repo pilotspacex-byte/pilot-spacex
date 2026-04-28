@@ -124,6 +124,46 @@ class ArtifactRepository:
         )
         return list(result.scalars().all())
 
+    async def list_by_ids_for_workspace(
+        self,
+        ids: list[UUID],
+        workspace_id: UUID,
+    ) -> list[Artifact]:
+        """Batch fetch artifacts by id, scoped to a workspace.
+
+        Phase 87.1 Plan 03 — used by ``MessageArtifactsResolver`` to
+        hydrate ``ChatMessage.artifacts`` on chat reload. Filters:
+
+        * ``id IN ids`` (single SELECT, no N+1)
+        * ``workspace_id = workspace_id`` (T-87.1-03-01 cross-workspace
+          isolation — adversarially-tampered metadata.artifact_ids
+          referencing another workspace's rows are silently dropped)
+        * ``is_deleted IS FALSE`` (soft-deleted rows excluded)
+        * ``status = 'ready'`` (pending_upload rows excluded — they have
+          no usable storage object yet)
+
+        Args:
+            ids: Artifact UUIDs to fetch. Empty list returns ``[]``.
+            workspace_id: Caller's workspace; never trust client input.
+
+        Returns:
+            List of :class:`Artifact` rows in arbitrary order. Caller is
+            responsible for re-ordering by the original id list.
+        """
+        if not ids:
+            return []
+        result = await self.session.execute(
+            select(Artifact).where(
+                and_(
+                    Artifact.id.in_(ids),
+                    Artifact.workspace_id == workspace_id,
+                    Artifact.is_deleted.is_(False),
+                    Artifact.status == "ready",
+                )
+            )
+        )
+        return list(result.scalars().all())
+
     async def update_status(self, artifact_id: UUID, status: str) -> None:
         """Update the status field for an artifact.
 
