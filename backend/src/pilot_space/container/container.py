@@ -286,6 +286,8 @@ class Container(SkillContainer, PluginContainer):
             "pilot_space.api.v1.routers.proposals",
             # Phase 87.1 Plan 02 — AI file generation tool
             "pilot_space.ai.tools.file_generation",
+            # Phase 87.1 Plan 04 — workspace-scoped signed URL for AI artifacts
+            "pilot_space.api.v1.routers.workspace_artifacts",
         ],
     )
 

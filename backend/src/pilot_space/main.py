@@ -417,6 +417,18 @@ app.include_router(
     prefix=API_V1_PREFIX + "/workspaces/{workspace_id}/projects/{project_id}/artifacts",
     tags=["artifacts"],
 )
+# Phase 87.1 Plan 04 — workspace-scoped signed URL for AI-generated artifacts
+# (project_id IS NULL). Sibling of /projects/{pid}/artifacts/{aid}/url for the
+# project-less case. Workspace isolation enforced by require_workspace_member +
+# RLS + artifact.workspace_id check inside the route.
+from pilot_space.api.v1.routers.workspace_artifacts import (
+    router as workspace_artifacts_router,
+)
+app.include_router(
+    workspace_artifacts_router,
+    prefix=API_V1_PREFIX + "/workspaces/{workspace_id}/artifacts",
+    tags=["artifacts"],
+)
 app.include_router(
     artifact_annotations_router,
     prefix=API_V1_PREFIX
