@@ -80,4 +80,25 @@ class InlineArtifactRefSchema(BaseSchema):
     )
 
 
-__all__ = ["InlineArtifactRefSchema"]
+class ChatMessageArtifactsEnvelope(BaseSchema):
+    """Optional envelope for the `artifacts` field on assistant chat messages.
+
+    Phase 87.1 Plan 03 ships this as a documentation contract for Wave 4
+    — the actual chat-replay endpoint
+    (``api/v1/routers/ai_sessions.py:resume_session``) returns
+    ``SessionResumeResponse.messages`` typed as ``list[dict[str, Any]]``,
+    so it carries this field as free-form JSON. Codifying the shape
+    here gives the frontend a stable typed reference and the test suite
+    a single place to assert on serialisation.
+    """
+
+    artifacts: list[InlineArtifactRefSchema] | None = Field(
+        default=None,
+        description=(
+            "Inline artifact references attached by the resolver on chat "
+            "reload. None when the message did not produce artifacts."
+        ),
+    )
+
+
+__all__ = ["ChatMessageArtifactsEnvelope", "InlineArtifactRefSchema"]
