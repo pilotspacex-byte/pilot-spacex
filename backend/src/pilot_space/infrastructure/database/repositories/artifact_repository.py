@@ -7,7 +7,19 @@ Handles CRUD operations for Artifact entities including:
 - Hard delete with return boolean
 - Stale pending_upload cleanup for the 24h artifact cleanup job
 
-Feature: v1.1 — Artifacts
+Nullable project_id (Phase 87.1):
+    AI-generated artifacts may have ``project_id IS NULL``. The default
+    project-scoped queries here intentionally exclude such rows because
+    PostgreSQL evaluates ``project_id = X`` as UNKNOWN for NULL — that is
+    the correct semantic for project-scoped reads. Callers that want to
+    list AI-generated artifacts must add a dedicated query (e.g. filter on
+    ``Artifact.project_id.is_(None)``); none exist yet in 87.1-01.
+
+    Workspace isolation (RLS policy ``artifacts_workspace_isolation`` from
+    migration 092) does NOT reference project_id, so cross-workspace
+    isolation holds for NULL project_id rows.
+
+Feature: v1.1 — Artifacts; Phase 87.1 — AI file generation
 """
 
 from __future__ import annotations
@@ -85,6 +97,12 @@ class ArtifactRepository:
 
         Only returns status=ready artifacts (excludes pending_upload).
         Uses the composite index ix_artifacts_workspace_project.
+
+        Phase 87.1 note: AI-generated artifacts (``project_id IS NULL``) are
+        intentionally excluded — PostgreSQL ``project_id = X`` evaluates
+        UNKNOWN for NULL, which is the correct project-scoped semantic. To
+        list AI-generated artifacts, query separately with
+        ``Artifact.project_id.is_(None)``.
 
         Args:
             workspace_id: Workspace owning the project.
