@@ -48,6 +48,13 @@ class AIMessage:
     cost_usd: float | None = None
     question_data: list[dict[str, Any]] | dict[str, Any] | None = None
     tool_calls: list[dict[str, Any]] | None = None
+    # Phase 87.1 — additive JSONB-friendly metadata bag. Currently used to
+    # carry ``artifact_ids: list[str]`` so chat reload can re-render
+    # InlineArtifactCard refs without persisting signed URLs. Other keys
+    # (``skill``, ``agent``, ``tokens``, ``model``, ``confidence``) may
+    # also live here in the future. Survives Redis + JSONB session_data
+    # round-trip via ``to_dict`` / ``from_dict``.
+    metadata: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
@@ -62,6 +69,8 @@ class AIMessage:
             result["question_data"] = self.question_data
         if self.tool_calls is not None:
             result["tool_calls"] = self.tool_calls
+        if self.metadata is not None:
+            result["metadata"] = self.metadata
         return result
 
     @classmethod
@@ -75,6 +84,7 @@ class AIMessage:
             cost_usd=data.get("cost_usd"),
             question_data=data.get("question_data"),
             tool_calls=data.get("tool_calls"),
+            metadata=data.get("metadata"),
         )
 
 

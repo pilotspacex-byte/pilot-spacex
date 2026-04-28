@@ -1,8 +1,10 @@
 """In-process SDK MCP server exposing the ``create_file`` tool.
 
-Phase 87.1 Plan 02. Wraps :func:`pilot_space.ai.tools.file_generation.create_file`
-into an MCP tool the Claude Agent SDK can invoke. The server builds a
-fresh ``ArtifactUploadService`` per call from the request-scoped
+Phase 87.1 Plan 02 (tool wiring) + Plan 03 (SSE artifact_created).
+
+Wraps :func:`pilot_space.ai.tools.file_generation.create_file` into an
+MCP tool the Claude Agent SDK can invoke. The server builds a fresh
+``ArtifactUploadService`` per call from the request-scoped
 ``ToolContext.db_session`` plus the singleton ``SupabaseStorageClient``
 from the DI container — mirroring the pattern in ``memory_server.py``.
 
@@ -11,13 +13,18 @@ generation is a core agent capability per CONTEXT.md.
 
 Approval is handled statically: ``create_file`` is in
 ``TOOL_APPROVAL_MAP`` as ``AUTO_EXECUTE``, so the SDK emits ``tool_use``
-and ``tool_result`` events automatically and there is no approval flow
-needing an :class:`EventPublisher`.
+and ``tool_result`` events automatically. Plan 03 adds an additional
+live ``artifact_created`` SSE frame so the chat UI can render the
+InlineArtifactCard during the stream without waiting for tool_result —
+this requires the optional :class:`EventPublisher`. The error path does
+NOT publish the artifact_created frame; the SDK handles tool_result
+automatically.
 """
 
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from claude_agent_sdk import McpSdkServerConfig, create_sdk_mcp_server, tool
@@ -27,6 +34,7 @@ from pilot_space.ai.tools.file_generation import FORMAT_MIME_MAP, create_file
 from pilot_space.infrastructure.logging import get_logger
 
 if TYPE_CHECKING:
+    from pilot_space.ai.mcp.event_publisher import EventPublisher
     from pilot_space.ai.tools.mcp_server import ToolContext
 
 logger = get_logger(__name__)
@@ -44,62 +52,19 @@ def _text_result(text: str) -> dict[str, Any]:
     return {"content": [{"type": "text", "text": text}]}
 
 
-def create_file_tools_server(
+def _build_create_file_handler(
     *,
-    tool_context: ToolContext | None = None,
-) -> McpSdkServerConfig:
-    """Create an SDK MCP server registering the ``create_file`` tool.
+    publisher: EventPublisher | None,
+    tool_context: ToolContext | None,
+) -> Callable[[dict[str, Any]], Any]:
+    """Build the ``create_file`` async handler bound to publisher + context.
 
-    Args:
-        tool_context: Active request context. Provides ``db_session``
-            for repository construction, plus ``workspace_id`` /
-            ``user_id`` for the file_generation handler. ``None`` is
-            tolerated only so the SDK can introspect the schema; actual
-            invocations without a context return a typed error.
+    Extracted from :func:`create_file_tools_server` so tests can exercise
+    the tool body without unwrapping the Claude Agent SDK ``@tool``
+    decorator. The function is intentionally module-level + private so
+    its closure-captured arguments are explicit.
     """
 
-    @tool(
-        "create_file",
-        (
-            "Generate a downloadable file artifact (Markdown or HTML) and "
-            "attach it to the chat as a download card. Use 'md' for "
-            "editable / portable text (specs, summaries, READMEs, meeting "
-            "notes). Use 'html' for styled / print-ready output (reports, "
-            "embedded inline CSS, tabular layouts). The filename is "
-            "sanitised server-side and the extension is forced based on "
-            "format. Max 10 MB."
-        ),
-        {
-            "type": "object",
-            "properties": {
-                "filename": {
-                    "type": "string",
-                    "description": (
-                        "Suggested filename. Path components are "
-                        "stripped server-side; the extension is "
-                        "overwritten to match 'format'."
-                    ),
-                },
-                "content": {
-                    "type": "string",
-                    "description": (
-                        "UTF-8 text body. Must be non-empty and fit in "
-                        "10 MB once encoded."
-                    ),
-                },
-                "format": {
-                    "type": "string",
-                    "enum": list(FORMAT_MIME_MAP.keys()),
-                    "description": (
-                        "'md' (text/markdown) or 'html' (text/html). "
-                        "Server-controlled MIME map; cannot be "
-                        "overridden by the model."
-                    ),
-                },
-            },
-            "required": ["filename", "content", "format"],
-        },
-    )
     async def create_file_tool(args: dict[str, Any]) -> dict[str, Any]:
         if tool_context is None:
             return _text_result(
@@ -163,7 +128,109 @@ def create_file_tools_server(
                 )
             )
 
+        # Phase 87.1 Plan 03 — emit a live artifact_created SSE frame so
+        # the chat UI can render InlineArtifactCard during the stream
+        # (matches the persisted ChatMessage.artifacts envelope produced
+        # at reload time by MessageArtifactsResolver). The payload
+        # carries only id + envelope metadata; signed URLs are NEVER
+        # included on the wire — the frontend re-fetches them on demand
+        # via the existing /artifacts/{id}/url endpoint
+        # (T-87.1-03-03 information disclosure mitigation).
+        if publisher is not None:
+            from pilot_space.ai.agents.pilotspace_stream_utils import (
+                StreamEvent,
+                build_sse_frame,
+            )
+
+            payload = result.payload
+            await publisher.publish(
+                build_sse_frame(
+                    StreamEvent.ARTIFACT_CREATED,
+                    {
+                        "artifact_id": payload["artifact_id"],
+                        "filename": payload["filename"],
+                        "mime_type": payload["mime_type"],
+                        "size_bytes": payload["size_bytes"],
+                        "format": payload["format"],
+                    },
+                )
+            )
+
         return _text_result(json.dumps({"ok": True, **result.payload}))
+
+    return create_file_tool
+
+
+def create_file_tools_server(
+    *,
+    tool_context: ToolContext | None = None,
+    publisher: EventPublisher | None = None,
+) -> McpSdkServerConfig:
+    """Create an SDK MCP server registering the ``create_file`` tool.
+
+    Args:
+        tool_context: Active request context. Provides ``db_session``
+            for repository construction, plus ``workspace_id`` /
+            ``user_id`` for the file_generation handler. ``None`` is
+            tolerated only so the SDK can introspect the schema; actual
+            invocations without a context return a typed error.
+        publisher: Optional :class:`EventPublisher`. When provided, a
+            live ``artifact_created`` SSE frame is emitted on each
+            successful upload (Phase 87.1 Plan 03). When ``None`` the
+            tool still works — only the live emission is skipped (the
+            persisted ``message_metadata.artifact_ids`` path covers
+            chat reload).
+    """
+
+    handler = _build_create_file_handler(
+        publisher=publisher,
+        tool_context=tool_context,
+    )
+
+    @tool(
+        "create_file",
+        (
+            "Generate a downloadable file artifact (Markdown or HTML) and "
+            "attach it to the chat as a download card. Use 'md' for "
+            "editable / portable text (specs, summaries, READMEs, meeting "
+            "notes). Use 'html' for styled / print-ready output (reports, "
+            "embedded inline CSS, tabular layouts). The filename is "
+            "sanitised server-side and the extension is forced based on "
+            "format. Max 10 MB."
+        ),
+        {
+            "type": "object",
+            "properties": {
+                "filename": {
+                    "type": "string",
+                    "description": (
+                        "Suggested filename. Path components are "
+                        "stripped server-side; the extension is "
+                        "overwritten to match 'format'."
+                    ),
+                },
+                "content": {
+                    "type": "string",
+                    "description": (
+                        "UTF-8 text body. Must be non-empty and fit in "
+                        "10 MB once encoded."
+                    ),
+                },
+                "format": {
+                    "type": "string",
+                    "enum": list(FORMAT_MIME_MAP.keys()),
+                    "description": (
+                        "'md' (text/markdown) or 'html' (text/html). "
+                        "Server-controlled MIME map; cannot be "
+                        "overridden by the model."
+                    ),
+                },
+            },
+            "required": ["filename", "content", "format"],
+        },
+    )
+    async def create_file_tool(args: dict[str, Any]) -> dict[str, Any]:
+        return await handler(args)
 
     return create_sdk_mcp_server(
         name=SERVER_NAME,

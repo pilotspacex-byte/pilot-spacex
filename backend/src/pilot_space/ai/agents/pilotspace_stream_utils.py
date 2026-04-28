@@ -115,6 +115,12 @@ class StreamEvent(StrEnum):
     # RevertedPill cleanly.
     PROPOSAL_REVERTED = "proposal_reverted"
 
+    # Phase 87.1 — file generation artifact emitted live during the stream.
+    # Payload: {artifact_id, filename, mime_type, size_bytes, format}.
+    # Frontend handler pushes the ref into the streaming message's
+    # ``artifacts[]`` array so InlineArtifactCard renders without reload.
+    ARTIFACT_CREATED = "artifact_created"
+
 
 def build_sse_frame(event: StreamEvent | str, data: dict[str, Any]) -> str:
     """Build a wire-format SSE frame.
@@ -244,6 +250,7 @@ def build_mcp_servers(
     # download cards in chat.
     servers[FILE_SERVER_NAME] = create_file_tools_server(
         tool_context=tool_context,
+        publisher=publisher,
     )
 
     return servers, ref_map
@@ -553,6 +560,64 @@ def extract_tool_calls_from_blocks(
     return results if results else None
 
 
+# Phase 87.1 — Cap on artifact_ids persisted per assistant message. DoS
+# mitigation T-87.1-03-05 (pathological metadata with thousands of ids).
+_ARTIFACT_IDS_CAP = 50
+
+
+def extract_artifact_ids_from_blocks(
+    content_blocks: dict[str, dict[str, Any]],
+) -> list[str]:
+    """Extract artifact_ids from successful ``create_file`` tool_result blocks.
+
+    Phase 87.1 Plan 03 — used by :func:`save_session_messages` to persist
+    ``AIMessage.metadata['artifact_ids']`` inside the chat-replay JSONB
+    (``AISession.session_data``) so reload re-renders inline artifact
+    cards without a fresh tool call.
+
+    Tolerates malformed payloads (returns the partial list — never
+    raises). Skips errored tool_result blocks. Output is in
+    tool_result-index order so multi-call ordering is stable. Capped at
+    50 entries.
+    """
+    uses_by_id: dict[str, dict[str, Any]] = {
+        b["id"]: b
+        for b in content_blocks.values()
+        if b.get("type") == "tool_use"
+        and b.get("name") == "create_file"
+        and b.get("id")
+    }
+    if not uses_by_id:
+        return []
+
+    ids: list[str] = []
+    results = [b for b in content_blocks.values() if b.get("type") == "tool_result"]
+    results.sort(key=lambda b: b.get("index", 0))
+    for r in results:
+        tid = r.get("tool_use_id")
+        if tid not in uses_by_id or r.get("is_error"):
+            continue
+        content = r.get("content")
+        parsed: dict[str, Any] | None = None
+        if isinstance(content, dict):
+            parsed = content
+        elif isinstance(content, str):
+            try:
+                parsed_any = json.loads(content)
+            except (json.JSONDecodeError, TypeError, ValueError):
+                continue
+            if isinstance(parsed_any, dict):
+                parsed = parsed_any
+        if not parsed:
+            continue
+        aid = parsed.get("artifact_id")
+        if isinstance(aid, str) and aid:
+            ids.append(aid)
+        if len(ids) >= _ARTIFACT_IDS_CAP:
+            break
+    return ids
+
+
 # ---------------------------------------------------------------------------
 # Concurrent SDK + Queue stream merge
 # ---------------------------------------------------------------------------
@@ -658,12 +723,21 @@ async def save_session_messages(
         if structured_content:
             question_data = extract_question_data_from_blocks(content_blocks)
             tool_calls = extract_tool_calls_from_blocks(content_blocks)
+            # Phase 87.1 — persist artifact_ids onto AIMessage.metadata
+            # so chat reload re-renders InlineArtifactCard refs. Capped
+            # at 50 entries upstream in extract_artifact_ids_from_blocks
+            # (T-87.1-03-05 DoS mitigation).
+            artifact_ids = extract_artifact_ids_from_blocks(content_blocks)
+            metadata: dict[str, Any] | None = (
+                {"artifact_ids": artifact_ids} if artifact_ids else None
+            )
             await session_handler.add_message(
                 session_id=session_id,
                 role="assistant",
                 content=structured_content,
                 question_data=question_data,
                 tool_calls=tool_calls,
+                metadata=metadata,
             )
         logger.debug(
             "[SDK/Space] Persisted messages to session %s (%d blocks)",

@@ -170,14 +170,21 @@ class SessionHandler:
         Returns:
             ConversationSession for SDK integration layer
         """
-        # Convert AIMessage to ConversationMessage
+        # Convert AIMessage to ConversationMessage. Phase 87.1: preserve
+        # any persisted ``metadata`` (e.g. ``artifact_ids``) by merging it
+        # with ``cost_usd`` instead of overwriting. ``cost_usd`` only
+        # contributes a key when truthy to keep parity with the prior
+        # behaviour.
         messages = [
             ConversationMessage(
                 role=msg.role,
                 content=msg.content,
                 timestamp=msg.timestamp,
                 tokens=msg.tokens or 0,
-                metadata={"cost_usd": msg.cost_usd} if msg.cost_usd else {},
+                metadata={
+                    **(msg.metadata or {}),
+                    **({"cost_usd": msg.cost_usd} if msg.cost_usd else {}),
+                },
             )
             for msg in ai_session.messages
         ]
@@ -212,8 +219,15 @@ class SessionHandler:
         # Convert content to string if it's structured (list of blocks)
         content_str = content if isinstance(content, str) else json.dumps(content)
 
-        # Extract cost from metadata if present
+        # Extract cost from metadata if present. Phase 87.1: forward the
+        # rest of the metadata bag (without ``cost_usd``) onto the
+        # AIMessage so chat-replay can recover keys like ``artifact_ids``.
         cost_usd = metadata.get("cost_usd") if metadata else None
+        forwarded_metadata: dict[str, Any] | None = None
+        if metadata:
+            forwarded_metadata = {k: v for k, v in metadata.items() if k != "cost_usd"}
+            if not forwarded_metadata:
+                forwarded_metadata = None
 
         return AIMessage(
             role=role,
@@ -222,6 +236,7 @@ class SessionHandler:
             cost_usd=cost_usd,
             question_data=question_data,
             tool_calls=tool_calls,
+            metadata=forwarded_metadata,
         )
 
     async def create_session(
