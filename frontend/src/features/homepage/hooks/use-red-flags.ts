@@ -33,6 +33,15 @@ export type RedFlagKind = 'stale' | 'sprint' | 'digest';
 export interface RedFlag {
   kind: RedFlagKind;
   label: string;
+  /**
+   * Secondary meta line under the label (Pencil "Needs your eyes" pattern).
+   * Optional — rows fall back to a single-line layout when absent.
+   */
+  sublabel?: string;
+  /**
+   * Per-row action chip text. Defaults to "Open" in the renderer when absent.
+   */
+  actionLabel?: string;
   href: string;
   ariaLabel: string;
 }
@@ -112,12 +121,21 @@ export function useRedFlags({
     const flags: RedFlag[] = [];
 
     // 1. Stale tasks
-    const staleCount = suggestions.filter((s) => s.category === 'stale_issues').length;
+    const staleSuggestions = suggestions.filter((s) => s.category === 'stale_issues');
+    const staleCount = staleSuggestions.length;
     if (staleCount > 0) {
       const label = staleLabel(staleCount);
+      // Prefer the highest-relevance stale suggestion's description as the
+      // sublabel; otherwise leave undefined and the row degrades to one line.
+      const top = staleSuggestions.reduce<DigestSuggestion | null>(
+        (best, s) => (!best || s.relevanceScore > best.relevanceScore ? s : best),
+        null,
+      );
       flags.push({
         kind: 'stale',
         label,
+        sublabel: top?.description || undefined,
+        actionLabel: top?.actionLabel ?? 'Review',
         href: `/${workspaceSlug}/tasks?filter=stale`,
         ariaLabel: `${label}. Open.`,
       });
@@ -129,6 +147,8 @@ export function useRedFlags({
       flags.push({
         kind: 'sprint',
         label: sprint.title,
+        sublabel: sprint.description || undefined,
+        actionLabel: sprint.actionLabel ?? 'Triage',
         href: `/${workspaceSlug}/projects`,
         ariaLabel: `${sprint.title}. Open.`,
       });
@@ -140,6 +160,8 @@ export function useRedFlags({
       flags.push({
         kind: 'digest',
         label: digestItem.title,
+        sublabel: digestItem.description || undefined,
+        actionLabel: digestItem.actionLabel ?? 'Open',
         href: `/${workspaceSlug}/digest`,
         ariaLabel: `${digestItem.title}. Open.`,
       });

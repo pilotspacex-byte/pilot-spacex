@@ -59,18 +59,24 @@ import { RedFlagStrip } from '../components/RedFlagStrip';
 const STALE: RedFlag = {
   kind: 'stale',
   label: '12 stale tasks',
+  sublabel: 'Idle for 7+ days across Frontend v2',
+  actionLabel: 'Review',
   href: '/workspace/tasks?filter=stale',
   ariaLabel: '12 stale tasks. Open.',
 };
 const SPRINT: RedFlag = {
   kind: 'sprint',
   label: 'Sprint Q2-W3 at risk',
+  sublabel: '45% complete with 2 days remaining',
+  actionLabel: 'Triage',
   href: '/workspace/projects',
   ariaLabel: 'Sprint Q2-W3 at risk. Open.',
 };
 const DIGEST: RedFlag = {
   kind: 'digest',
   label: 'Daily digest ready',
+  sublabel: '4 PRs awaiting review, 1 spec approved overnight',
+  actionLabel: 'Open',
   href: '/workspace/digest',
   ariaLabel: 'Daily digest ready. Open.',
 };
@@ -138,7 +144,7 @@ describe('RedFlagStrip (Phase 88 Plan 03)', () => {
       hookMock.flags = [STALE];
     });
 
-    it('renders a single banner inside the region', () => {
+    it('renders a single row inside the region', () => {
       render(<RedFlagStrip workspaceId="ws-1" workspaceSlug="workspace" />);
       const region = screen.getByRole('region', { name: 'Workspace alerts' });
       expect(region).toBeInTheDocument();
@@ -153,10 +159,11 @@ describe('RedFlagStrip (Phase 88 Plan 03)', () => {
       expect(link).toHaveAttribute('href', '/workspace/tasks?filter=stale');
     });
 
-    it('applies an amber accent class to the stale banner', () => {
+    it('applies an amber accent class to the stale row severity dot', () => {
       render(<RedFlagStrip workspaceId="ws-1" workspaceSlug="workspace" />);
       const link = screen.getByRole('link', { name: '12 stale tasks. Open.' });
-      // The accent bar is a child element with a kind-specific class.
+      // The severity dot keeps the data-flag-accent attribute so visual
+      // contract assertions survive layout reshuffles.
       const accent = link.querySelector('[data-flag-accent]');
       expect(accent).not.toBeNull();
       expect(accent!.className).toMatch(/amber/);
@@ -165,11 +172,69 @@ describe('RedFlagStrip (Phase 88 Plan 03)', () => {
     it('renders the AlertTriangle lucide icon for stale', () => {
       render(<RedFlagStrip workspaceId="ws-1" workspaceSlug="workspace" />);
       const link = screen.getByRole('link', { name: '12 stale tasks. Open.' });
-      // lucide v0.562 renamed AlertTriangle -> TriangleAlert internally; the
-      // alias re-exports the same icon so the canonical class is
-      // `lucide-triangle-alert`.
       const icon = link.querySelector('svg.lucide-triangle-alert');
       expect(icon).not.toBeNull();
+    });
+
+    it('renders the sublabel meta text for the stale row', () => {
+      render(<RedFlagStrip workspaceId="ws-1" workspaceSlug="workspace" />);
+      const link = screen.getByRole('link', { name: '12 stale tasks. Open.' });
+      expect(link.textContent).toContain('Idle for 7+ days across Frontend v2');
+    });
+
+    it('renders the per-row action label inside the row', () => {
+      render(<RedFlagStrip workspaceId="ws-1" workspaceSlug="workspace" />);
+      const link = screen.getByRole('link', { name: '12 stale tasks. Open.' });
+      // Action chip text lives inside the same anchor (no nested
+      // interactive elements — keyboard a11y stays one tab stop per row).
+      expect(link.textContent).toContain('Review');
+    });
+  });
+
+  describe('flag without sublabel', () => {
+    it('does not render an empty sublabel element when sublabel is missing', () => {
+      hookMock.flags = [
+        {
+          kind: 'stale',
+          label: '1 stale task',
+          href: '/workspace/tasks?filter=stale',
+          ariaLabel: '1 stale task. Open.',
+        },
+      ];
+      render(<RedFlagStrip workspaceId="ws-1" workspaceSlug="workspace" />);
+      const link = screen.getByRole('link', { name: '1 stale task. Open.' });
+      expect(link.querySelector('[data-flag-sublabel]')).toBeNull();
+    });
+
+    it('falls back to "Open" when actionLabel is omitted', () => {
+      hookMock.flags = [
+        {
+          kind: 'digest',
+          label: 'Daily digest ready',
+          href: '/workspace/digest',
+          ariaLabel: 'Daily digest ready. Open.',
+        },
+      ];
+      render(<RedFlagStrip workspaceId="ws-1" workspaceSlug="workspace" />);
+      const link = screen.getByRole('link', { name: 'Daily digest ready. Open.' });
+      expect(link.textContent).toContain('Open');
+    });
+  });
+
+  describe('"Needs your eyes" header', () => {
+    it('renders the panel heading when at least one flag is present', () => {
+      hookMock.flags = [STALE];
+      render(<RedFlagStrip workspaceId="ws-1" workspaceSlug="workspace" />);
+      const heading = screen.getByRole('heading', { name: /needs your eyes/i });
+      expect(heading).toBeInTheDocument();
+    });
+
+    it('does not render the panel heading in the empty placeholder state', () => {
+      hookMock.flags = [];
+      render(<RedFlagStrip workspaceId="ws-1" workspaceSlug="workspace" />);
+      expect(
+        screen.queryByRole('heading', { name: /needs your eyes/i }),
+      ).toBeNull();
     });
   });
 
@@ -213,6 +278,17 @@ describe('RedFlagStrip (Phase 88 Plan 03)', () => {
       expect(links[0]!.getAttribute('href')).toBe('/workspace/tasks?filter=stale');
       expect(links[1]!.getAttribute('href')).toBe('/workspace/projects');
       expect(links[2]!.getAttribute('href')).toBe('/workspace/digest');
+    });
+
+    it('renders each row\'s sublabel and per-row action label', () => {
+      render(<RedFlagStrip workspaceId="ws-1" workspaceSlug="workspace" />);
+      const links = screen.getAllByRole('link');
+      expect(links[0]!.textContent).toContain('Idle for 7+ days across Frontend v2');
+      expect(links[0]!.textContent).toContain('Review');
+      expect(links[1]!.textContent).toContain('45% complete with 2 days remaining');
+      expect(links[1]!.textContent).toContain('Triage');
+      expect(links[2]!.textContent).toContain('4 PRs awaiting review, 1 spec approved overnight');
+      expect(links[2]!.textContent).toContain('Open');
     });
   });
 
