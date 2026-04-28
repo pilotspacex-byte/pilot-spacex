@@ -9,6 +9,38 @@
 import { runInAction } from 'mobx';
 import { SSEClient, type SSEEvent } from '@/lib/sse-client';
 import type { PilotSpaceStore } from './PilotSpaceStore';
+import type { InlineArtifactRef } from '@/components/chat/InlineArtifactCard';
+import type { ArtifactTokenKey } from '@/lib/artifact-tokens';
+
+const ARTIFACT_FORMAT_TO_TOKEN: Record<string, ArtifactTokenKey> = {
+  md: 'MD',
+  html: 'HTML',
+};
+
+/**
+ * Phase 87.1 Plan 04 — Map the SSE `artifact_created` wire payload (snake_case
+ * from the `pilot-files` MCP server) to a frontend `InlineArtifactRef`.
+ *
+ * Mirrors the helper in lib/sse-client.ts but is reused here because
+ * `consumeSSEStream` / `parseSSEBuffer` paths bypass the SSEClient layer.
+ */
+function mapArtifactCreatedPayload(data: unknown): InlineArtifactRef | null {
+  if (!data || typeof data !== 'object') return null;
+  const d = data as Record<string, unknown>;
+  const artifactId = d['artifact_id'];
+  if (typeof artifactId !== 'string' || !artifactId) return null;
+  const filenameRaw = d['filename'];
+  const formatRaw = d['format'];
+  const filename = typeof filenameRaw === 'string' ? filenameRaw : undefined;
+  const formatKey = typeof formatRaw === 'string' ? formatRaw.toLowerCase() : '';
+  const type: ArtifactTokenKey = ARTIFACT_FORMAT_TO_TOKEN[formatKey] ?? 'MD';
+  return {
+    id: artifactId,
+    type,
+    title: filename,
+    updatedAt: new Date().toISOString(),
+  };
+}
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '/api/v1';
 
@@ -39,6 +71,11 @@ export class PilotSpaceSSEParser {
       url: absoluteUrl,
       method: 'GET',
       onMessage: (event: SSEEvent) => this.onEvent(event),
+      // Phase 87.1 Plan 04 — intercept artifact_created and route to store.
+      onArtifactCreated: (ref) =>
+        runInAction(() => {
+          this.store.appendArtifactToStreamingMessage(ref);
+        }),
       onComplete: () => {
         runInAction(() => {
           this.store.updateStreamingState({
@@ -84,7 +121,7 @@ export class PilotSpaceSSEParser {
           if (buffer.trim()) {
             const events = this.parseSSEBuffer(buffer + '\n\n');
             for (const event of events) {
-              this.onEvent(event);
+              this.dispatchEvent(event);
             }
           }
           runInAction(() => {
@@ -106,7 +143,7 @@ export class PilotSpaceSSEParser {
         }
 
         for (const event of events) {
-          this.onEvent(event);
+          this.dispatchEvent(event);
         }
       }
     } catch (err) {
@@ -121,6 +158,26 @@ export class PilotSpaceSSEParser {
     } finally {
       reader.releaseLock();
     }
+  }
+
+  /**
+   * Phase 87.1 Plan 04 — route a parsed event.
+   * `artifact_created` updates the streaming message's artifacts[] directly
+   * and is NOT forwarded to the regular onEvent handler.
+   */
+  private dispatchEvent(event: SSEEvent): void {
+    if (event.type === 'artifact_created') {
+      const ref = mapArtifactCreatedPayload(event.data);
+      if (ref) {
+        runInAction(() => {
+          this.store.appendArtifactToStreamingMessage(ref);
+        });
+      } else {
+        console.warn('[sse] dropped malformed artifact_created event');
+      }
+      return;
+    }
+    this.onEvent(event);
   }
 
   /** Parse SSE buffer into events. */

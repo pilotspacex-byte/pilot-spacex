@@ -634,6 +634,51 @@ export class PilotSpaceStore {
     this.pendingQuestion = null;
   }
 
+  /**
+   * Phase 87.1 Plan 04 — append an InlineArtifactRef to the currently
+   * streaming assistant message's `artifacts[]`. Triggered by SSE
+   * `artifact_created` events from the `pilot-files` MCP tool.
+   *
+   * Behavior:
+   * - Targets the message with id == streamingState.currentMessageId.
+   * - If no streaming message is found (race), drops with a console.warn.
+   * - Caps the array at 50 entries (mirrors backend extract-time cap in
+   *   `extract_artifact_ids_from_blocks`) — defence in depth.
+   */
+  appendArtifactToStreamingMessage(
+    ref: import('@/components/chat/InlineArtifactCard').InlineArtifactRef,
+  ): void {
+    const currentId = this.streamingState.currentMessageId;
+    if (!currentId) {
+      console.warn(
+        '[PilotSpaceStore] appendArtifactToStreamingMessage: no streaming message — dropping ref',
+        { id: ref.id, type: ref.type },
+      );
+      return;
+    }
+    const idx = this.messages.findIndex((m) => m.id === currentId);
+    if (idx < 0) {
+      console.warn(
+        '[PilotSpaceStore] appendArtifactToStreamingMessage: streaming message not in store — dropping ref',
+        { currentId, refId: ref.id },
+      );
+      return;
+    }
+    const msg = this.messages[idx]!;
+    const existing = msg.artifacts ?? [];
+    if (existing.length >= 50) {
+      console.warn(
+        '[PilotSpaceStore] appendArtifactToStreamingMessage: cap of 50 reached — dropping',
+        { currentId, refId: ref.id },
+      );
+      return;
+    }
+    this.messages[idx] = {
+      ...msg,
+      artifacts: [...existing, ref],
+    };
+  }
+
   // Actions - Context Management
 
   setWorkspaceId(workspaceId: string | null): void {

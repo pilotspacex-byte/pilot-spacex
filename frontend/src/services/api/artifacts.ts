@@ -68,6 +68,27 @@ export const artifactsApi = {
   },
 
   /**
+   * Phase 87.1 Plan 04 — workspace-scoped signed URL for AI-generated artifacts
+   * (project_id IS NULL). Sibling of `getSignedUrl` for the project-less case.
+   *
+   * GET /workspaces/{workspaceId}/artifacts/{artifactId}/url
+   * Returns ArtifactSignedUrlResponse (url + expiresAt).
+   *
+   * Use this for any artifact whose project context is unknown at the call
+   * site (e.g., chat-rendered artifacts where the message envelope only
+   * carries `id` + `type`). The backend handles both NULL and non-NULL
+   * project_id rows uniformly — workspace isolation is preserved.
+   */
+  getSignedUrlByWorkspace(
+    workspaceId: string,
+    artifactId: string
+  ): Promise<ArtifactSignedUrlResponse> {
+    return apiClient.get<ArtifactSignedUrlResponse>(
+      `/workspaces/${workspaceId}/artifacts/${artifactId}/url`
+    );
+  },
+
+  /**
    * Upload a file to the artifacts store via multipart POST.
    *
    * Uses XMLHttpRequest so that upload progress events fire reliably.

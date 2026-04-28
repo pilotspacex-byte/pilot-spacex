@@ -11,6 +11,22 @@
  */
 
 import { getAuthProviderSync } from '@/services/auth/providers';
+import type {
+  InlineArtifactRef,
+} from '@/components/chat/InlineArtifactCard';
+import type { ArtifactTokenKey } from '@/lib/artifact-tokens';
+
+/**
+ * Phase 87.1 Plan 04 — wire format → ArtifactTokenKey map.
+ * Source of truth for SSE handler. Backend `pilot-files` MCP server emits
+ * `format: 'md' | 'html'`; frontend renders by ArtifactTokenKey ('MD' | 'HTML').
+ * Unknown formats default to 'MD' (safe fallback) — and we already drop
+ * malformed events at the parser layer.
+ */
+const ARTIFACT_FORMAT_TO_TOKEN: Record<string, ArtifactTokenKey> = {
+  md: 'MD',
+  html: 'HTML',
+};
 
 export interface SSEClientOptions {
   /** SSE endpoint URL */
@@ -23,6 +39,13 @@ export interface SSEClientOptions {
   headers?: Record<string, string>;
   /** Called for each parsed SSE event */
   onMessage: (event: SSEEvent) => void;
+  /**
+   * Phase 87.1 Plan 04 — called when a `artifact_created` event arrives.
+   * The wire payload (snake_case) is mapped to the frontend `InlineArtifactRef`
+   * (camelCase, ArtifactTokenKey). When set, `artifact_created` events are
+   * intercepted here and NOT forwarded to `onMessage`.
+   */
+  onArtifactCreated?: (ref: InlineArtifactRef) => void;
   /** Called on unrecoverable error */
   onError?: (error: Error) => void;
   /** Called when stream completes normally */
@@ -121,7 +144,7 @@ export class SSEClient {
           if (buffer.trim()) {
             const events = this.parseEvents(buffer + '\n\n');
             for (const event of events.parsed) {
-              this.options.onMessage(event);
+              this.dispatchEvent(event);
             }
           }
           this.options.onComplete?.();
@@ -133,7 +156,7 @@ export class SSEClient {
         buffer = events.remaining;
 
         for (const event of events.parsed) {
-          this.options.onMessage(event);
+          this.dispatchEvent(event);
         }
       }
     } catch (error) {
@@ -207,6 +230,26 @@ export class SSEClient {
   }
 
   /**
+   * Phase 87.1 Plan 04 — Route a parsed SSE event to the right callback.
+   *
+   * `artifact_created` events are mapped (snake_case → InlineArtifactRef) and
+   * passed to `onArtifactCreated` if registered. They are NOT also forwarded
+   * to `onMessage` — preventing double-handling.
+   *
+   * All other events flow through `onMessage` unchanged.
+   */
+  private dispatchEvent(event: SSEEvent): void {
+    if (event.type === 'artifact_created' && this.options.onArtifactCreated) {
+      const ref = mapArtifactCreatedPayload(event.data);
+      if (ref) {
+        this.options.onArtifactCreated(ref);
+      }
+      return;
+    }
+    this.options.onMessage(event);
+  }
+
+  /**
    * Parse SSE events from buffer.
    * Returns parsed events and any remaining incomplete data.
    *
@@ -270,6 +313,40 @@ export class SSEClient {
   private delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
+}
+
+/**
+ * Phase 87.1 Plan 04 — Map the SSE `artifact_created` wire payload (snake_case
+ * dict from `pilot-files` MCP server) to a frontend `InlineArtifactRef`
+ * (camelCase, ArtifactTokenKey-typed).
+ *
+ * Wire shape: `{ artifact_id, filename, mime_type, size_bytes, format }`
+ * Returns `null` (with a warn) when `artifact_id` is missing or not a string —
+ * mirrors backend's silent-drop posture for malformed metadata.
+ */
+function mapArtifactCreatedPayload(data: unknown): InlineArtifactRef | null {
+  if (!data || typeof data !== 'object') {
+    console.warn('[sse] dropped malformed artifact_created event (non-object payload)');
+    return null;
+  }
+  const d = data as Record<string, unknown>;
+  const artifactId = d['artifact_id'];
+  if (typeof artifactId !== 'string' || artifactId.length === 0) {
+    console.warn('[sse] dropped malformed artifact_created event (missing artifact_id)');
+    return null;
+  }
+  const filenameRaw = d['filename'];
+  const formatRaw = d['format'];
+  const filename = typeof filenameRaw === 'string' ? filenameRaw : undefined;
+  const formatKey = typeof formatRaw === 'string' ? formatRaw.toLowerCase() : '';
+  const type: ArtifactTokenKey = ARTIFACT_FORMAT_TO_TOKEN[formatKey] ?? 'MD';
+
+  return {
+    id: artifactId,
+    type,
+    title: filename,
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 /**

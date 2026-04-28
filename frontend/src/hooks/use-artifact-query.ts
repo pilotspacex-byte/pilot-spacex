@@ -14,6 +14,7 @@ import { useQuery, type UseQueryResult } from '@tanstack/react-query';
 import type { ArtifactTokenKey } from '@/lib/artifact-tokens';
 import { notesApi } from '@/services/api/notes';
 import { issuesApi } from '@/services/api/issues';
+import { artifactsApi } from '@/services/api/artifacts';
 import { useWorkspaceStore } from '@/stores';
 import type { Note } from '@/types/note';
 import type { Issue } from '@/types/issue';
@@ -80,7 +81,27 @@ export function useArtifactQuery(
           lineage: null,
         };
       }
-      // Tier-2 file artifacts: no generic getById yet — placeholder.
+      // Phase 87.1 Plan 04 — fetch MD/HTML content via workspace-scoped
+      // signed URL endpoint. Re-fetched on demand (signed URLs are short-lived,
+      // so we never cache the URL itself — only the resolved content).
+      if (type === 'MD' || type === 'HTML') {
+        if (!workspaceId) return { type, id, placeholder: true };
+        const { url } = await artifactsApi.getSignedUrlByWorkspace(workspaceId, id);
+        const res = await fetch(url);
+        if (!res.ok) {
+          throw new Error(
+            `Failed to fetch artifact content (${res.status} ${res.statusText})`,
+          );
+        }
+        const content = await res.text();
+        return {
+          type,
+          id,
+          content,
+          language: type === 'MD' ? 'markdown' : 'html',
+        };
+      }
+      // Other tier-2 file artifacts: no generic getById yet — placeholder.
       return { type, id, placeholder: true };
     },
   });

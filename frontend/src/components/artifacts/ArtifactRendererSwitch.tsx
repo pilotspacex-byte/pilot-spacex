@@ -28,6 +28,25 @@ const IssueReadOnly = dynamic(
   { ssr: false, loading: () => <RendererSkeleton /> },
 );
 
+// Phase 87.1 Plan 04 — MD + HTML preview renderers (existing). Reused
+// verbatim. HtmlRenderer carries empty-sandbox iframe + DOMPurify; preserve
+// that posture (T-87.1-04-01 invariant).
+const MarkdownRenderer = dynamic(
+  () =>
+    import('@/features/artifacts/components/renderers/MarkdownRenderer').then(
+      (m) => m.MarkdownRenderer,
+    ),
+  { ssr: false, loading: () => <RendererSkeleton /> },
+);
+
+const HtmlRenderer = dynamic(
+  () =>
+    import('@/features/artifacts/components/renderers/HtmlRenderer').then(
+      (m) => m.HtmlRenderer,
+    ),
+  { ssr: false, loading: () => <RendererSkeleton /> },
+);
+
 export interface ArtifactRendererSwitchProps {
   type: ArtifactTokenKey;
   id: string;
@@ -90,12 +109,29 @@ function Dispatch({ data }: { data: ArtifactData }) {
       return data.note ? <NoteReadOnly note={data.note} /> : <EmptyState />;
     case 'ISSUE':
       return data.issue ? <IssueReadOnly issue={data.issue} /> : <EmptyState />;
+    case 'MD':
+      // Phase 87.1 Plan 04 — content fetched via useArtifactQuery → workspace
+      // signed URL → fetch → text. Until content arrives we show EmptyState.
+      return data.content !== undefined ? (
+        <MarkdownRenderer content={data.content} />
+      ) : (
+        <EmptyState />
+      );
+    case 'HTML':
+      // Phase 87.1 Plan 04 — same flow as MD; HtmlRenderer carries the empty
+      // sandbox + DOMPurify posture (T-87.1-04-01 invariant).
+      return data.content !== undefined ? (
+        <HtmlRenderer
+          content={data.content}
+          filename={data.title ?? 'preview.html'}
+        />
+      ) : (
+        <EmptyState />
+      );
     case 'SPEC':
     case 'DECISION':
     case 'SKILL':
-    case 'MD':
     case 'CODE':
-    case 'HTML':
     case 'PDF':
     case 'CSV':
     case 'IMG':

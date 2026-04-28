@@ -26,35 +26,63 @@ vi.mock('@/hooks/use-artifact-query', () => ({
   }),
 }));
 
-// Resolve dynamic() synchronously by importing the underlying module and
-// returning its named export. This is the same shape Next.js uses in tests.
+// Mock the renderer modules with deterministic stubs that expose props
+// via test ids — avoids dynamic-resolution timing complexity.
+vi.mock('@/features/artifacts/components/renderers/MarkdownRenderer', () => ({
+  MarkdownRenderer: ({ content }: { content: string }) => (
+    <div data-testid="md-renderer">{content}</div>
+  ),
+}));
+vi.mock('@/features/artifacts/components/renderers/HtmlRenderer', () => ({
+  HtmlRenderer: ({ content, filename }: { content: string; filename: string }) => (
+    <div data-testid="html-renderer" data-filename={filename}>
+      {content}
+    </div>
+  ),
+}));
+
+// next/dynamic returns a synchronous proxy that reads the *mocked* module
+// at first render. We use React.lazy-style suspense fallback semantics by
+// rendering null until the loader resolves. In practice with mocked modules
+// the promise is already settled by the time React renders, so we read it
+// in a `useEffect` and trigger one re-render.
+type AnyProps = Record<string, unknown>;
 vi.mock('next/dynamic', () => ({
-  default: <P,>(loader: () => Promise<{ default?: unknown } | Record<string, unknown>>) => {
-    let Resolved: React.ComponentType<P> | null = null;
-    function DynamicProxy(props: P) {
-      if (!Resolved) {
-        // synchronous resolution via Promise spy — vitest hoists the mock and
-        // we rely on the loader having been called eagerly in the import-time pass
-        return null;
-      }
-      return <Resolved {...props} />;
+  default: (loader: () => Promise<unknown>) => {
+    function DynamicProxy(props: AnyProps) {
+      const [Resolved, setResolved] = React.useState<React.ComponentType<AnyProps> | null>(
+        null,
+      );
+      React.useEffect(() => {
+        let cancelled = false;
+        void loader().then((resolved) => {
+          if (cancelled) return;
+          let candidate: unknown = resolved;
+          if (typeof resolved === 'object' && resolved !== null) {
+            const m = resolved as Record<string, unknown>;
+            candidate =
+              m.MarkdownRenderer ??
+              m.HtmlRenderer ??
+              m.NoteReadOnly ??
+              m.IssueReadOnly ??
+              m.default ??
+              resolved;
+          }
+          setResolved(() => candidate as React.ComponentType<AnyProps>);
+        });
+        return () => {
+          cancelled = true;
+        };
+      }, []);
+      const ResolvedComp = Resolved as React.ComponentType<AnyProps> | null;
+      return ResolvedComp ? React.createElement(ResolvedComp, props) : null;
     }
-    void loader().then((mod) => {
-      const candidate =
-        (mod as { MarkdownRenderer?: unknown }).MarkdownRenderer ??
-        (mod as { HtmlRenderer?: unknown }).HtmlRenderer ??
-        (mod as { NoteReadOnly?: unknown }).NoteReadOnly ??
-        (mod as { IssueReadOnly?: unknown }).IssueReadOnly ??
-        (mod as { default?: unknown }).default;
-      if (candidate) Resolved = candidate as React.ComponentType<P>;
-    });
     return DynamicProxy;
   },
 }));
 
 import * as React from 'react';
 import { ArtifactRendererSwitch } from '../ArtifactRendererSwitch';
-import { HtmlRenderer } from '@/features/artifacts/components/renderers/HtmlRenderer';
 
 describe('ArtifactRendererSwitch — MD/HTML dispatch (Phase 87.1 Plan 04)', () => {
   it('renders MarkdownRenderer when type=MD and content is present', async () => {
@@ -69,11 +97,11 @@ describe('ArtifactRendererSwitch — MD/HTML dispatch (Phase 87.1 Plan 04)', () 
     render(<ArtifactRendererSwitch type="MD" id="md-1" />);
     // The artifact-renderer wrapper appears immediately
     expect(screen.getByTestId('artifact-renderer')).toBeInTheDocument();
-    // The dynamically-loaded MarkdownRenderer eventually renders the heading
+    // MarkdownRenderer (mocked) renders the content prop
     await waitFor(
       () => {
-        // MarkdownContent renders the markdown — we verify by content presence.
-        expect(screen.getByTestId('artifact-renderer').textContent).toContain('hello world');
+        const md = screen.getByTestId('md-renderer');
+        expect(md.textContent).toContain('hello world');
       },
       { timeout: 2000 },
     );
@@ -90,11 +118,11 @@ describe('ArtifactRendererSwitch — MD/HTML dispatch (Phase 87.1 Plan 04)', () 
     };
     render(<ArtifactRendererSwitch type="HTML" id="h-1" />);
     expect(screen.getByTestId('artifact-renderer')).toBeInTheDocument();
-    // HtmlRenderer header has Preview/Source tabs
     await waitFor(
       () => {
-        expect(screen.getByRole('tab', { name: /preview/i })).toBeInTheDocument();
-        expect(screen.getByRole('tab', { name: /source/i })).toBeInTheDocument();
+        const html = screen.getByTestId('html-renderer');
+        expect(html.textContent).toContain('<p>x</p>');
+        expect(html.getAttribute('data-filename')).toBe('page.html');
       },
       { timeout: 2000 },
     );
@@ -110,16 +138,6 @@ describe('ArtifactRendererSwitch — MD/HTML dispatch (Phase 87.1 Plan 04)', () 
   });
 });
 
-describe('HtmlRenderer iframe sandbox invariant (T-87.1-04-01)', () => {
-  it('iframe sandbox attribute equals empty string and does not contain allow-scripts', () => {
-    const { container } = render(
-      <HtmlRenderer content="<p>safe</p>" filename="a.html" />,
-    );
-    const iframe = container.querySelector('iframe');
-    expect(iframe).not.toBeNull();
-    const sandbox = iframe!.getAttribute('sandbox');
-    // Empty string == maximum sandbox; React serializes `sandbox=""` as such.
-    expect(sandbox).toBe('');
-    expect(sandbox).not.toContain('allow-scripts');
-  });
-});
+// Sandbox-invariant test moved to a sibling file (HtmlRenderer.sandbox.test.tsx)
+// because that test must mount the REAL HtmlRenderer and the module-level
+// vi.mock above replaces it with a stub for this file's scope.
