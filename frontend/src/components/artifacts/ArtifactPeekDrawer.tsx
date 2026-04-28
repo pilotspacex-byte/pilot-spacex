@@ -20,6 +20,7 @@ import { copyToClipboard } from '@/lib/copy-context';
 import { useArtifactPeekState } from '@/hooks/use-artifact-peek-state';
 import { useArtifactQuery } from '@/hooks/use-artifact-query';
 import { useViewport } from '@/hooks/useViewport';
+import { trackEvent } from '@/lib/analytics';
 import {
   Tooltip,
   TooltipContent,
@@ -67,6 +68,20 @@ export function ArtifactPeekDrawer() {
     isPeekOpen && !isSkillFilePeek ? peekType : null,
     isPeekOpen && !isSkillFilePeek ? peekId : null,
   );
+
+  // Phase 87.1 Plan 04 — emit `artifact_preview_opened` once per open for MD/HTML.
+  // Effect re-fires when (peekId, peekType, isPeekOpen) changes, so close/re-open
+  // emits a NEW event (per-open semantics, not per-mount).
+  React.useEffect(() => {
+    if (!isPeekOpen) return;
+    if (isSkillFilePeek) return;
+    if (peekType !== 'MD' && peekType !== 'HTML') return;
+    if (!peekId) return;
+    trackEvent('artifact_preview_opened', {
+      format: peekType === 'MD' ? 'md' : 'html',
+      artifactId: peekId,
+    });
+  }, [isPeekOpen, isSkillFilePeek, peekType, peekId]);
 
   // ⌘. → escalate
   React.useEffect(() => {
