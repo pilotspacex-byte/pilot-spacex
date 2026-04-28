@@ -203,7 +203,13 @@ async def validate_tenant(
     rate_limit_exceeded = False
     try:
         redis = container.redis_client()
-        limiter = RateLimiter(redis, requests_per_minute=ai_rpm)  # type: ignore[arg-type]
+        # RedisClient wrapper doesn't expose sorted set ops; use raw asyncio Redis.
+        if not redis.is_connected:
+            await redis.connect()
+        raw_redis = redis.client
+        if raw_redis is None:
+            raise RuntimeError("Redis unavailable for rate limiting")
+        limiter = RateLimiter(raw_redis, requests_per_minute=ai_rpm)  # type: ignore[arg-type]
         rate_limit_exceeded = not await limiter.acquire(f"ai_proxy:{workspace_id}")
     except Exception:
         # Redis unavailable -- fail open (allow request, log warning)

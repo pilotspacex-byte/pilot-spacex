@@ -53,7 +53,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # Revert to USING-only policy from migration 093
+    # Revert to USING-only policy from migration 092
     op.execute(text('DROP POLICY IF EXISTS "artifacts_workspace_isolation" ON artifacts'))
 
     op.execute(

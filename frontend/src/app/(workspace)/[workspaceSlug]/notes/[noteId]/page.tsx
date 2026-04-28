@@ -398,27 +398,6 @@ function NoteDetailPage() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Plan 93-05 — TopicBreadcrumb above the editor. Visible on both
-          /notes/[noteId] and /topics/[topicId] (the topics route is a 1-line
-          re-export of this page).
-
-          Issue #144 — two fixes:
-          1. The bordered band is now hoisted INTO TopicBreadcrumb itself so
-             the empty-state (no ancestors) renders zero DOM, instead of an
-             empty `border-b` row above ProjectContextHeader.
-          2. When the topic belongs to a project, the ProjectContextHeader
-             rendered by NoteCanvasLayout already provides the "where am I"
-             surface (project name + Overview/Tasks/Cycles tabs). Stacking
-             a topic-ancestry breadcrumb on top creates the duplicate
-             horizontal band the smoke test reported. We suppress the
-             breadcrumb in that case; project-scoped topic ancestry is
-             still discoverable via the sidebar topic tree. Personal /
-             top-level topics (no projectId) keep the breadcrumb. */}
-      {/* TopicBreadcrumb suppressed — NoteCanvas header already shows
-          "Topics > {title} > date > word count" which provides the same
-          navigation context. Rendering both creates a double-chrome visual
-          inconsistency flagged in the design audit. Sidebar topic tree
-          remains for deep-nested ancestor navigation. */}
       {false && (
         <TopicBreadcrumb
           workspaceId={workspaceId}

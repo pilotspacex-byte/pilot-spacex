@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-_OLLAMA_MODEL = "nomic-embed-text-v2-moe"
+_OLLAMA_MODEL = "nomic-embed-text:latest"
 _OLLAMA_TIMEOUT_S = 30
 
 
