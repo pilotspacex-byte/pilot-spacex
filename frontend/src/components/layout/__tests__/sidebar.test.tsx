@@ -446,6 +446,24 @@ describe('Sidebar v3 (Surface 1 — Plan 90-04)', () => {
     expect(screen.getByTestId('nav-members')).toHaveAttribute('href', '/alpha/members');
   });
 
+  it('+ New chat button uses the canonical primary CTA tokens (≥4.5:1 contrast)', () => {
+    // Bug fix: the previous classes used `bg-[var(--brand-primary)]` /
+    // `hover:bg-[var(--brand-dark)]`, but neither token is defined in
+    // globals.css, so the button rendered transparent and looked disabled.
+    // The fix maps the button to the design-system primary tokens used by
+    // every other CTA (Invite member, form submits).
+    renderSidebar();
+    const newChat = screen.getByTestId('new-chat-button');
+
+    expect(newChat).toHaveClass('bg-primary');
+    expect(newChat).toHaveClass('text-primary-foreground');
+    expect(newChat).toHaveClass('hover:bg-primary/90');
+    // Hard contract: must NEVER reintroduce the undefined `--brand-primary`
+    // / `--brand-dark` token references.
+    expect(newChat.className).not.toContain('--brand-primary');
+    expect(newChat.className).not.toContain('--brand-dark');
+  });
+
   it('clicking the WORKSPACE trigger collapses the accordion and hides Projects', async () => {
     const user = userEvent.setup();
     renderSidebar();

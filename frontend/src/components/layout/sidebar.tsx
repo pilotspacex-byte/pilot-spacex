@@ -361,6 +361,12 @@ function HomeButton() {
   );
 }
 
+// CTA contrast fix: previous classes used `bg-[var(--brand-primary)]` /
+// `hover:bg-[var(--brand-dark)]` but `--brand-primary` and `--brand-dark` are
+// not defined in `globals.css`, so the button rendered transparent (looked
+// disabled). Switch to the canonical `bg-primary text-primary-foreground`
+// token pair shared with InviteMember and form CTAs so the teal accent and
+// ≥4.5:1 contrast on white text is guaranteed.
 function NewChatButton() {
   const router = useRouter();
   const params = useParams<{ workspaceSlug: string }>();
@@ -372,7 +378,7 @@ function NewChatButton() {
     <Button
       onClick={handleClick}
       data-testid="new-chat-button"
-      className="w-full h-10 rounded-xl bg-[var(--brand-primary)] hover:bg-[var(--brand-dark)] text-white font-medium gap-2 text-[13px]"
+      className="w-full h-10 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-medium gap-2 text-[13px]"
     >
       <Plus className="h-4 w-4" /> New chat
     </Button>
