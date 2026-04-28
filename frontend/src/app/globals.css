@@ -101,6 +101,89 @@
   --radius-3xl: 2rem;
   --radius-full: 9999px;
 
+  /* =============================================================================
+     PENCIL v3 DESIGN SYSTEM FOUNDATION (Phase 1)
+     Source: pilotspace-v3-chat.pen — additive only, do not replace existing tokens
+     ============================================================================= */
+
+  /* Pencil v3 — Editorial display font alias (Fraunces variable serif).
+     `--font-fraunces` is provided by next/font in layout.tsx. */
+  --font-fraunces: var(--font-fraunces), 'Fraunces', georgia, serif;
+  /* Spec name alias — primary CSS var from next/font is `--font-jetbrains-mono`.
+     Tailwind utility `font-mono-jetbrains` is enabled via this `@theme` entry. */
+  --font-mono-jetbrains:
+    var(--font-jetbrains-mono), 'JetBrains Mono', 'SF Mono', 'Cascadia Code', 'Fira Code',
+    ui-monospace, monospace;
+
+  /* Pencil v3 type scale (px). Enables Tailwind utilities `text-9` … `text-34`. */
+  --text-9: 9px;
+  --text-10: 10px;
+  --text-11: 11px;
+  --text-12: 12px;
+  --text-13: 13px;
+  --text-14: 14px;
+  --text-15: 15px;
+  --text-16: 16px;
+  --text-17: 17px;
+  --text-18: 18px;
+  --text-22: 22px;
+  --text-24: 24px;
+  --text-26: 26px;
+  --text-30: 30px;
+  --text-34: 34px;
+
+  /* Pencil v3 radius scale (px). Numeric utilities `rounded-4` … `rounded-28`.
+     Coexists with Apple-squircle aliases (sm/md/lg/xl/2xl/3xl/full). */
+  --radius-4: 4px;
+  --radius-6: 6px;
+  --radius-8: 8px;
+  --radius-9: 9px;
+  --radius-10: 10px;
+  --radius-12: 12px;
+  --radius-14: 14px;
+  --radius-16: 16px;
+  --radius-18: 18px;
+  --radius-20: 20px;
+  --radius-24: 24px;
+  --radius-28: 28px;
+
+  /* Pencil v3 elevation scale. Enables `shadow-popover`, `shadow-drawer`, `shadow-palette`. */
+  --shadow-popover: 0 12px 32px 0 #0a0a2025, 0 2px 6px 0 #0a0a2010;
+  --shadow-drawer: -20px 0 48px 0 #0a0a2025;
+  --shadow-palette: 0 24px 60px 0 #0a0a2030, 0 4px 12px 0 #0a0a2015;
+
+  /* Pencil v3 artifact-type colors. Six kinds with base + 15% / 20% alpha tints + readable text.
+     Tailwind utilities: `bg-artifact-note`, `text-artifact-spec`, etc. */
+  --color-artifact-note: #29a386;
+  --color-artifact-note-tint-15: #29a38626;
+  --color-artifact-note-tint-20: #29a38633;
+  --color-artifact-note-text: #1f7d66;
+
+  --color-artifact-spec: #5b8fc9;
+  --color-artifact-spec-tint-15: #5b8fc926;
+  --color-artifact-spec-tint-20: #5b8fc933;
+  --color-artifact-spec-text: #3d6a9b;
+
+  --color-artifact-code: #8b5cf6;
+  --color-artifact-code-tint-15: #8b5cf626;
+  --color-artifact-code-tint-20: #8b5cf633;
+  --color-artifact-code-text: #6d3fd1;
+
+  --color-artifact-doc: #6b8fad;
+  --color-artifact-doc-tint-15: #6b8fad26;
+  --color-artifact-doc-tint-20: #6b8fad33;
+  --color-artifact-doc-text: #4a6f8f;
+
+  --color-artifact-data: #d9853f;
+  --color-artifact-data-tint-15: #d9853f26;
+  --color-artifact-data-tint-20: #d9853f33;
+  --color-artifact-data-text: #a85f24;
+
+  --color-artifact-research: #d97706;
+  --color-artifact-research-tint-15: #d9770626;
+  --color-artifact-research-tint-20: #d9770633;
+  --color-artifact-research-text: #a85a04;
+
   /* Animation easings */
   --ease-out: cubic-bezier(0, 0, 0.2, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
