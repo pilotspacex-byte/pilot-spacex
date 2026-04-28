@@ -100,6 +100,14 @@ interface NavEntry {
   featureKey: keyof WorkspaceFeatureToggles | null;
   /** Optional dynamic count (badge). */
   countKey?: string;
+  /**
+   * When true, the entry is hidden until backing routes ship.
+   * Currently `/knowledge` and `/settings/integrations` return 404 in the
+   * default workspace shell — exposing the nav row creates broken-link UX
+   * on first session. Flip to `false` (or delete the field) once the route
+   * lands behind a real workspace toggle. See bug: sidebar 404 nav items.
+   */
+  hiddenPendingRoute?: boolean;
 }
 
 const WORKSPACE_ENTRIES: NavEntry[] = [
@@ -145,6 +153,8 @@ const WORKSPACE_ENTRIES: NavEntry[] = [
     // 'kg' is not a member of WorkspaceFeatureToggles. The closest existing
     // toggle is 'knowledge' (knowledge-graph feature). When missing → render.
     featureKey: 'knowledge',
+    // Route currently returns 404 in default workspace shell — hide until ready.
+    hiddenPendingRoute: true,
   },
   {
     id: 'members',
@@ -161,6 +171,8 @@ const WORKSPACE_ENTRIES: NavEntry[] = [
     // 'integrations' is not a member of WorkspaceFeatureToggles — render
     // unconditionally per plan rule. Documented in SUMMARY.
     featureKey: null,
+    // Route currently returns 404 in default workspace shell — hide until ready.
+    hiddenPendingRoute: true,
   },
 ];
 
@@ -746,6 +758,10 @@ export const Sidebar = observer(function Sidebar() {
                       data-testid="workspace-accordion-list"
                     >
                       {WORKSPACE_ENTRIES.filter((entry) => {
+                        // Hide entries whose backing route is not yet shipped.
+                        // Flip `hiddenPendingRoute` to false on the entry once
+                        // the route lands.
+                        if (entry.hiddenPendingRoute) return false;
                         if (entry.featureKey === null) return true;
                         return workspaceStore.isFeatureEnabled(entry.featureKey);
                       }).map((entry) => {

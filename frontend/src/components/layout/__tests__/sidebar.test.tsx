@@ -14,6 +14,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { makeAutoObservable } from 'mobx';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
 // jsdom: cmdk + Radix Popover call scrollIntoView on mount.
@@ -292,16 +293,36 @@ vi.mock('./useNewNoteFlow', () => ({
   }),
 }));
 
+// Sidebar reads the AI sessions list via @tanstack/react-query. Mock the
+// network module so the test does not need a real fetch, and wrap the render
+// in a fresh QueryClient (per test, no retries) below.
+vi.mock('@/services/api/ai', () => ({
+  aiApi: {
+    listSessions: vi.fn().mockResolvedValue({ sessions: [] }),
+  },
+}));
+
+// TopicTreeContainer is heavy and depends on its own data fetching pipeline.
+// Stub it for sidebar shell tests — we only care about nav row presence.
+vi.mock('@/features/topics/components', () => ({
+  TopicTreeContainer: () => <div data-testid="topic-tree-stub" />,
+}));
+
 // ---------------------------------------------------------------------------
 // Component under test
 // ---------------------------------------------------------------------------
 import { Sidebar } from '../sidebar';
 
 function renderSidebar() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+  });
   return render(
-    <TooltipProvider>
-      <Sidebar />
-    </TooltipProvider>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Sidebar />
+      </TooltipProvider>
+    </QueryClientProvider>
   );
 }
 
@@ -386,22 +407,22 @@ describe('Sidebar v3 (Surface 1 — Plan 90-04)', () => {
     expect(screen.getByText(/Start a new chat to see it here/)).toBeInTheDocument();
   });
 
-  it('WORKSPACE accordion is expanded by default and shows the canonical 7 entries', () => {
+  it('WORKSPACE accordion is expanded by default and shows only entries with shipped routes', () => {
+    // Knowledge graph and Integrations are hidden via `hiddenPendingRoute`
+    // until their routes ship — see sidebar.tsx WORKSPACE_ENTRIES.
     renderSidebar();
 
     const list = screen.getByTestId('workspace-accordion-list');
     const links = within(list).getAllByRole('link');
     const labels = links.map((l) => (l.textContent ?? '').replace(/\s*\d+\s*$/, '').trim());
 
-    expect(labels).toEqual([
-      'Projects',
-      'Tasks',
-      'Topics',
-      'Skills',
-      'Knowledge graph',
-      'Members',
-      'Integrations',
-    ]);
+    expect(labels).toEqual(['Projects', 'Tasks', 'Topics', 'Skills', 'Members']);
+  });
+
+  it('hides Integrations and Knowledge graph entries while their routes 404', () => {
+    renderSidebar();
+    expect(screen.queryByTestId('nav-integrations')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('nav-kg')).not.toBeInTheDocument();
   });
 
   it('Tasks link href is /alpha/tasks (Phase 84 — NOT /alpha/issues)', () => {
@@ -418,15 +439,11 @@ describe('Sidebar v3 (Surface 1 — Plan 90-04)', () => {
     expect(topicsLink).not.toHaveAttribute('href', '/alpha/notes');
   });
 
-  it('Projects, Skills, Members, Integrations links target the correct Phase 84 routes', () => {
+  it('Projects, Skills, Members links target the correct Phase 84 routes', () => {
     renderSidebar();
     expect(screen.getByTestId('nav-projects')).toHaveAttribute('href', '/alpha/projects');
     expect(screen.getByTestId('nav-skills')).toHaveAttribute('href', '/alpha/skills');
     expect(screen.getByTestId('nav-members')).toHaveAttribute('href', '/alpha/members');
-    expect(screen.getByTestId('nav-integrations')).toHaveAttribute(
-      'href',
-      '/alpha/integrations'
-    );
   });
 
   it('clicking the WORKSPACE trigger collapses the accordion and hides Projects', async () => {
