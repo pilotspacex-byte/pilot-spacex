@@ -4,10 +4,13 @@ Tracks metadata for files uploaded to Supabase Storage as note artifacts.
 Uses DB-first upload flow: status=pending_upload on create, status=ready after
 successful storage upload. Stale pending_upload records are cleaned by a 24h job.
 
-Storage key format: {workspace_id}/{project_id}/{artifact_id}/{filename}
+Storage key format: {workspace_id}/{project_id|"ai-generated"}/{artifact_id}/{filename}
 Bucket: note-artifacts (separate from chat-attachments which has 24h TTL expiry)
 
-Feature: v1.1 — Artifacts
+project_id is nullable: AI-generated artifacts (Phase 87.1) may have no project
+context. When NULL, the storage key uses the literal segment "ai-generated".
+
+Feature: v1.1 — Artifacts; Phase 87.1 — AI file generation
 """
 
 from __future__ import annotations
@@ -32,13 +35,15 @@ class Artifact(WorkspaceScopedModel):
         pending_upload remains  (storage upload failed; cleaned up by artifact_cleanup job after 24h)
 
     Attributes:
-        project_id: Project owning this artifact.
+        project_id: Project owning this artifact, or None for AI-generated
+            artifacts that have no project context (Phase 87.1). On project
+            delete the FK is set to NULL so AI outputs survive deletion.
         user_id: User who uploaded the file.
         filename: Original filename including extension (max 255 chars).
         mime_type: MIME type, e.g. "image/png" (max 100 chars).
         size_bytes: File size in bytes; must be > 0.
         storage_key: Supabase Storage object path without bucket prefix; globally unique.
-            Format: {workspace_id}/{project_id}/{artifact_id}/{filename}
+            Format: {workspace_id}/{project_id|"ai-generated"}/{artifact_id}/{filename}
         status: Upload lifecycle state — "pending_upload" or "ready".
     """
 
@@ -53,10 +58,10 @@ class Artifact(WorkspaceScopedModel):
         CheckConstraint("size_bytes > 0", name="ck_artifacts_size"),
     )
 
-    project_id: Mapped[uuid.UUID] = mapped_column(
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("projects.id", ondelete="CASCADE"),
-        nullable=False,
+        ForeignKey("projects.id", ondelete="SET NULL"),
+        nullable=True,
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),

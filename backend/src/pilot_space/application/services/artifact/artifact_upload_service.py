@@ -8,8 +8,11 @@ Implements the upload lifecycle:
     5. Upload bytes to Supabase Storage bucket 'note-artifacts'
     6. Update DB status to 'ready'
 
-Storage key format: {workspace_id}/{project_id}/{artifact_id}/{filename}
+Storage key format: {workspace_id}/{project_id|"ai-generated"}/{artifact_id}/{filename}
 Bucket: note-artifacts (NO bucket prefix in key — bucket passed separately)
+
+When project_id is None (Phase 87.1, AI-generated files), the literal segment
+"ai-generated" is used in place of the project UUID.
 
 Size limit: 10 * 1024 * 1024 bytes — single flat limit, no per-type differentiation.
 
@@ -187,7 +190,7 @@ class ArtifactUploadService:
         filename: str,
         content_type: str,
         workspace_id: UUID,
-        project_id: UUID,
+        project_id: UUID | None,
         user_id: UUID,
     ) -> ArtifactResponse:
         """Upload a file as a note artifact using the DB-first pattern.
@@ -201,7 +204,10 @@ class ArtifactUploadService:
             filename: Original filename including extension.
             content_type: MIME type of the file.
             workspace_id: Workspace owning the artifact.
-            project_id: Project to associate the artifact with.
+            project_id: Project to associate the artifact with, or None for
+                AI-generated artifacts with no project context (Phase 87.1).
+                When None the storage key uses the literal segment
+                "ai-generated" between workspace_id and artifact_id.
             user_id: User performing the upload.
 
         Returns:
@@ -220,9 +226,10 @@ class ArtifactUploadService:
         artifact_id = uuid4()
         # Sanitize filename: strip directory components to prevent path traversal
         safe_filename = pathlib.Path(filename).name
-        # Storage key format: {workspace_id}/{project_id}/{artifact_id}/{filename}
+        # Storage key format: {workspace_id}/{project_id|"ai-generated"}/{artifact_id}/{filename}
         # IMPORTANT: NO bucket prefix — bucket passed separately to storage client
-        storage_key = f"{workspace_id}/{project_id}/{artifact_id}/{safe_filename}"
+        project_segment = str(project_id) if project_id is not None else "ai-generated"
+        storage_key = f"{workspace_id}/{project_segment}/{artifact_id}/{safe_filename}"
 
         # Step 1 (DB-first): create record as pending_upload BEFORE storage upload
         artifact = Artifact(
@@ -271,7 +278,11 @@ class ArtifactUploadService:
         )
 
     async def delete(
-        self, artifact_id: UUID, user_id: UUID, workspace_id: UUID, project_id: UUID
+        self,
+        artifact_id: UUID,
+        user_id: UUID,
+        workspace_id: UUID,
+        project_id: UUID | None,
     ) -> None:
         """Delete a note artifact.
 
@@ -279,11 +290,17 @@ class ArtifactUploadService:
         and project, and is owned by the requesting user before removing
         from storage and the database.
 
+        Cross-project IDOR check uses equality, so callers MUST pass the
+        same project_id stored on the artifact (including ``None`` for
+        AI-generated artifacts where ``Artifact.project_id IS NULL``). A
+        mismatch is reported as NOT_FOUND.
+
         Args:
             artifact_id: UUID of the artifact to delete.
             user_id: Authenticated user performing the deletion.
             workspace_id: Workspace scope for cross-tenant isolation.
-            project_id: Project scope to prevent cross-project IDOR.
+            project_id: Project scope to prevent cross-project IDOR, or
+                None when deleting an AI-generated artifact.
 
         Raises:
             ValueError: NOT_FOUND if artifact does not exist or belongs to

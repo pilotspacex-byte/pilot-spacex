@@ -24,7 +24,13 @@ class ArtifactResponse(BaseSchema):
     """
 
     id: UUID = Field(description="Unique identifier for the artifact")
-    project_id: UUID = Field(description="Project owning this artifact")
+    project_id: UUID | None = Field(
+        default=None,
+        description=(
+            "Project owning this artifact, or None for AI-generated artifacts "
+            "with no project context (Phase 87.1)."
+        ),
+    )
     user_id: UUID = Field(description="User who uploaded the artifact")
     filename: str = Field(description="Original filename including extension")
     mime_type: str = Field(description="MIME type of the uploaded file")
