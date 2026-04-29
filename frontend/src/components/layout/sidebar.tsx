@@ -21,7 +21,6 @@ import {
   Network as NetworkIcon,
   PinIcon,
   Plug,
-  Plus,
   Search,
   Settings,
   Sparkles as SparklesIcon,
@@ -336,16 +335,6 @@ function getWorkspaceSlugFromPathname(pathname: string): string {
   return firstSegment;
 }
 
-// ---------------------------------------------------------------------------
-// NewChatButton — top-stack CTA. Navigates to the FLAT /${slug}/chat route.
-// VERIFIED against frontend/src/app/(workspace)/[workspaceSlug]/chat/page.tsx:
-//   - The route reads ?session= / ?prefill= / ?mode= query params.
-//   - When NO ?session= is present, ChatView starts a fresh session on mount.
-//   - There is NO dynamic chat-id segment and no fake-route subpath.
-//   - There is NO client-API module wrapper for chat-session creation.
-// Plan 90-04 blocker-4 fix: do NOT introduce any of those.
-// ---------------------------------------------------------------------------
-
 function HomeButton() {
   const router = useRouter();
   const params = useParams<{ workspaceSlug: string }>();
@@ -361,30 +350,6 @@ function HomeButton() {
   );
 }
 
-// CTA contrast fix: previous classes used `bg-[var(--brand-primary)]` /
-// `hover:bg-[var(--brand-dark)]` but `--brand-primary` and `--brand-dark` are
-// not defined in `globals.css`, so the button rendered transparent (looked
-// disabled). Switch to the canonical `bg-primary text-primary-foreground`
-// token pair shared with InviteMember and form CTAs so the teal accent and
-// ≥4.5:1 contrast on white text is guaranteed.
-function NewChatButton() {
-  const router = useRouter();
-  const params = useParams<{ workspaceSlug: string }>();
-  const handleClick = () => {
-    if (!params?.workspaceSlug) return;
-    router.push(`/${params.workspaceSlug}/chat`);
-  };
-  return (
-    <Button
-      onClick={handleClick}
-      data-testid="new-chat-button"
-      className="w-full h-10 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-medium gap-2 text-[13px]"
-    >
-      <Plus className="h-4 w-4" /> New chat
-    </Button>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // SearchButton — replaces the old inline search input. Opens the ⌘K command
 // palette via UIStore (NAV-04 sweep).
@@ -397,13 +362,11 @@ const SearchButton = observer(function SearchButton() {
       type="button"
       onClick={() => uiStore.openCommandPalette()}
       data-testid="sidebar-search-button"
-      className="w-full h-10 rounded-xl bg-[var(--surface-page)] border border-[var(--border-card)] hover:bg-[var(--surface-input)] flex items-center gap-2 px-3 text-[13px] font-medium text-[var(--text-secondary)]"
+      aria-label="Search (⌘K)"
+      title="Search ⌘K"
+      className="shrink-0 h-8 w-8 rounded-lg hover:bg-sidebar-accent flex items-center justify-center text-[var(--text-muted)] transition-colors"
     >
-      <Search className="h-4 w-4 text-[var(--text-muted)]" aria-hidden="true" />
-      <span className="flex-1 text-left">Search</span>
-      <kbd className="font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[var(--surface-input)] text-[var(--text-muted)]">
-        ⌘K
-      </kbd>
+      <Search className="h-4 w-4" aria-hidden="true" />
     </button>
   );
 });
@@ -630,7 +593,7 @@ export const Sidebar = observer(function Sidebar() {
     <>
       <aside
         className={cn(
-          'fixed left-0 top-0 h-screen w-[240px] bg-[var(--surface-snow)] border-r border-[var(--border-card)] flex flex-col',
+          'h-full w-full bg-sidebar flex flex-col',
           // When parent shell collapses to 60px (tablet/mobile icon-rail), this
           // component is rendered inside that container. Width clamp via parent.
           collapsed && 'w-[60px]'
@@ -643,7 +606,7 @@ export const Sidebar = observer(function Sidebar() {
             ---------------------------------------------------------------- */}
         <div
           className={cn(
-            'flex shrink-0 flex-col gap-3 border-b border-[var(--border-card)] px-3.5 py-4',
+            'flex shrink-0 flex-col gap-3 px-3.5 py-4',
             collapsed && 'px-2 items-center'
           )}
           data-testid="sidebar-top-stack"
@@ -653,9 +616,12 @@ export const Sidebar = observer(function Sidebar() {
           ) : (
             <>
               <WorkspaceSwitcher currentSlug={workspaceSlug} />
-              <HomeButton />
-              <NewChatButton />
-              <SearchButton />
+              <div className="flex items-center gap-1 w-full">
+                <div className="flex-1 min-w-0">
+                  <HomeButton />
+                </div>
+                <SearchButton />
+              </div>
             </>
           )}
         </div>

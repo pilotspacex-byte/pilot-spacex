@@ -1,18 +1,19 @@
 /**
- * Unit tests for the v3 WorkspaceSwitcher (Surface 2 — Popover + cmdk).
+ * Unit tests for the WorkspaceSwitcher (Surface 2 — Popover + cmdk).
  *
  * Verifies:
- *  - Pill click opens the popover (UIStore-backed open state)
+ *  - Pill click opens the popover
  *  - Escape closes the popover
- *  - cmdk filter narrows the WORKSPACES list
+ *  - cmdk filter narrows the workspace lists
  *  - Workspace row click calls addRecentWorkspace with the slug STRING
  *    (not the workspace object) and router.push with the resolved path
- *  - JUMP TO rows navigate to Phase 84 routes (/tasks, /topics) and never to
- *    the legacy /issues or /notes paths
- *  - Settings row opens the modal via openSettings, NOT router.push
+ *  - CURRENT band renders workspace name, role chip, member count
+ *  - CURRENT band action rows open the settings modal at the right tab
+ *  - Leave workspace row is hidden for owners and visible for non-owners
+ *  - SWITCH TO renders RECENT and ALL subgroup headers
+ *  - Per-row role badge derived from authStore workspaceMemberships
  *  - + New workspace footer opens CreateWorkspaceDialog
- *  - ⌘2 / ⌘3 kbd hints render on row indices 1 / 2
- *  - The current workspace row renders the Check icon
+ *  - ⌘2 / ⌘3 kbd hints render on RECENT row indices 0 / 1 (current excluded)
  *  - ?switcher=1 mount opens the popover automatically
  *
  * @module components/layout/__tests__/workspace-switcher.test
@@ -29,7 +30,7 @@ if (!Element.prototype.scrollIntoView) {
 }
 
 // ---------------------------------------------------------------------------
-// Hoisted mock state (vi.mock factories run before module-level statements)
+// Hoisted mock state
 // ---------------------------------------------------------------------------
 
 const hoisted = vi.hoisted(() => ({
@@ -57,8 +58,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// useSwitcherQueryStringSync — emulate the mount-time URL hydration only.
-// (The real hook is exercised in its own test file.)
+// useSwitcherQueryStringSync — emulate mount-time URL hydration only
 // ---------------------------------------------------------------------------
 
 vi.mock('@/hooks/useSwitcherQueryStringSync', () => ({
@@ -84,7 +84,7 @@ vi.mock('@/components/workspace-selector', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// workspace-nav — deterministic recents order matching the WorkspaceStore stub
+// workspace-nav — deterministic recents order
 // ---------------------------------------------------------------------------
 
 vi.mock('@/lib/workspace-nav', () => ({
@@ -121,7 +121,7 @@ vi.mock('@/features/settings/settings-modal-context', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// workspaces API (used by CreateWorkspaceDialog slug-availability check)
+// workspaces API (used by CreateWorkspaceDialog + Leave flow)
 // ---------------------------------------------------------------------------
 
 vi.mock('@/services/api/workspaces', () => ({
@@ -129,14 +129,16 @@ vi.mock('@/services/api/workspaces', () => ({
     get: vi.fn(),
     list: vi.fn().mockResolvedValue({ items: [] }),
     create: vi.fn(),
+    removeMember: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
 // ---------------------------------------------------------------------------
-// MobX-backed test stores — real `observer()` + real reactivity.
+// MobX-backed test stores
 // ---------------------------------------------------------------------------
 
 type Workspace = { id: string; slug: string; name: string; memberCount: number };
+type Member = { id: string; userId: string; role: string };
 
 class TestUIStore {
   workspaceSwitcherOpen = false;
@@ -160,9 +162,16 @@ class TestUIStore {
 
 class TestWorkspaceStore {
   workspaces = new Map<string, Workspace>([
-    ['id-alpha', { id: 'id-alpha', slug: 'alpha', name: 'Alpha', memberCount: 1 }],
-    ['id-beta', { id: 'id-beta', slug: 'beta', name: 'Beta', memberCount: 1 }],
-    ['id-gamma', { id: 'id-gamma', slug: 'gamma', name: 'Gamma', memberCount: 1 }],
+    ['id-alpha', { id: 'id-alpha', slug: 'alpha', name: 'Alpha', memberCount: 12 }],
+    ['id-beta', { id: 'id-beta', slug: 'beta', name: 'Beta', memberCount: 4 }],
+    ['id-gamma', { id: 'id-gamma', slug: 'gamma', name: 'Gamma', memberCount: 7 }],
+  ]);
+  // Per-workspace member arrays. Used by Leave flow to look up the current
+  // user's memberId for removeMember(workspaceId, memberId).
+  members = new Map<string, Member[]>([
+    ['id-alpha', [{ id: 'mem-alpha-self', userId: 'user-1', role: 'MEMBER' }]],
+    ['id-beta', [{ id: 'mem-beta-self', userId: 'user-1', role: 'ADMIN' }]],
+    ['id-gamma', [{ id: 'mem-gamma-self', userId: 'user-1', role: 'GUEST' }]],
   ]);
   currentWorkspaceId: string | null = 'id-alpha';
   error: string | null = null;
@@ -192,11 +201,42 @@ class TestWorkspaceStore {
   }
 }
 
-let stubStores: { uiStore: TestUIStore; workspaceStore: TestWorkspaceStore } | null = null;
+class TestAuthStore {
+  user: {
+    id: string;
+    email: string;
+    workspaceMemberships?: Array<{ workspaceId: string; role: string }>;
+  } | null = {
+    id: 'user-1',
+    email: 'user@example.com',
+    workspaceMemberships: [
+      { workspaceId: 'id-alpha', role: 'MEMBER' },
+      { workspaceId: 'id-beta', role: 'ADMIN' },
+      { workspaceId: 'id-gamma', role: 'GUEST' },
+    ],
+  };
+
+  constructor() {
+    makeAutoObservable(this);
+  }
+
+  setRole(workspaceId: string, role: string): void {
+    if (!this.user?.workspaceMemberships) return;
+    const m = this.user.workspaceMemberships.find((x) => x.workspaceId === workspaceId);
+    if (m) m.role = role;
+  }
+}
+
+let stubStores: {
+  uiStore: TestUIStore;
+  workspaceStore: TestWorkspaceStore;
+  authStore: TestAuthStore;
+} | null = null;
 
 vi.mock('@/stores', () => ({
   useUIStore: () => stubStores!.uiStore,
   useWorkspaceStore: () => stubStores!.workspaceStore,
+  useAuthStore: () => stubStores!.authStore,
 }));
 
 // ---------------------------------------------------------------------------
@@ -216,13 +256,14 @@ function renderSwitcher() {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('WorkspaceSwitcher (Surface 2 — Popover + cmdk)', () => {
+describe('WorkspaceSwitcher', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     hoisted.searchParams = new URLSearchParams();
     stubStores = {
       uiStore: new TestUIStore(),
       workspaceStore: new TestWorkspaceStore(),
+      authStore: new TestAuthStore(),
     };
   });
 
@@ -233,13 +274,13 @@ describe('WorkspaceSwitcher (Surface 2 — Popover + cmdk)', () => {
     expect(pill).toHaveTextContent('Alpha');
   });
 
-  it('clicking the pill opens the popover (WORKSPACES heading visible)', async () => {
+  it('clicking the pill opens the popover (CURRENT heading visible)', async () => {
     const user = userEvent.setup();
     renderSwitcher();
 
     await user.click(screen.getByTestId('workspace-pill'));
 
-    expect(await screen.findByText('WORKSPACES')).toBeInTheDocument();
+    expect(await screen.findByText('CURRENT')).toBeInTheDocument();
     expect(stubStores!.uiStore.workspaceSwitcherOpen).toBe(true);
   });
 
@@ -248,29 +289,52 @@ describe('WorkspaceSwitcher (Surface 2 — Popover + cmdk)', () => {
     renderSwitcher();
 
     await user.click(screen.getByTestId('workspace-pill'));
-    expect(await screen.findByText('WORKSPACES')).toBeInTheDocument();
+    expect(await screen.findByText('CURRENT')).toBeInTheDocument();
 
     await user.keyboard('{Escape}');
 
     await vi.waitFor(() => {
-      expect(screen.queryByText('WORKSPACES')).not.toBeInTheDocument();
+      expect(screen.queryByText('CURRENT')).not.toBeInTheDocument();
     });
   });
 
-  it('typing "be" filters WORKSPACES to only Beta', async () => {
+  it('CURRENT band renders the workspace name, role chip, and member count', async () => {
     const user = userEvent.setup();
     renderSwitcher();
 
     await user.click(screen.getByTestId('workspace-pill'));
-    const input = await screen.findByPlaceholderText('Jump to…');
+    const header = await screen.findByTestId('switcher-current-header');
+    expect(header).toHaveTextContent('Alpha');
+    expect(within(header).getByTestId('switcher-current-role')).toHaveTextContent('Member');
+    expect(header).toHaveTextContent('· 12');
+  });
+
+  it('SWITCH TO band shows RECENT subgroup with non-current workspaces only', async () => {
+    const user = userEvent.setup();
+    renderSwitcher();
+
+    await user.click(screen.getByTestId('workspace-pill'));
+
+    expect(await screen.findByText('RECENT')).toBeInTheDocument();
+    expect(screen.getByTestId('switcher-ws-beta')).toBeInTheDocument();
+    expect(screen.getByTestId('switcher-ws-gamma')).toBeInTheDocument();
+    // Current workspace must not appear in either SWITCH TO subgroup
+    expect(screen.queryByTestId('switcher-ws-alpha')).not.toBeInTheDocument();
+  });
+
+  it('typing "be" filters the lists down to Beta', async () => {
+    const user = userEvent.setup();
+    renderSwitcher();
+
+    await user.click(screen.getByTestId('workspace-pill'));
+    const input = await screen.findByPlaceholderText('Search workspaces…');
     await user.type(input, 'be');
 
     expect(screen.queryByTestId('switcher-ws-beta')).toBeInTheDocument();
-    expect(screen.queryByTestId('switcher-ws-alpha')).not.toBeInTheDocument();
     expect(screen.queryByTestId('switcher-ws-gamma')).not.toBeInTheDocument();
   });
 
-  it("clicking beta row calls addRecentWorkspace('beta') (slug STRING, not object), router.push('/beta'), and closes popover", async () => {
+  it("clicking beta row calls addRecentWorkspace('beta'), router.push('/beta'), and closes popover", async () => {
     const user = userEvent.setup();
     renderSwitcher();
 
@@ -279,7 +343,6 @@ describe('WorkspaceSwitcher (Surface 2 — Popover + cmdk)', () => {
     await user.click(betaRow);
 
     expect(hoisted.addRecentWorkspace).toHaveBeenCalledWith('beta');
-    // Hard contract: must be called with the STRING, never the workspace object
     expect(hoisted.addRecentWorkspace).not.toHaveBeenCalledWith(
       expect.objectContaining({ id: expect.any(String) })
     );
@@ -288,7 +351,7 @@ describe('WorkspaceSwitcher (Surface 2 — Popover + cmdk)', () => {
     expect(stubStores!.uiStore.workspaceSwitcherOpen).toBe(false);
   });
 
-  it('row at index 1 (beta) renders the ⌘2 kbd label', async () => {
+  it('first RECENT row (beta) renders the ⌘2 kbd label', async () => {
     const user = userEvent.setup();
     renderSwitcher();
 
@@ -297,7 +360,7 @@ describe('WorkspaceSwitcher (Surface 2 — Popover + cmdk)', () => {
     expect(within(betaRow).getByText('⌘2')).toBeInTheDocument();
   });
 
-  it('row at index 2 (gamma) renders the ⌘3 kbd label', async () => {
+  it('second RECENT row (gamma) renders the ⌘3 kbd label', async () => {
     const user = userEvent.setup();
     renderSwitcher();
 
@@ -306,57 +369,65 @@ describe('WorkspaceSwitcher (Surface 2 — Popover + cmdk)', () => {
     expect(within(gammaRow).getByText('⌘3')).toBeInTheDocument();
   });
 
-  it('current workspace (alpha) row renders the Check icon', async () => {
+  it('per-row role badge is rendered (beta = Admin, gamma = Guest)', async () => {
     const user = userEvent.setup();
     renderSwitcher();
 
     await user.click(screen.getByTestId('workspace-pill'));
-    expect(await screen.findByTestId('switcher-active-check-alpha')).toBeInTheDocument();
-    expect(screen.queryByTestId('switcher-active-check-beta')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('switcher-active-check-gamma')).not.toBeInTheDocument();
+    const betaRow = await screen.findByTestId('switcher-ws-beta');
+    const gammaRow = await screen.findByTestId('switcher-ws-gamma');
+    expect(within(betaRow).getByText('Admin')).toBeInTheDocument();
+    expect(within(gammaRow).getByText('Guest')).toBeInTheDocument();
   });
 
-  it('clicking JUMP TO Projects routes to /alpha/projects', async () => {
+  it('clicking AI providers row opens settings modal at ai-providers tab', async () => {
     const user = userEvent.setup();
     renderSwitcher();
 
     await user.click(screen.getByTestId('workspace-pill'));
-    await user.click(await screen.findByTestId('switcher-jump-projects'));
+    await user.click(await screen.findByTestId('switcher-current-ai-providers'));
 
-    expect(hoisted.push).toHaveBeenCalledWith('/alpha/projects');
-  });
-
-  it('clicking JUMP TO Tasks routes to /alpha/tasks (Phase 84 route — NOT /alpha/issues)', async () => {
-    const user = userEvent.setup();
-    renderSwitcher();
-
-    await user.click(screen.getByTestId('workspace-pill'));
-    await user.click(await screen.findByTestId('switcher-jump-tasks'));
-
-    expect(hoisted.push).toHaveBeenCalledWith('/alpha/tasks');
-    expect(hoisted.push).not.toHaveBeenCalledWith('/alpha/issues');
-  });
-
-  it('clicking JUMP TO Topics routes to /alpha/topics (Phase 84 route — NOT /alpha/notes)', async () => {
-    const user = userEvent.setup();
-    renderSwitcher();
-
-    await user.click(screen.getByTestId('workspace-pill'));
-    await user.click(await screen.findByTestId('switcher-jump-topics'));
-
-    expect(hoisted.push).toHaveBeenCalledWith('/alpha/topics');
-    expect(hoisted.push).not.toHaveBeenCalledWith('/alpha/notes');
-  });
-
-  it('clicking JUMP TO Settings opens the settings modal (NOT router.push)', async () => {
-    const user = userEvent.setup();
-    renderSwitcher();
-
-    await user.click(screen.getByTestId('workspace-pill'));
-    await user.click(await screen.findByTestId('switcher-jump-settings'));
-
-    expect(hoisted.openSettings).toHaveBeenCalledTimes(1);
+    expect(hoisted.openSettings).toHaveBeenCalledWith('ai-providers');
     expect(hoisted.push).not.toHaveBeenCalledWith(expect.stringContaining('/settings'));
+  });
+
+  it('clicking Members & invites row routes to /alpha/settings/members', async () => {
+    const user = userEvent.setup();
+    renderSwitcher();
+
+    await user.click(screen.getByTestId('workspace-pill'));
+    await user.click(await screen.findByTestId('switcher-current-members'));
+
+    expect(hoisted.push).toHaveBeenCalledWith('/alpha/settings/members');
+  });
+
+  it('clicking Workspace settings row opens settings modal at general tab', async () => {
+    const user = userEvent.setup();
+    renderSwitcher();
+
+    await user.click(screen.getByTestId('workspace-pill'));
+    await user.click(await screen.findByTestId('switcher-current-settings'));
+
+    expect(hoisted.openSettings).toHaveBeenCalledWith('general');
+  });
+
+  it('Leave workspace row is visible for non-owner roles', async () => {
+    const user = userEvent.setup();
+    renderSwitcher();
+
+    await user.click(screen.getByTestId('workspace-pill'));
+    expect(await screen.findByTestId('switcher-current-leave')).toBeInTheDocument();
+  });
+
+  it('Leave workspace row is hidden for owners', async () => {
+    stubStores!.authStore.setRole('id-alpha', 'OWNER');
+
+    const user = userEvent.setup();
+    renderSwitcher();
+
+    await user.click(screen.getByTestId('workspace-pill'));
+    await screen.findByTestId('switcher-current-header');
+    expect(screen.queryByTestId('switcher-current-leave')).not.toBeInTheDocument();
   });
 
   it('clicking + New workspace opens CreateWorkspaceDialog', async () => {
@@ -366,8 +437,6 @@ describe('WorkspaceSwitcher (Surface 2 — Popover + cmdk)', () => {
     await user.click(screen.getByTestId('workspace-pill'));
     await user.click(await screen.findByTestId('switcher-new-workspace'));
 
-    // Two elements share the text 'Create workspace' (dialog title h2 + submit
-    // button) — assert via the dialog role + accessible name
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByRole('heading', { name: 'Create workspace' })).toBeInTheDocument();
   });
@@ -379,7 +448,7 @@ describe('WorkspaceSwitcher (Surface 2 — Popover + cmdk)', () => {
       renderSwitcher();
     });
 
-    expect(await screen.findByText('WORKSPACES')).toBeInTheDocument();
+    expect(await screen.findByText('CURRENT')).toBeInTheDocument();
     expect(stubStores!.uiStore.workspaceSwitcherOpen).toBe(true);
   });
 });
