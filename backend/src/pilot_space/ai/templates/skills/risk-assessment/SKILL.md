@@ -1,3 +1,9 @@
+---
+name: risk-assessment
+description: Generate a risk register PM block with probability, impact, and mitigation strategies
+feature_module: null
+---
+
 # Risk Assessment Skill
 
 ## Triggers

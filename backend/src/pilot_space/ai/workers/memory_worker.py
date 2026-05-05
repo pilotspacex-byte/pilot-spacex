@@ -237,14 +237,22 @@ class MemoryWorker:
             # Runs under the worker's service_role connection — no set_rls_context needed.
             # Individual graph_embedding tasks enqueued below DO set RLS via _process().
             async with self._session_factory() as session:
+                # Join through workspaces to fall back to owner_id when
+                # graph_nodes.user_id is NULL (system-created nodes). RLS
+                # fail-closed in _process() requires actor_user_id, so the
+                # backfill MUST stamp one — otherwise jobs loop forever
+                # to dead_letter (backlog item 999.2).
                 rows = (
                     await session.execute(
                         text(
-                            "SELECT id, workspace_id FROM graph_nodes "
-                            "WHERE embedding IS NULL "
-                            "AND is_deleted = false "
-                            "AND coalesce(content, label, '') != '' "
-                            "ORDER BY created_at DESC "
+                            "SELECT n.id, n.workspace_id, "
+                            "       coalesce(n.user_id, w.owner_id) AS actor_user_id "
+                            "FROM graph_nodes n "
+                            "JOIN workspaces w ON w.id = n.workspace_id "
+                            "WHERE n.embedding IS NULL "
+                            "AND n.is_deleted = false "
+                            "AND coalesce(n.content, n.label, '') != '' "
+                            "ORDER BY n.created_at DESC "
                             "LIMIT :batch_limit"
                         ).bindparams(batch_limit=_EMBEDDING_BACKFILL_BATCH)
                     )
@@ -254,7 +262,14 @@ class MemoryWorker:
                 return
 
             enqueued = 0
+            skipped = 0
             for row in rows:
+                actor_user_id = row[2]
+                if actor_user_id is None:
+                    # No node owner AND no workspace owner — cannot stamp
+                    # RLS identity; skip rather than enqueue a doomed job.
+                    skipped += 1
+                    continue
                 try:
                     await self.queue.enqueue(
                         QueueName.AI_NORMAL,
@@ -262,11 +277,19 @@ class MemoryWorker:
                             "task_type": TASK_GRAPH_EMBEDDING,
                             "node_id": str(row[0]),
                             "workspace_id": str(row[1]),
+                            "actor_user_id": str(actor_user_id),
                         },
                     )
                     enqueued += 1
                 except Exception:
                     break  # Queue issue — stop flooding
+
+            if skipped > 0:
+                logger.warning(
+                    "MemoryWorker: backfill skipped %d graph_embedding tasks "
+                    "(no node owner and no workspace owner; RLS fail-closed)",
+                    skipped,
+                )
 
             if enqueued > 0:
                 logger.info(

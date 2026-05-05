@@ -1,3 +1,9 @@
+---
+name: retrospective
+description: Generate a sprint retrospective with KPI dashboard and action decision records
+feature_module: null
+---
+
 # Retrospective Skill
 
 ## Triggers
