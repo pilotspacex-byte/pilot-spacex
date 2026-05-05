@@ -56,7 +56,7 @@ class ProjectBootstrapper:
         claude_dir = target_path / ".claude"
         claude_dir.mkdir(parents=True, exist_ok=True)
 
-        # Copy system skills (8 skills in templates/skills/)
+        # Copy system skills (26 skills in templates/skills/; count auto-updates with directory)
         await self._copy_if_exists("skills", claude_dir)
 
         # Copy system rules

@@ -248,7 +248,13 @@ def build_mcp_servers(
     servers[SKILL_SERVER_NAME] = create_skill_tools_server(
         publisher,
         tool_context=tool_context,
-        skills_dir=None,  # TODO: pass from agent config when SpaceManager available
+        # skills_dir=None: this only affects where the skill-creator tool writes
+        # NEW user-authored skills at runtime. Bundled template skills (including
+        # generate-file) are loaded separately via space_context.skills_dir in
+        # pilotspace_agent.py:770 through materialize_role_skills / has_skill_files.
+        # Wiring space_context into build_mcp_servers requires a signature change
+        # that is out of scope here — track in a dedicated refactor task.
+        skills_dir=None,
     )
 
     # Memory recall tool — registered unconditionally (core agent capability).

@@ -131,21 +131,39 @@ else:
 
 ## Available Skills
 
-Skills are pre-built workflows accessible via `/skill-name` commands:
+Skills are pre-built workflows accessible via `/skill-name` commands. The canonical list is auto-discovered from `backend/src/pilot_space/ai/templates/skills/` at workspace bootstrap time — every subdirectory with a `SKILL.md` is hydrated into the workspace's `.claude/skills/` directory.
 
-| Skill | Purpose | Input | Output |
-|-------|---------|-------|--------|
-| `/extract-issues` | Extract issues from note | Note content | Issues with confidence tags |
-| `/enhance-issue` | Enhance issue details | Issue ID | Enhanced issue with labels/priority |
-| `/recommend-assignee` | Suggest assignee | Issue context | Assignee with rationale |
-| `/find-duplicates` | Find similar issues | Issue title/desc | Duplicate candidates |
-| `/decompose-tasks` | Break into subtasks | Issue description | Subtask list with dependencies |
-| `/generate-diagram` | Create Mermaid diagram | Description | Mermaid code |
-| `/improve-writing` | Improve clarity/style | Text content | Improved version |
-| `/summarize` | Summarize content | Content + format | Summary (bullet/brief/detailed) |
+| Skill | Purpose |
+|-------|---------|
+| `/adr-lite` | Generate a lightweight Architecture Decision Record as a Decision block |
+| `/ai-context` | Generate comprehensive AI context for issue implementation with task breakdown and Claude Code prompts |
+| `/create-note-from-chat` | Creates a structured note from a homepage chat conversation |
+| `/daily-standup` | Generate a formatted daily standup report from workspace issue activity |
+| `/decompose-tasks` | Break down issue into subtasks with dependencies using AI planning |
+| `/enhance-issue` | Enhance issue with AI-suggested labels, priority, and acceptance criteria |
+| `/extract-issues` | Extract potential issues from note content with AI confidence tagging |
+| `/find-duplicates` | Find similar/duplicate issues using semantic search with pgvector |
+| `/generate-code` | Generate production-ready code for a feature or task, writing output to a note block |
+| `/generate-diagram` | Generate Mermaid diagrams from natural language descriptions |
+| `/generate-digest` | Analyze workspace state and generate actionable insights |
+| `/generate-file` | Generate downloadable Markdown or HTML files (reports, summaries, styled docs) |
+| `/generate-migration` | Generate an Alembic database migration for schema changes with rollback procedure |
+| `/generate-pm-blocks` | Generate PM blocks (decision, risk, timeline, RACI, form, dashboard) from natural language |
+| `/improve-writing` | Improve writing clarity, conciseness, and style for technical documentation |
+| `/recommend-assignee` | Recommend assignee based on expertise matching and workload balance |
+| `/retrospective` | Generate a sprint retrospective with KPI dashboard and action decision records |
+| `/review-architecture` | Analyze system architecture in a note, identify design gaps and scalability concerns |
+| `/review-code` | Perform a code review on note content checking correctness, security, and performance |
+| `/risk-assessment` | Generate a risk register PM block with probability, impact, and mitigation strategies |
+| `/scan-security` | Scan code in a note for OWASP Top 10 vulnerabilities and write a structured report |
+| `/skill-creator` | Conversational skill creator — build, test, and refine custom skills in chat |
+| `/speckit-pm-guide` | Senior PM guide for Specification-Driven Development with spec/plan/task templates |
+| `/sprint-planning` | Generate a sprint planning checklist with tasks, assignments, and timeline |
+| `/summarize` | Summarize content in various formats (bullet points, brief, detailed) |
+| `/write-tests` | Generate comprehensive unit and integration tests, writing output to a note block |
 
 **Usage in Agent Code**:
-Skills are implemented in `backend/.claude/skills/{skill-name}/SKILL.md`. Reference skill workflows when implementing similar functionality.
+Skills are implemented in `backend/src/pilot_space/ai/templates/skills/{skill-name}/SKILL.md`. Reference skill workflows when implementing similar functionality.
 
 ---
 
